@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Интернет-магазин</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="header__left">
+        <a class="brand" href="#" aria-label="На главную">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__text">Магазин</span>
+        </a>
+      </div>
+
+      <form class="search" action="#" method="get" role="search" aria-label="Поиск">
+        <input class="search__input" type="search" name="q" placeholder="Введите запрос" />
+        <button class="search__btn" type="submit">Найти</button>
+      </form>
+
+      <nav class="header__actions" aria-label="Ссылки">
+        <a class="icon-btn" href="#" aria-label="Корзина">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2Zm10 0c-1.1 0-1.99.9-1.99 2S15.9 22 17 22s2-.9 2-2-.9-2-2-2ZM6.2 6l.94 4.5c.1.5.55.86 1.06.86h8.72c.51 0 .96-.36 1.06-.86L19.9 6H6.2ZM5.2 4h16.1c.55 0 1 .45 1 1 0 .09-.01.18-.04.27l-2.3 8.82A3.1 3.1 0 0 1 17 16H8A3.1 3.1 0 0 1 5.04 13.09L3.03 3.5H1.5a1 1 0 1 1 0-2H4c.48 0 .9.34.98.81L5.2 4Z" />
+          </svg>
+        </a>
+        <a class="icon-btn" href="#" aria-label="Личный кабинет">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z" />
+          </svg>
+        </a>
+      </nav>
+    </header>
+
+    <div class="alerts" aria-live="polite" aria-atomic="true"></div>
+
+    <main class="main">
+      <aside class="sidebar" aria-label="Фильтры">
+        <form class="filters" action="#" method="get">
+          <h2 class="filters__title">Категории</h2>
+          <div class="filters__group" role="group" aria-label="Категория товара">
+            <label class="check"><input type="checkbox" name="cat" value="1" />Категория 1</label>
+            <label class="check"><input type="checkbox" name="cat" value="2" />Категория 2</label>
+            <label class="check"><input type="checkbox" name="cat" value="3" />Категория 3</label>
+            <label class="check"><input type="checkbox" name="cat" value="4" />Категория 4</label>
+            <label class="check"><input type="checkbox" name="cat" value="5" />Категория 5</label>
+          </div>
+
+          <h2 class="filters__title">Стоимость</h2>
+          <div class="price">
+            <label class="field">
+              <span class="field__label">От</span>
+              <input class="field__input" type="number" name="min" inputmode="numeric" placeholder="0" />
+            </label>
+            <label class="field">
+              <span class="field__label">До</span>
+              <input class="field__input" type="number" name="max" inputmode="numeric" placeholder="0" />
+            </label>
+          </div>
+
+          <div class="filters__group" role="group" aria-label="Скидки">
+            <label class="check"><input type="checkbox" name="discount" value="1" />Только товары со скидками</label>
+          </div>
+
+          <button class="btn btn--block" type="submit">Применить</button>
+        </form>
+      </aside>
+
+      <section class="content" aria-label="Каталог">
+        <div class="content__head">
+          <h1 class="content__title">Каталог</h1>
+          <label class="select" aria-label="Сортировка">
+            <span class="select__label">Сортировка</span>
+            <select class="select__control" name="sort">
+              <option value="rating-desc" selected>По убыванию рейтинга</option>
+              <option value="rating-asc">По возрастанию рейтинга</option>
+              <option value="price-desc">По убыванию цены</option>
+              <option value="price-asc">По возрастанию цены</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="grid">
+          <article class="card" data-category="1" data-price="2000" data-rating="4.1" data-discount="1">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 4.1 из 5">
+                <span class="rating__value">4,1</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">2000 ₽</span>
+              <span class="price-line__old">3000 ₽</span>
+              <span class="price-line__badge">-33%</span>
+            </div>
+            <button class="btn btn--block" type="button">Добавить</button>
+          </article>
+
+          <article class="card" data-category="2" data-price="2000" data-rating="4.0" data-discount="1">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 4.0 из 5">
+                <span class="rating__value">4,0</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">2000 ₽</span>
+              <span class="price-line__old">3000 ₽</span>
+              <span class="price-line__badge">-33%</span>
+            </div>
+            <button class="btn btn--block" type="button">Добавить</button>
+          </article>
+
+          <article class="card" data-category="3" data-price="2000" data-rating="3.9" data-discount="1">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 3.9 из 5">
+                <span class="rating__value">3,9</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">2000 ₽</span>
+              <span class="price-line__old">3000 ₽</span>
+              <span class="price-line__badge">-33%</span>
+            </div>
+            <button class="btn btn--block" type="button">Добавить</button>
+          </article>
+
+          <article class="card" data-category="4" data-price="2000" data-rating="3.8" data-discount="0">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 3.8 из 5">
+                <span class="rating__value">3,8</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star"></span>
+                  <span class="star"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">2000 ₽</span>
+            </div>
+            <button class="btn btn--block" type="button">Добавить</button>
+          </article>
+
+          <article class="card" data-category="5" data-price="1590" data-rating="4.7" data-discount="1">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 4.7 из 5">
+                <span class="rating__value">4,7</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">1590 ₽</span>
+              <span class="price-line__old">1990 ₽</span>
+              <span class="price-line__badge">-20%</span>
+            </div>
+            <button class="btn btn--block" type="button">Добавить</button>
+          </article>
+
+          <article class="card" data-category="1" data-price="2500" data-rating="4.2" data-discount="0">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 4.2 из 5">
+                <span class="rating__value">4,2</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">2500 ₽</span>
+            </div>
+            <button class="btn btn--block" type="button">Добавить</button>
+          </article>
+        </div>
+
+        <button class="btn btn--load" type="button">Загрузить ещё</button>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <div class="footer__title">© 2025 Название компании</div>
+        <div class="footer__contacts">Контакты: info@example.com, +7 (000) 000-00-00</div>
+      </div>
+    </footer>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
