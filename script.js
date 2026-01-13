@@ -8,22 +8,27 @@
   const getCards = () => Array.from(grid.querySelectorAll('.card'));
 
   const parseNumber = (value) => {
-    const n = Number(String(value).replace(',', '.'));
+    if (value === null || value === undefined) return null;
+    const s = String(value).trim();
+    if (s.length === 0) return null;
+    const n = Number(s.replace(',', '.'));
     return Number.isFinite(n) ? n : null;
   };
 
   const readFilters = () => {
-    const fd = new FormData(filtersForm);
-
     const categories = new Set(
-      fd.getAll('cat')
-        .map((v) => String(v))
+      Array.from(filtersForm.querySelectorAll('input[name="cat"]:checked'))
+        .map((el) => String(el.value))
         .filter((v) => v.length > 0)
     );
 
-    const min = parseNumber(fd.get('min'));
-    const max = parseNumber(fd.get('max'));
-    const onlyDiscount = fd.get('discount') === '1';
+    const minEl = filtersForm.querySelector('input[name="min"]');
+    const maxEl = filtersForm.querySelector('input[name="max"]');
+    const discountEl = filtersForm.querySelector('input[name="discount"]');
+
+    const min = parseNumber(minEl ? minEl.value : null);
+    const max = parseNumber(maxEl ? maxEl.value : null);
+    const onlyDiscount = Boolean(discountEl && discountEl.checked);
 
     return { categories, min, max, onlyDiscount };
   };
@@ -54,7 +59,8 @@
     const cards = getCards();
 
     for (const card of cards) {
-      card.hidden = !matchesFilters(card, filters);
+      const show = matchesFilters(card, filters);
+      card.style.display = show ? '' : 'none';
     }
   };
 
@@ -89,5 +95,5 @@
     sortCards();
   });
 
-  applyAll();
+  sortCards();
 })();
