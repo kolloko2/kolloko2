@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Личный кабинет</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="header__left">
+        <a class="brand" href="index.html" aria-label="На главную">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__text">Магазин</span>
+        </a>
+      </div>
+
+      <nav class="header__actions" aria-label="Ссылки">
+        <a class="icon-btn" href="index.html" aria-label="Каталог">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+          </svg>
+        </a>
+        <a class="icon-btn" href="cart.html" aria-label="Корзина">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2Zm10 0c-1.1 0-1.99.9-1.99 2S15.9 22 17 22s2-.9 2-2-.9-2-2-2ZM6.2 6l.94 4.5c.1.5.55.86 1.06.86h8.72c.51 0 .96-.36 1.06-.86L19.9 6H6.2ZM5.2 4h16.1c.55 0 1 .45 1 1 0 .09-.01.18-.04.27l-2.3 8.82A3.1 3.1 0 0 1 17 16H8A3.1 3.1 0 0 1 5.04 13.09L3.03 3.5H1.5a1 1 0 1 1 0-2H4c.48 0 .9.34.98.81L5.2 4Z" />
+          </svg>
+        </a>
+      </nav>
+    </header>
+
+    <div class="alerts" aria-live="polite" aria-atomic="true"></div>
+
+    <main class="main main--orders">
+      <section class="orders" aria-label="Заказы">
+        <h1 class="section-title">Заказы</h1>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">№</th>
+                <th scope="col">Дата оформления</th>
+                <th scope="col">Состав заказа</th>
+                <th scope="col">Стоимость</th>
+                <th scope="col">Доставка</th>
+                <th scope="col" aria-label="Действия"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1.</td>
+                <td>06.01.2025 12:43</td>
+                <td>Название товара 1, название товара 2</td>
+                <td>6500 ₽</td>
+                <td>11.01.2025 18:00-22:00</td>
+                <td>
+                  <div class="table-actions" role="group" aria-label="Действия">
+                    <button class="icon-action" type="button" aria-label="Просмотр">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2.5A2.5 2.5 0 1 0 12 9a2.5 2.5 0 0 0 0 5.5Z" />
+                      </svg>
+                    </button>
+                    <button class="icon-action" type="button" aria-label="Редактирование">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75L21 5.75Z" />
+                      </svg>
+                    </button>
+                    <button class="icon-action" type="button" aria-label="Удаление">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 7h12l-1 14H7L6 7Zm3-3h6l1 2H8l1-2Z" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+
+              <tr>
+                <td>2.</td>
+                <td>02.01.2025 15:13</td>
+                <td>Название товара 1, название товара 2</td>
+                <td>2200 ₽</td>
+                <td>09.01.2025 08:00-12:00</td>
+                <td>
+                  <div class="table-actions" role="group" aria-label="Действия">
+                    <button class="icon-action" type="button" aria-label="Просмотр">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2.5A2.5 2.5 0 1 0 12 9a2.5 2.5 0 0 0 0 5.5Z" />
+                      </svg>
+                    </button>
+                    <button class="icon-action" type="button" aria-label="Редактирование">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75L21 5.75Z" />
+                      </svg>
+                    </button>
+                    <button class="icon-action" type="button" aria-label="Удаление">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 7h12l-1 14H7L6 7Zm3-3h6l1 2H8l1-2Z" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+
+              <tr>
+                <td>3.</td>
+                <td>...</td>
+                <td>...</td>
+                <td>...</td>
+                <td>...</td>
+                <td>
+                  <div class="table-actions" role="group" aria-label="Действия">
+                    <button class="icon-action" type="button" aria-label="Просмотр">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2.5A2.5 2.5 0 1 0 12 9a2.5 2.5 0 0 0 0 5.5Z" />
+                      </svg>
+                    </button>
+                    <button class="icon-action" type="button" aria-label="Редактирование">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.13 1.13 3.75 3.75L21 5.75Z" />
+                      </svg>
+                    </button>
+                    <button class="icon-action" type="button" aria-label="Удаление">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 7h12l-1 14H7L6 7Zm3-3h6l1 2H8l1-2Z" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Просмотр заказа" style="display:none">
+        <div class="modal__window">
+          <div class="modal__head">
+            <div class="modal__title">Просмотр заказа</div>
+            <button class="modal__close" type="button" aria-label="Закрыть">×</button>
+          </div>
+
+          <div class="modal__body">
+            <dl class="details">
+              <div class="details__row"><dt>Дата оформления</dt><dd>06.01.2025 12:43</dd></div>
+              <div class="details__row"><dt>Имя</dt><dd>Иванов Иван</dd></div>
+              <div class="details__row"><dt>Номер телефона</dt><dd>+74952230523</dd></div>
+              <div class="details__row"><dt>Email</dt><dd>example@mospolytech.ru</dd></div>
+              <div class="details__row"><dt>Адрес доставки</dt><dd>ул. Большая Семёновская, 38</dd></div>
+              <div class="details__row"><dt>Дата доставки</dt><dd>11.01.2025</dd></div>
+              <div class="details__row"><dt>Время доставки</dt><dd>18:00-22:00</dd></div>
+              <div class="details__row"><dt>Состав заказа</dt><dd>Название товара 1, Название товара 2</dd></div>
+              <div class="details__row"><dt>Стоимость</dt><dd>6500 ₽</dd></div>
+              <div class="details__row"><dt>Комментарий</dt><dd>Текст комментария</dd></div>
+            </dl>
+          </div>
+
+          <div class="modal__actions">
+            <button class="btn btn--secondary" type="button">Ок</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Редактирование заказа" style="display:none">
+        <div class="modal__window">
+          <div class="modal__head">
+            <div class="modal__title">Редактирование заказа</div>
+            <button class="modal__close" type="button" aria-label="Закрыть">×</button>
+          </div>
+
+          <form class="modal__body" action="#" method="post">
+            <div class="modal-form">
+              <label class="field">
+                <span class="field__label">Дата оформления</span>
+                <input class="field__input" type="text" value="06.01.2025 12:43" />
+              </label>
+
+              <label class="field">
+                <span class="field__label">Имя</span>
+                <input class="field__input" type="text" value="Иванов Иван" />
+              </label>
+
+              <label class="field">
+                <span class="field__label">Номер телефона</span>
+                <input class="field__input" type="text" value="+74952230523" />
+              </label>
+
+              <label class="field">
+                <span class="field__label">Email</span>
+                <input class="field__input" type="email" value="example@mospolytech.ru" />
+              </label>
+
+              <label class="field">
+                <span class="field__label">Адрес доставки</span>
+                <input class="field__input" type="text" value="ул. Большая Семёновская, 38" />
+              </label>
+
+              <label class="field">
+                <span class="field__label">Дата доставки</span>
+                <input class="field__input" type="date" value="2025-01-11" />
+              </label>
+
+              <label class="field">
+                <span class="field__label">Время доставки</span>
+                <select class="select__control">
+                  <option selected>18:00-22:00</option>
+                  <option>10:00-14:00</option>
+                  <option>14:00-18:00</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span class="field__label">Состав заказа</span>
+                <input class="field__input" type="text" value="Название товара 1, Название товара 2" />
+              </label>
+
+              <label class="field">
+                <span class="field__label">Стоимость</span>
+                <input class="field__input" type="text" value="6500 ₽" />
+              </label>
+
+              <label class="field">
+                <span class="field__label">Комментарий</span>
+                <input class="field__input" type="text" value="Текст комментария" />
+              </label>
+            </div>
+
+            <div class="modal__actions">
+              <button class="btn btn--secondary" type="button">Отмена</button>
+              <button class="btn" type="submit">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Удаление заказа" style="display:none">
+        <div class="modal__window modal__window--small">
+          <div class="modal__head">
+            <div class="modal__title">Удаление заказа</div>
+            <button class="modal__close" type="button" aria-label="Закрыть">×</button>
+          </div>
+
+          <div class="modal__body">
+            <p class="confirm-text">Вы уверены, что хотите удалить заказ?</p>
+          </div>
+
+          <div class="modal__actions">
+            <button class="btn btn--secondary" type="button">Нет</button>
+            <button class="btn" type="button">Да</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <div class="footer__title">© 2025 Название компании</div>
+        <div class="footer__contacts">Контакты: info@example.com, +7 (000) 000-00-00</div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

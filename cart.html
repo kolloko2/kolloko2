@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Корзина</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="header__left">
+        <a class="brand" href="index.html" aria-label="На главную">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__text">Магазин</span>
+        </a>
+      </div>
+
+      <nav class="header__actions" aria-label="Ссылки">
+        <a class="icon-btn" href="index.html" aria-label="Каталог">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+          </svg>
+        </a>
+        <a class="icon-btn" href="orders.html" aria-label="Личный кабинет">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z" />
+          </svg>
+        </a>
+      </nav>
+    </header>
+
+    <div class="alerts" aria-live="polite" aria-atomic="true"></div>
+
+    <main class="main main--cart">
+      <section class="cart" aria-label="Корзина">
+        <h1 class="section-title">Корзина</h1>
+
+        <div class="grid">
+          <article class="card" data-price="2000" data-rating="4.1" data-discount="1">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 4.1 из 5">
+                <span class="rating__value">4,1</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">2000 ₽</span>
+              <span class="price-line__old">3000 ₽</span>
+              <span class="price-line__badge">-33%</span>
+            </div>
+            <button class="btn btn--block btn--secondary" type="button">Удалить</button>
+          </article>
+
+          <article class="card" data-price="1590" data-rating="4.7" data-discount="1">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 4.7 из 5">
+                <span class="rating__value">4,7</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">1590 ₽</span>
+              <span class="price-line__old">1990 ₽</span>
+              <span class="price-line__badge">-20%</span>
+            </div>
+            <button class="btn btn--block btn--secondary" type="button">Удалить</button>
+          </article>
+
+          <article class="card" data-price="2500" data-rating="4.2" data-discount="0">
+            <div class="card__img" aria-label="Изображение товара" role="img"></div>
+            <h3 class="card__name">Название товара</h3>
+            <div class="card__meta">
+              <span class="rating" aria-label="Рейтинг 4.2 из 5">
+                <span class="rating__value">4,2</span>
+                <span class="stars" aria-hidden="true">
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star star--on"></span>
+                  <span class="star"></span>
+                </span>
+              </span>
+            </div>
+            <div class="price-line">
+              <span class="price-line__now">2500 ₽</span>
+            </div>
+            <button class="btn btn--block btn--secondary" type="button">Удалить</button>
+          </article>
+        </div>
+
+        <p class="cart-empty" style="display:none">Корзина пуста. Перейдите в каталог, чтобы добавить товары.</p>
+      </section>
+
+      <aside class="checkout" aria-label="Оформление заказа">
+        <h2 class="section-title">Оформление заказа</h2>
+
+        <form class="checkout__form" action="#" method="post">
+          <label class="field">
+            <span class="field__label">Имя</span>
+            <input class="field__input" type="text" name="name" autocomplete="name" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Email</span>
+            <input class="field__input" type="email" name="email" autocomplete="email" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Телефон</span>
+            <input class="field__input" type="text" name="phone" autocomplete="tel" />
+          </label>
+
+          <label class="check checkout__check">
+            <input type="checkbox" name="newsletter" />
+            <span>Согласие на получение рассылки</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Адрес доставки</span>
+            <input class="field__input" type="text" name="address" autocomplete="street-address" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Дата доставки</span>
+            <input class="field__input" type="date" name="date" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Временной интервал доставки</span>
+            <select class="select__control" name="time">
+              <option value="">Выберите</option>
+              <option value="10-14">10:00-14:00</option>
+              <option value="14-18">14:00-18:00</option>
+              <option value="18-22">18:00-22:00</option>
+            </select>
+          </label>
+
+          <label class="field checkout__comment">
+            <span class="field__label">Комментарий к заказу</span>
+            <textarea class="field__input textarea" name="comment" rows="4"></textarea>
+          </label>
+
+          <div class="checkout__actions">
+            <button class="btn btn--secondary" type="reset">Сбросить</button>
+            <button class="btn" type="submit">Оформить</button>
+          </div>
+        </form>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <div class="footer__title">© 2025 Название компании</div>
+        <div class="footer__contacts">Контакты: info@example.com, +7 (000) 000-00-00</div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
