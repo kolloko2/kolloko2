@@ -146,9 +146,10 @@
             <span class="field__label">Временной интервал доставки</span>
             <select class="select__control" name="time">
               <option value="">Выберите</option>
-              <option value="10-14">10:00-14:00</option>
-              <option value="14-18">14:00-18:00</option>
-              <option value="18-22">18:00-22:00</option>
+              <option value="08:00-12:00">08:00-12:00</option>
+              <option value="12:00-14:00">12:00-14:00</option>
+              <option value="14:00-18:00">14:00-18:00</option>
+              <option value="18:00-22:00">18:00-22:00</option>
             </select>
           </label>
 
@@ -156,6 +157,14 @@
             <span class="field__label">Комментарий к заказу</span>
             <textarea class="field__input textarea" name="comment" rows="4"></textarea>
           </label>
+
+          <div class="checkout__total" aria-label="Итоговая стоимость">
+            <div class="checkout__total-line">
+              <span class="checkout__total-label">Итоговая стоимость:</span>
+              <span class="checkout__total-value" data-total>0 ₽</span>
+            </div>
+            <div class="checkout__total-sub" data-delivery>стоимость доставки 0 ₽</div>
+          </div>
 
           <div class="checkout__actions">
             <button class="btn btn--secondary" type="reset">Сбросить</button>
@@ -167,10 +176,11 @@
 
     <footer class="footer">
       <div class="footer__inner">
-        <div class="footer__title">© 2025 Название компании</div>
-        <div class="footer__contacts">Контакты: info@example.com, +7 (000) 000-00-00</div>
+       <div class="footer__title">© 2025 Provadaem Vse Podryad</div>
+        <div class="footer__contacts">Контакты: kol.kodzaev@yandex.ru, +7 (925) 124-22-34</div>
       </div>
     </footer>
   </div>
+  <script src="script.js"></script>
 </body>
 </html>

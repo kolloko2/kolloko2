@@ -173,56 +173,57 @@
             <div class="modal-form">
               <label class="field">
                 <span class="field__label">Дата оформления</span>
-                <input class="field__input" type="text" value="06.01.2025 12:43" />
+                <input class="field__input" type="text" name="created_at" value="06.01.2025 12:43" readonly />
               </label>
 
               <label class="field">
                 <span class="field__label">Имя</span>
-                <input class="field__input" type="text" value="Иванов Иван" />
+                <input class="field__input" type="text" name="full_name" value="Иванов Иван" />
               </label>
 
               <label class="field">
                 <span class="field__label">Номер телефона</span>
-                <input class="field__input" type="text" value="+74952230523" />
+                <input class="field__input" type="text" name="phone" value="+74952230523" />
               </label>
 
               <label class="field">
                 <span class="field__label">Email</span>
-                <input class="field__input" type="email" value="example@mospolytech.ru" />
+                <input class="field__input" type="email" name="email" value="example@mospolytech.ru" />
               </label>
 
               <label class="field">
                 <span class="field__label">Адрес доставки</span>
-                <input class="field__input" type="text" value="ул. Большая Семёновская, 38" />
+                <input class="field__input" type="text" name="delivery_address" value="ул. Большая Семёновская, 38" />
               </label>
 
               <label class="field">
                 <span class="field__label">Дата доставки</span>
-                <input class="field__input" type="date" value="2025-01-11" />
+                <input class="field__input" type="date" name="delivery_date" value="2025-01-11" />
               </label>
 
               <label class="field">
                 <span class="field__label">Время доставки</span>
-                <select class="select__control">
-                  <option selected>18:00-22:00</option>
-                  <option>10:00-14:00</option>
-                  <option>14:00-18:00</option>
+                <select class="select__control" name="delivery_interval">
+                  <option value="08:00-12:00">08:00-12:00</option>
+                  <option value="12:00-14:00">12:00-14:00</option>
+                  <option value="14:00-18:00">14:00-18:00</option>
+                  <option value="18:00-22:00" selected>18:00-22:00</option>
                 </select>
               </label>
 
               <label class="field">
                 <span class="field__label">Состав заказа</span>
-                <input class="field__input" type="text" value="Название товара 1, Название товара 2" />
+                <input class="field__input" type="text" name="goods" value="Название товара 1, Название товара 2" readonly />
               </label>
 
               <label class="field">
                 <span class="field__label">Стоимость</span>
-                <input class="field__input" type="text" value="6500 ₽" />
+                <input class="field__input" type="text" name="total" value="6500 ₽" readonly />
               </label>
 
               <label class="field">
                 <span class="field__label">Комментарий</span>
-                <input class="field__input" type="text" value="Текст комментария" />
+                <input class="field__input" type="text" name="comment" value="Текст комментария" />
               </label>
             </div>
 
@@ -255,10 +256,11 @@
 
     <footer class="footer">
       <div class="footer__inner">
-        <div class="footer__title">© 2025 Название компании</div>
-        <div class="footer__contacts">Контакты: info@example.com, +7 (000) 000-00-00</div>
+          <div class="footer__title">© 2025 Provadaem Vse Podryad</div>
+        <div class="footer__contacts">Контакты: kol.kodzaev@yandex.ru, +7 (925) 124-22-34</div>
       </div>
     </footer>
   </div>
+  <script src="script.js"></script>
 </body>
 </html>
