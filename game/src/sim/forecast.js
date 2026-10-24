@@ -3,12 +3,14 @@ import { districtShares, utility, refPrice } from './demand.js';
 import { buyPrice, sellPrice } from './market.js';
 import { costIndex } from './world.js';
 import { capexFor, dailyNeed } from './units.js';
+import { serviceRevenuePerStaff } from './services.js';
 
 const FORECAST_AWARENESS = 0.35; // узнаваемость через пару месяцев при стандартной рекламе
 
 export function canBuildHere(state, lot, type) {
   const def = BUSINESSES[type];
   if (def.zoning !== lot.zoning) return false;
+  if (def.minArea && lot.area < def.minArea) return false;
   if (lot.zoning === 'farmland') return state.world.places[lot.placeId].kinds.includes(type);
   return true;
 }
@@ -53,7 +55,11 @@ export function forecast(state, lotId, type, companyId = null) {
     r.outputPrice = sellPrice(state, out, place);
     revenueDay += Math.max(0, produced - ownUse) * r.outputPrice;
   }
-  const need = dailyNeed({ type }, served, produced);
+  if (def.service) {
+    revenueDay += r.staff * serviceRevenuePerStaff(state, def, place, type);
+    r.service = true;
+  }
+  const need = dailyNeed({ type, staff: r.staff }, served, produced);
   let inputsDay = 0;
   for (const [g, q] of Object.entries(need)) inputsDay += q * buyPrice(state, g, place);
 

@@ -130,5 +130,61 @@
   "ui/loan": {
     "model": "meta/muse-image",
     "cost": 0.01
+  },
+  "business/restaurant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/supermarket": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/livestock_farm": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/meat_plant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/dairy_plant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/packaging_plant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/trucking": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/ad_agency": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/it_studio": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/warehouse": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/cheese": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/cattle": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/plastic": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/fuel": {
+    "model": "meta/muse-image",
+    "cost": 0.01
   }
 }

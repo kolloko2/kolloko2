@@ -35,6 +35,20 @@
     "ui/news": "a folded newspaper",
     "ui/help": "an open book with a bookmark",
     "ui/city": "a compact city of mixed buildings on a round base",
-    "ui/loan": "a signed paper contract with a fountain pen"
+    "ui/loan": "a signed paper contract with a fountain pen",
+    "business/restaurant": "a small elegant restaurant building with a terrace, tables and an awning",
+    "business/supermarket": "a modern supermarket building with large glass front and shopping carts",
+    "business/livestock_farm": "a brown beef cow standing next to a wooden fence and hay bales",
+    "business/meat_plant": "a meat processing plant building with a refrigerated truck at the loading dock",
+    "business/dairy_plant": "a dairy factory building with steel milk tanks and a wheel of cheese in front",
+    "business/packaging_plant": "a packaging factory building with a conveyor belt of paper cups",
+    "business/trucking": "a red semi truck with a cargo trailer",
+    "business/ad_agency": "a billboard on a stand with a megaphone in front",
+    "business/it_studio": "a desk with a laptop and a monitor showing code, with a small plant",
+    "business/warehouse": "a large logistics warehouse building with loading docks and stacked pallets",
+    "goods/cheese": "a wheel of yellow cheese with a cut wedge",
+    "goods/cattle": "a brown beef bull standing",
+    "goods/plastic": "a pile of small white plastic pellets with a sack",
+    "goods/fuel": "a red metal jerrycan of diesel fuel"
   }
 }

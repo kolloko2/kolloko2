@@ -3,6 +3,7 @@ import { GOODS } from '../data/goods.js';
 import { buyPrice, sellPrice, recordTrade } from './market.js';
 import { distanceKm } from './world.js';
 import { leadDays, transportCost, deliver, inTransit } from './logistics.js';
+import { freightFactor } from './bonuses.js';
 import {
   inputGoods, outputGood, invQty, takeInv, coverDays, lotOf, placeOf, spend, earn, pay,
 } from './units.js';
@@ -99,7 +100,7 @@ function supplyInternally(state, unit, good) {
     s.month.revInternal += qty * price;
     s.month.cogs += cost;
     s.month.shippedInternal = (s.month.shippedInternal || 0) + qty;
-    const transport = transportCost(good, qty, km, { bulk: toWarehouse });
+    const transport = transportCost(good, qty, km, { bulk: toWarehouse }) * freightFactor(state, unit.companyId, placeOf(state, unit));
     spend(state, unit, 'transport', transport);
     deliver(state, unit, good, qty, price + transport / qty, lead, s.id);
     (unit.sources ||= {})[good] = s.id; // для линий цепочек на карте

@@ -11,7 +11,7 @@ import {
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
-const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка' };
+const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка', restaurant: '🍽️ Рестораны' };
 const SUPPLY_LABEL = { internal: '🔗 своё', warehouse: '🏗️ склад', contract: '📝 контракт', market: '💹 рынок', nocash: '⛔ нет денег' };
 
 function row(label, value, cls = '') {
@@ -133,6 +133,7 @@ function renderLot(app, lot) {
     let activity;
     if (def.retail) activity = `${num(f.customers)} клиентов/день${f.competitors ? ` · конкурентов: ${f.competitors}` : ''}`;
     else if (def.production) activity = `${num(f.produced)} ${GOODS[f.output].unit}/день ${goodIcon(f.output, 'inline')}`;
+    else if (def.service) activity = `заказы ИИ-клиентов · ${def.service.bonus.toLowerCase()}`;
     else activity = `запас для точек в радиусе ${num(def.storage.radiusKm)} км`;
     html += `<div class="offer">
       <div class="offer-head"><span class="li-icon big">${bizIcon(f.type)}</span><b>${def.name}</b><span class="tier">тир ${def.tier}</span></div>
@@ -305,7 +306,12 @@ function renderUnit(app, u) {
     html += `<div class="kpi"><small>Выпуск сегодня</small><b>${num(t.produced ?? 0)} ${out.unit}</b><small>${goodIcon(def.production.recipe.output, 'inline')} ${out.name} · макс ${num(productionCapacity(state, u))}</small></div>
       <div class="kpi"><small>Цена продажи</small><b>${money(sellPrice(state, def.production.recipe.output, place), { cents: true })}</b><small>за ${out.unit} · рынок «${MARKET_REGIONS[regionOf(place)].name}»</small></div>`;
   }
+  if (def.service) {
+    html += `<div class="kpi"><small>Работают сегодня</small><b>${num(t.working ?? 0)} из ${u.staff}</b><small>${def.staff.role.toLowerCase()}</small></div>
+      <div class="kpi"><small>Заказы сегодня</small><b>${money(t.revenue ?? 0)}</b><small>от ИИ-клиентов</small></div>`;
+  }
   html += '</div>';
+  if (def.service) html += `<div class="card small">🎁 <b>Бонус компании:</b> ${def.service.bonus}.</div>`;
 
   if (def.retail) {
     html += '<h3>Цены</h3><div class="card">';

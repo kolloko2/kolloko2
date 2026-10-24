@@ -12,6 +12,8 @@ export const GOALS = [
   { id: 'property', icon: '🔑', name: 'Собственник', desc: 'Купите помещение', progress: (c) => [c.ownedLots, 1] },
   { id: 'max_level', icon: '⬆️', name: 'Лучшее оборудование', desc: 'Улучшите бизнес до 3 уровня', progress: (c) => [Math.max(0, ...c.units.map((u) => u.level)), 3] },
   { id: 'two_countries', icon: '✈️', name: 'За границей', desc: 'Бизнесы в 2 странах', progress: (c) => [c.countries.size, 2] },
+  { id: 'diversified', icon: '🧩', name: 'Конгломерат', desc: 'Владейте бизнесами 6 разных типов', progress: (c) => [c.types.size, 6] },
+  { id: 'services', icon: '🤝', name: 'Своя инфраструктура', desc: 'Откройте грузоперевозки, рекламное агентство и IT-студию', progress: (c) => [['trucking', 'ad_agency', 'it_studio'].filter((t) => c.types.has(t)).length, 3] },
   { id: 'ten_units', icon: '🏢', name: 'Сеть', desc: 'Владейте 10 бизнесами', progress: (c) => [c.units.length, 10] },
   { id: 'worth_250k', icon: '💰', name: 'Четверть миллиона', desc: 'Капитал $250 000', progress: (c) => [c.worth, 250000] },
   { id: 'five_countries', icon: '🌍', name: 'Международная компания', desc: 'Бизнесы в 5 странах', progress: (c) => [c.countries.size, 5] },

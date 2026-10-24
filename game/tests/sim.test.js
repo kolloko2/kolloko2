@@ -41,7 +41,7 @@ test('кофейня обслуживает клиентов и зарабаты
 
 test('деньги сходятся у каждой компании: касса = старт + приходы − расходы', () => {
   const s = createGame({ seed: 3, mode: 'pvp', companyNames: ['А', 'Б'] });
-  const start = { c1: 500000, c2: 3000000 };
+  const start = { c1: 500000, c2: 6000000 };
   s.companies.c1.cash = start.c1;
   s.companies.c2.cash = start.c2;
   open(s, 'nyc', 'coffee_shop', 'c1');
@@ -209,4 +209,30 @@ test('PvP: нельзя расторгнуть чужой контракт', () 
   stepDays(s, 3);
   applyCommand(s, { type: 'signContract', unitId: shop.id, good: 'cups', side: 'buy', months: 6 }, 'c1');
   assert.equal(applyCommand(s, { type: 'cancelContract', contractId: s.contracts[0].id }, 'c2').ok, false);
+});
+
+test('новые бизнесы: супермаркет только на большой площади, услуги зарабатывают и дают бонус', async () => {
+  const { canBuildHere, retailCapacity } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 19 });
+  const small = Object.values(s.world.lots).find((l) => l.zoning === 'commercial' && l.area < 120);
+  assert.equal(canBuildHere(s, small, 'supermarket'), false);
+  s.companies.c1.cash = 2000000;
+  const shop = open(s, 'ber', 'coffee_shop');
+  stepDays(s, 2);
+  const capBefore = retailCapacity(s, shop);
+  const it = open(s, 'ber', 'it_studio');
+  stepDays(s, 3);
+  assert.ok(it.today.revenue > 0, 'IT-студия зарабатывает');
+  assert.ok(retailCapacity(s, shop) > capBefore * 1.05, 'кассовое ПО ускоряет точку');
+});
+
+test('цепочка мяса: скотоводческая ферма → мясокомбинат → фастфуд', () => {
+  const s = createGame({ seed: 20 });
+  s.companies.c1.cash = 3000000;
+  open(s, 'r_pampas', 'livestock_farm');
+  const plant = open(s, 'bue', 'meat_plant');
+  const kiosk = open(s, 'bue', 'fastfood');
+  stepDays(s, 45);
+  assert.equal(plant.supplied.cattle, 'internal');
+  assert.equal(kiosk.supplied.meat, 'internal');
 });

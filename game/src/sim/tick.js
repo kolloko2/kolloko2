@@ -7,6 +7,8 @@ import { monthlyAI } from './ai.js';
 import { dailyEvents, monthlyEvents } from './events.js';
 import { checkGoals, checkVictory } from './goals.js';
 import { receiveDeliveries } from './logistics.js';
+import { runServices } from './services.js';
+import { marketingBoost } from './bonuses.js';
 import { runContracts } from './contracts.js';
 import { costIndex } from './world.js';
 import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
@@ -114,7 +116,7 @@ function updateBrand(state) {
     if (!BUSINESSES[unit.type].retail) continue;
     const lot = lotOf(state, unit);
     const idx = costIndex(placeOf(state, unit));
-    const budgetDay = unit.marketing / 30 / idx;
+    const budgetDay = (unit.marketing / 30 / idx) * marketingBoost(state, unit.companyId, placeOf(state, unit));
     const gain = 1 - Math.exp(-0.00037 * budgetDay);
     const wordOfMouth = (unit.today.customers || 0) * 0.000004 * (unit.quality - 2.5);
     const floor = 0.05 + 0.15 * lot.visibility;
@@ -209,6 +211,7 @@ export function stepDay(state) {
   for (const unit of Object.values(state.units)) unit.today = {};
   runProduction(state);
   runRetail(state);
+  runServices(state);
   updateUsage(state);
   runContracts(state);
   procureAll(state);

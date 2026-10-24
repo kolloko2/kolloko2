@@ -2,6 +2,7 @@ import { BUSINESSES, QUALITY_PER_LEVEL } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
 import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
+import { itCapacityBoost } from './bonuses.js';
 
 export function emptyMonth() {
   return {
@@ -49,7 +50,7 @@ export function monthlyRent(state, unit) {
 export function retailCapacity(state, unit) {
   const r = BUSINESSES[unit.type].retail;
   if (!r || unit.broken > 0) return 0;
-  return Math.min(unit.staff * r.perStaff, r.cap[unit.level - 1]);
+  return Math.min(unit.staff * r.perStaff, r.cap[unit.level - 1]) * itCapacityBoost(state, unit.companyId);
 }
 
 export function productionCapacity(state, unit) {
@@ -67,6 +68,7 @@ export function inputGoods(unit) {
   const goods = new Set();
   if (def.retail) for (const p of def.retail.products) for (const g of Object.keys(p.recipe)) goods.add(g);
   if (def.production) for (const g of Object.keys(def.production.recipe.inputs)) goods.add(g);
+  if (def.service) for (const g of Object.keys(def.service.inputs)) goods.add(g);
   return [...goods];
 }
 
@@ -86,6 +88,9 @@ export function dailyNeed(unit, customers, produced) {
   }
   if (def.production) {
     for (const [g, q] of Object.entries(def.production.recipe.inputs)) need[g] = (need[g] || 0) + produced * q;
+  }
+  if (def.service) {
+    for (const [g, q] of Object.entries(def.service.inputs)) need[g] = (need[g] || 0) + (unit.staff || 0) * q;
   }
   // Собственный выпуск покрывает свою потребность (пекарня печёт выпечку для своей витрины)
   const out = outputGood(unit);
@@ -130,7 +135,7 @@ export function defaultPrices(state, lot, type) {
 }
 
 export function baseQuality(unit) {
-  return 3 + QUALITY_PER_LEVEL * (unit.level - 1);
+  return (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1);
 }
 
 // Деньги: все движения кассы проходят через эти функции (для учёта и тестов).

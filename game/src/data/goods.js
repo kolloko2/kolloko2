@@ -13,6 +13,10 @@ export const GOODS = {
   pastry:         { name: 'Выпечка (опт)',       icon: '🥐', unit: 'шт', base: 0.45, depth: 150000, spoil: 0.25,   weight: 0.1 },
   meat:           { name: 'Мясо',                icon: '🥩', unit: 'кг', base: 5.0,  depth: 200000, spoil: 0.05,   weight: 1 },
   groceries:      { name: 'Товары для магазина', icon: '📦', unit: 'ед', base: 1.5,  depth: 1000000, spoil: 0.003, weight: 0.5, local: true },
+  cheese:         { name: 'Сыр',                 icon: '🧀', unit: 'кг', base: 11.0, depth: 60000,  spoil: 0.004,  weight: 1 },
+  cattle:         { name: 'Скот (живой вес)',    icon: '🐂', unit: 'кг', base: 1.6,  depth: 500000, spoil: 0.002,  weight: 1 },
+  plastic:        { name: 'Пластик (гранулы)',   icon: '🧴', unit: 'кг', base: 1.3,  depth: 800000, spoil: 0,      weight: 1 },
+  fuel:           { name: 'Дизельное топливо',   icon: '⛽', unit: 'л',  base: 0.55, depth: 5000000, spoil: 0,     weight: 0.85 },
 };
 
 // Спред: покупатель платит больше мировой цены, продавец получает меньше (посредники, фрахт).

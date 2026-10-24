@@ -61,14 +61,14 @@ export const CITIES = [
 // Сельхозрегионы: здесь только сельхозугодья. productivity — множитель выработки (механизация, климат).
 // landRent — $ за гектар в месяц.
 export const REGIONS = [
-  { id: 'r_minas', name: 'Минас-Жерайс', country: 'BR', lat: -21.55, lng: -45.43, kinds: ['coffee_plantation', 'dairy_farm'], wage: 0.20, landRent: 6, productivity: 1.2 },
+  { id: 'r_minas', name: 'Минас-Жерайс', country: 'BR', lat: -21.55, lng: -45.43, kinds: ['coffee_plantation', 'dairy_farm', 'livestock_farm'], wage: 0.20, landRent: 6, productivity: 1.2 },
   { id: 'r_coltri', name: 'Кофейный треугольник', country: 'CO', lat: 4.53, lng: -75.68, kinds: ['coffee_plantation'], wage: 0.18, landRent: 5, productivity: 1.0 },
   { id: 'r_sidamo', name: 'Сидамо', country: 'ET', lat: 6.70, lng: 38.40, kinds: ['coffee_plantation'], wage: 0.06, landRent: 2, productivity: 0.7 },
   { id: 'r_daklak', name: 'Даклак', country: 'VN', lat: 12.67, lng: 108.05, kinds: ['coffee_plantation'], wage: 0.10, landRent: 3, productivity: 1.3 },
-  { id: 'r_kansas', name: 'Канзас', country: 'US', lat: 38.50, lng: -98.00, kinds: ['wheat_farm'], wage: 0.85, landRent: 14, productivity: 2.4 },
-  { id: 'r_kuban', name: 'Кубань', country: 'RU', lat: 45.30, lng: 39.50, kinds: ['wheat_farm', 'dairy_farm'], wage: 0.25, landRent: 5, productivity: 1.3 },
+  { id: 'r_kansas', name: 'Канзас', country: 'US', lat: 38.50, lng: -98.00, kinds: ['wheat_farm', 'livestock_farm'], wage: 0.85, landRent: 14, productivity: 2.4 },
+  { id: 'r_kuban', name: 'Кубань', country: 'RU', lat: 45.30, lng: 39.50, kinds: ['wheat_farm', 'dairy_farm', 'livestock_farm'], wage: 0.25, landRent: 5, productivity: 1.3 },
   { id: 'r_beauce', name: 'Бос', country: 'FR', lat: 48.30, lng: 1.50, kinds: ['wheat_farm'], wage: 0.80, landRent: 16, productivity: 2.1 },
-  { id: 'r_pampas', name: 'Пампасы', country: 'AR', lat: -35.50, lng: -61.00, kinds: ['wheat_farm', 'dairy_farm'], wage: 0.28, landRent: 6, productivity: 1.6 },
+  { id: 'r_pampas', name: 'Пампасы', country: 'AR', lat: -35.50, lng: -61.00, kinds: ['wheat_farm', 'dairy_farm', 'livestock_farm'], wage: 0.28, landRent: 6, productivity: 1.6 },
   { id: 'r_wisc', name: 'Висконсин', country: 'US', lat: 44.50, lng: -89.50, kinds: ['dairy_farm'], wage: 0.85, landRent: 12, productivity: 2.0 },
   { id: 'r_fries', name: 'Фрисландия', country: 'NL', lat: 53.10, lng: 5.80, kinds: ['dairy_farm'], wage: 0.85, landRent: 18, productivity: 2.2 },
   { id: 'r_waikato', name: 'Уаикато', country: 'NZ', lat: -37.80, lng: 175.30, kinds: ['dairy_farm'], wage: 0.75, landRent: 10, productivity: 2.3 },
