@@ -426,3 +426,20 @@ select { max-width: 220px; padding: 4px; border: 1px solid var(--line); border-r
 .progress.warn span { background: var(--warn); }
 .progress.bad span { background: var(--neg); }
 label.row.check { cursor: pointer; font-weight: normal; }
+
+/* ---------- своя карта ---------- */
+.leaflet-container {
+  background: radial-gradient(ellipse at 50% 40%, #b9dde3 0%, #a6d0da 55%, #94c3cf 100%);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+.country-label span {
+  display: inline-block;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(90, 80, 60, 0.55);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}

@@ -4,6 +4,7 @@ import { DISTRICTS } from '../data/districts.js';
 import { GOODS } from '../data/goods.js';
 import { esc } from './format.js';
 import { bizIcon, districtIcon, uiIcon } from './icons.js';
+import { initBasemap } from './basemap.js';
 
 // Уровни карты: мир (города и регионы) → районы → участки
 const ZOOM_DISTRICTS = 9;
@@ -17,17 +18,16 @@ let routesLayer;
 let routesKey = '';
 let showRoutes = true;
 let builtVersion = -1;
+let basemap = null;
 
 const ZONING_ICON = { commercial: '🏬', industrial: '🏭', farmland: '🟫' };
 
 export function initMap(app) {
-  map = L.map('map', { worldCopyJump: true, minZoom: 2, maxZoom: 18, zoomControl: false }).setView([35, 15], 3);
+  map = L.map('map', { worldCopyJump: true, minZoom: 2, maxZoom: 17, zoomControl: false, attributionControl: false }).setView([35, 15], 3);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-  // Стандартные тайлы OpenStreetMap: без ключа, нужна только атрибуция.
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  }).addTo(map);
+  L.control.attribution({ prefix: false }).addAttribution('Карта: <a href="https://www.naturalearthdata.com/">Natural Earth</a>').addTo(map);
+  // Своя стилизованная подложка вместо тайлов: берега, страны, реки, кварталы
+  basemap = initBasemap(map, () => app.state);
   placesLayer = L.layerGroup().addTo(map);
   detailLayer = L.layerGroup().addTo(map);
   routesLayer = L.layerGroup().addTo(map);
@@ -162,7 +162,8 @@ function buildDetail(app) {
     if (rural && !bounds.pad(1).contains([d.lat, d.lng])) continue;
     if (!rural) {
       detailLayer.addLayer(L.circle([d.lat, d.lng], {
-        radius: d.radius, color: def.color, weight: 1.5, fillOpacity: showLots ? 0.05 : 0.15, interactive: false,
+        radius: d.radius * 1.08, color: def.color, weight: showLots ? 1.5 : 2, opacity: showLots ? 0.5 : 0.8,
+        dashArray: showLots ? '4 8' : null, fillColor: def.color, fillOpacity: showLots ? 0 : 0.12, interactive: false,
       }));
     }
     if (!showLots) {
@@ -196,6 +197,7 @@ function buildDetail(app) {
 export function resetMap(app) {
   builtVersion = -1;
   routesKey = '';
+  basemap?.then((b) => b.redrawCity());
   refreshMap(app, true);
 }
 

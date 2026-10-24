@@ -1,6 +1,7 @@
 import { CITIES, REGIONS } from '../data/cities.js';
 import { DISTRICTS } from '../data/districts.js';
 import { randInt, randRange, rand } from './rng.js';
+import { LAND_MASK } from '../data/landmask.js';
 
 const M_PER_DEG = 111320;
 
@@ -19,6 +20,41 @@ export function distanceKm(a, b) {
     Math.sin(dLat / 2) ** 2 +
     Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+// ---------- суша/вода (маска из Natural Earth, см. tools/map/build_map.py) ----------
+const decoded = {};
+function maskBits(placeId) {
+  if (!decoded[placeId]) {
+    const b64 = LAND_MASK[placeId]?.bits;
+    if (!b64) return null;
+    decoded[placeId] = typeof atob === 'function'
+      ? Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))
+      : Uint8Array.from(Buffer.from(b64, 'base64'));
+  }
+  return decoded[placeId];
+}
+
+export function isLand(place, lat, lng) {
+  const m = LAND_MASK[place.id];
+  const bits = maskBits(place.id);
+  if (!m || !bits) return true;
+  const half = Math.floor(m.n / 2);
+  const i = Math.round(((lng - place.lng) * M_PER_DEG * Math.cos((place.lat * Math.PI) / 180)) / m.step) + half;
+  const j = half - Math.round(((lat - place.lat) * M_PER_DEG) / m.step);
+  if (i < 0 || j < 0 || i >= m.n || j >= m.n) return true;
+  const k = j * m.n + i;
+  return (bits[k >> 3] & (1 << (k & 7))) !== 0;
+}
+
+// Доля суши в круге (по 9 точкам): район должен стоять в основном на земле
+function landShare(place, lat, lng, radius) {
+  let n = 0;
+  for (let a = 0; a < 8; a++) {
+    const p = offsetLatLng(lat, lng, Math.cos((a * Math.PI) / 4) * radius, Math.sin((a * Math.PI) / 4) * radius);
+    if (isLand(place, p.lat, p.lng)) n++;
+  }
+  return (n + (isLand(place, lat, lng) ? 1 : 0)) / 9;
 }
 
 // Расстояние центра района от центра города, м
@@ -49,9 +85,16 @@ export function generateWorld(rng) {
   const districts = {};
   const lots = {};
 
-  const addLot = (district, place, type, distance, angle) => {
+  const addLot = (district, place, type, [minDist, maxDist]) => {
     const def = DISTRICTS[type];
-    const p = offsetLatLng(district.lat, district.lng, Math.cos(angle) * distance, Math.sin(angle) * distance);
+    // участок — только на суше (несколько попыток)
+    let p;
+    for (let t = 0; t < 30; t++) {
+      const distance = randRange(rng, minDist, maxDist);
+      const angle = rand(rng) * Math.PI * 2;
+      p = offsetLatLng(district.lat, district.lng, Math.cos(angle) * distance, Math.sin(angle) * distance);
+      if (isLand(place, p.lat, p.lng)) break;
+    }
     const id = `${district.id}-${district.lotIds.length + 1}`;
     const visibility = Math.round(randRange(rng, 0.2, 1) * 100) / 100;
     let area;
@@ -94,9 +137,25 @@ export function generateWorld(rng) {
     types.forEach((type, i) => {
       const def = DISTRICTS[type];
       const ring = RING[type];
-      const dist = randRange(rng, ring[0], ring[1]);
-      const angle = baseAngle + (i / types.length) * Math.PI * 2 + randRange(rng, -0.3, 0.3);
-      const center = offsetLatLng(c.lat, c.lng, Math.cos(angle) * dist, Math.sin(angle) * dist);
+      // центр района: на суше, в основном окружён сушей и не наезжает на соседние районы
+      let center;
+      let best = -1;
+      for (let t = 0; t < 40; t++) {
+        const spread = 1 + t / 15; // если долго не выходит — ищем дальше и под любым углом
+        const dist = randRange(rng, ring[0], ring[1] * spread);
+        const angle = baseAngle + (i / types.length) * Math.PI * 2 + randRange(rng, -0.3, 0.3) * spread * 3;
+        const p = offsetLatLng(c.lat, c.lng, Math.cos(angle) * dist, Math.sin(angle) * dist);
+        const crowd = place.districtIds.some((id) => {
+          const o = districts[id];
+          return Math.hypot((o.lat - p.lat) * M_PER_DEG, (o.lng - p.lng) * M_PER_DEG * Math.cos((p.lat * Math.PI) / 180)) < 1500;
+        });
+        const score = landShare(place, p.lat, p.lng, 600) - (crowd ? 0.5 : 0);
+        if (score > best) {
+          best = score;
+          center = p;
+        }
+        if (score >= 0.85) break;
+      }
       const id = `${c.id}:${i + 1}`;
       const ai = {};
       for (const [cat, n] of Object.entries(def.ai)) {
@@ -106,9 +165,7 @@ export function generateWorld(rng) {
       districts[id] = district;
       place.districtIds.push(id);
       const n = randInt(rng, def.lots[0], def.lots[1]);
-      for (let k = 0; k < n; k++) {
-        addLot(district, place, type, randRange(rng, 80, 650), rand(rng) * Math.PI * 2);
-      }
+      for (let k = 0; k < n; k++) addLot(district, place, type, [80, 650]);
     });
   }
 
@@ -120,9 +177,7 @@ export function generateWorld(rng) {
     districts[id] = district;
     place.districtIds.push(id);
     const n = randInt(rng, DISTRICTS.rural.lots[0], DISTRICTS.rural.lots[1]);
-    for (let k = 0; k < n; k++) {
-      addLot(district, place, 'rural', randRange(rng, 3000, 18000), rand(rng) * Math.PI * 2);
-    }
+    for (let k = 0; k < n; k++) addLot(district, place, 'rural', [3000, 18000]);
   }
 
   return { places, districts, lots };

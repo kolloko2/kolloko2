@@ -7,7 +7,7 @@ import { renderPanel } from './ui/panels.js';
 import { renderDrawer, TABS } from './ui/tabs.js';
 import { money, moneyShort, signClass, esc } from './ui/format.js';
 
-const SAVE_KEY = 'magnat-save-v2';
+const SAVE_KEY = 'magnat-save-v3';
 const MP_KEY = 'magnat-mp';
 
 const app = {

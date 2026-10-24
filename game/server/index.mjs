@@ -2,6 +2,7 @@
 //   node server/index.mjs [порт]
 // Сохранения комнат — в server-data/rooms/ (можно продолжить игру по коду комнаты после перезапуска).
 import { createServer } from 'node:http';
+import { gzipSync } from 'node:zlib';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +26,9 @@ const TYPES = {
 const PUBLIC = /^\/(index\.html|styles\.css|src\/|assets\/|vendor\/|$)/;
 
 const rooms = new Map();
+// Текстовые файлы (особенно карта мира в JSON) отдаём сжатыми; сжатое держим в памяти
+const GZIP_TYPES = new Set(['.json', '.js', '.css', '.html', '.svg']);
+const gzCache = new Map();
 
 async function getRoom(code) {
   code = String(code || '').toUpperCase();
@@ -96,8 +100,15 @@ export function startServer(port = 8080) {
     }
     try {
       if ((await stat(path)).isDirectory()) path = join(path, 'index.html');
-      const body = await readFile(path);
-      res.writeHead(200, { 'Content-Type': TYPES[extname(path)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+      let body = await readFile(path);
+      const headers = { 'Content-Type': TYPES[extname(path)] || 'application/octet-stream', 'Cache-Control': 'no-cache' };
+      if (GZIP_TYPES.has(extname(path)) && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+        const key = `${path}:${body.length}`;
+        if (!gzCache.has(key)) gzCache.set(key, gzipSync(body));
+        body = gzCache.get(key);
+        headers['Content-Encoding'] = 'gzip';
+      }
+      res.writeHead(200, headers);
       res.end(body);
     } catch {
       res.writeHead(404).end('Not found');

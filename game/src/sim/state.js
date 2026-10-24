@@ -3,7 +3,7 @@ import { generateWorld } from './world.js';
 import { initMarket } from './market.js';
 import { unitAssetValue } from './units.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3; // 3: районы и участки только на суше (мир по сиду изменился)
 export const START_CASH = 50000;
 const START_DATE = Date.UTC(2000, 0, 1);
 
