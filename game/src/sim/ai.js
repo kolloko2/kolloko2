@@ -26,15 +26,16 @@ export function monthlyAI(state) {
     for (const [cat, [lo, hi]] of Object.entries(THRESHOLDS)) {
       if (!demand[cat]) continue;
       const sh = districtShares(state, d, cat);
-      const hasPlayer = Object.keys(sh.byUnit).length > 0;
+      // компании игроков, у которых есть точки этой категории в районе
+      const owners = [...new Set(Object.keys(sh.byUnit).map((id) => state.units[id].companyId))];
       const place = state.world.places[d.placeId];
       const where = `${place.name}, ${DISTRICTS[d.type].name.toLowerCase()}`;
       if (sh.aiCustomersEach > hi && chance(state.rng, 0.35)) {
         d.ai[cat] = (d.ai[cat] || 0) + 1;
-        if (hasPlayer) addNews(state, 'warn', `Конкурент открыл ${CATEGORY_NAMES[cat]} рядом с вами (${where}).`, { districtId: d.id });
+        for (const c of owners) addNews(state, 'warn', `Конкурент открыл ${CATEGORY_NAMES[cat]} рядом с вами (${where}).`, { districtId: d.id }, c);
       } else if ((d.ai[cat] || 0) > 0 && sh.aiCustomersEach < lo && chance(state.rng, 0.35)) {
         d.ai[cat]--;
-        if (hasPlayer) addNews(state, 'good', `Конкурент закрыл ${CATEGORY_NAMES[cat]} не выдержав конкуренции (${where}).`, { districtId: d.id });
+        for (const c of owners) addNews(state, 'good', `Конкурент закрыл ${CATEGORY_NAMES[cat]}, не выдержав конкуренции (${where}).`, { districtId: d.id }, c);
       }
     }
   }

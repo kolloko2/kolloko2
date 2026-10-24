@@ -3,45 +3,41 @@ import { sellPrice, recordTrade } from './market.js';
 import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { canBuildHere, forecast } from './forecast.js';
-import { addNews, loanLimit } from './state.js';
-import { emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv } from './units.js';
+import { addNews, loanLimit, companyUnits } from './state.js';
+import { emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv, pay, receive } from './units.js';
 
-// Все действия игрока — команды. Функция возвращает { ok } или { ok: false, error }.
-// В мультиплеере эти же команды будет применять сервер.
+// Все действия игрока — команды. applyCommand(state, cmd, companyId) возвращает { ok } или { ok: false, error }.
+// companyId — от чьего имени действие: в соло его подставляет локальная сессия, в мультиплеере — сервер
+// (клиент не может выдать себя за другую компанию).
 
 const fail = (error) => ({ ok: false, error });
 const OK = { ok: true };
+const fmt = (n) => `$${Math.round(n).toLocaleString('ru-RU')}`;
 
-function pay(state, amount) {
-  state.company.cash -= amount;
-  state.company.totals.out += amount;
-}
-
-function receive(state, amount) {
-  state.company.cash += amount;
-  state.company.totals.in += amount;
-}
-
-function getUnit(state, id) {
-  return state.units[id] || null;
+function ownUnit(state, id, companyId) {
+  const u = state.units[id];
+  return u && u.companyId === companyId ? u : null;
 }
 
 const handlers = {
-  openBusiness(state, { lotId, businessType }) {
+  openBusiness(state, { lotId, businessType }, companyId) {
     const lot = state.world.lots[lotId];
     const def = BUSINESSES[businessType];
+    const co = state.companies[companyId];
     if (!lot || !def) return fail('Неизвестный участок или тип бизнеса');
     if (lot.unitId) return fail('Участок уже занят');
+    if (lot.ownerId && lot.ownerId !== companyId) return fail(`Помещение принадлежит компании «${state.companies[lot.ownerId].name}»`);
     if (!canBuildHere(state, lot, businessType)) return fail('Здесь нельзя открыть такой бизнес');
     const capex = capexFor(state, lot, businessType);
-    if (state.company.cash < capex) return fail(`Не хватает денег: нужно $${capex.toLocaleString('ru-RU')}`);
+    if (co.cash < capex) return fail(`Не хватает денег: нужно ${fmt(capex)}`);
     const place = state.world.places[lot.placeId];
-    const fc = forecast(state, lotId, businessType);
-    pay(state, capex);
-    const sameType = Object.values(state.units).filter((u) => u.type === businessType).length;
+    const fc = forecast(state, lotId, businessType, companyId);
+    pay(state, companyId, capex);
+    const sameType = companyUnits(state, companyId).filter((u) => u.type === businessType).length;
     const id = `u${state.nextUnitId++}`;
     const unit = {
       id,
+      companyId,
       type: businessType,
       name: `${def.name} №${sameType + 1}`,
       lotId,
@@ -65,16 +61,16 @@ const handlers = {
       broken: 0,
       bookValue: capex,
     };
-    unit.usage = dailyNeed(unit, fc.customers, def.production ? productionCapacity(state, { ...unit }) : 0);
+    unit.usage = dailyNeed(unit, fc.customers, def.production ? productionCapacity(state, unit) : 0);
     state.units[id] = unit;
     lot.unitId = id;
     state.mapVersion++;
-    addNews(state, 'good', `Открыт бизнес «${unit.name}» — ${place.name}. Вложено $${capex.toLocaleString('ru-RU')}.`, { unitId: id });
+    addNews(state, 'good', `Открыт бизнес «${unit.name}» — ${place.name}. Вложено ${fmt(capex)}.`, { unitId: id }, companyId);
     return { ok: true, unitId: id };
   },
 
-  closeBusiness(state, { unitId }) {
-    const unit = getUnit(state, unitId);
+  closeBusiness(state, { unitId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
     let cash = 0;
     for (const [g, s] of Object.entries(unit.inv)) {
@@ -84,16 +80,16 @@ const handlers = {
       takeInv(unit, g, s.q);
     }
     cash += unit.bookValue * 0.3;
-    receive(state, cash);
+    receive(state, companyId, cash);
     state.world.lots[unit.lotId].unitId = null;
     delete state.units[unitId];
     state.mapVersion++;
-    addNews(state, 'info', `«${unit.name}» закрыт. Оборудование и запасы проданы за $${Math.round(cash).toLocaleString('ru-RU')}.`);
+    addNews(state, 'info', `«${unit.name}» закрыт. Оборудование и запасы проданы за ${fmt(cash)}.`, null, companyId);
     return OK;
   },
 
-  setPrice(state, { unitId, productId, price }) {
-    const unit = getUnit(state, unitId);
+  setPrice(state, { unitId, productId, price }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
     const product = BUSINESSES[unit.type].retail?.products.find((p) => p.id === productId);
     if (!product) return fail('Нет такого продукта');
@@ -103,8 +99,8 @@ const handlers = {
     return OK;
   },
 
-  setStaff(state, { unitId, staff }) {
-    const unit = getUnit(state, unitId);
+  setStaff(state, { unitId, staff }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
     const s = BUSINESSES[unit.type].staff;
     if (!Number.isInteger(staff) || staff < s.min || staff > s.max) return fail(`Персонал: от ${s.min} до ${s.max}`);
@@ -112,42 +108,42 @@ const handlers = {
     return OK;
   },
 
-  setMarketing(state, { unitId, budget }) {
-    const unit = getUnit(state, unitId);
+  setMarketing(state, { unitId, budget }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
     if (!(budget >= 0) || budget > 1e6) return fail('Недопустимый бюджет');
     unit.marketing = Math.round(budget);
     return OK;
   },
 
-  setSellMode(state, { unitId, mode }) {
-    const unit = getUnit(state, unitId);
+  setSellMode(state, { unitId, mode }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
     if (!['auto', 'all', 'hold'].includes(mode)) return fail('Неизвестный режим');
     unit.sellMode = mode;
     return OK;
   },
 
-  upgrade(state, { unitId }) {
-    const unit = getUnit(state, unitId);
+  upgrade(state, { unitId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
     if (unit.level >= MAX_LEVEL) return fail('Максимальный уровень');
     const cost = upgradeCost(state, unit);
-    if (state.company.cash < cost) return fail(`Не хватает денег: нужно $${cost.toLocaleString('ru-RU')}`);
-    pay(state, cost);
+    if (state.companies[companyId].cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
+    pay(state, companyId, cost);
     unit.level++;
     unit.bookValue += cost;
-    addNews(state, 'good', `«${unit.name}» улучшен до уровня ${unit.level}.`, { unitId });
+    addNews(state, 'good', `«${unit.name}» улучшен до уровня ${unit.level}.`, { unitId }, companyId);
     return OK;
   },
 
-  copySettings(state, { unitId }) {
-    const src = getUnit(state, unitId);
+  copySettings(state, { unitId }, companyId) {
+    const src = ownUnit(state, unitId, companyId);
     if (!src) return fail('Нет такого бизнеса');
     const def = BUSINESSES[src.type];
     const srcPlace = state.world.places[src.placeId];
     let n = 0;
-    for (const u of Object.values(state.units)) {
+    for (const u of companyUnits(state, companyId)) {
       if (u.id === src.id || u.type !== src.type) continue;
       const place = state.world.places[u.placeId];
       if (def.retail) {
@@ -163,51 +159,58 @@ const handlers = {
     return { ok: true, count: n };
   },
 
-  takeLoan(state, { amount }) {
-    const co = state.company;
+  takeLoan(state, { amount }, companyId) {
+    const co = state.companies[companyId];
     if (!(amount > 0)) return fail('Сумма должна быть больше нуля');
-    const limit = loanLimit(state);
-    if (co.loan + amount > limit) return fail(`Банк одобряет максимум $${Math.max(0, limit - co.loan).toLocaleString('ru-RU')}`);
+    const limit = loanLimit(state, companyId);
+    if (co.loan + amount > limit) return fail(`Банк одобряет максимум ${fmt(Math.max(0, limit - co.loan))}`);
     co.loan += amount;
-    receive(state, amount);
-    addNews(state, 'info', `Получен кредит $${amount.toLocaleString('ru-RU')} под ${Math.round(co.loanRate * 100)}% годовых.`);
+    receive(state, companyId, amount);
+    addNews(state, 'info', `Получен кредит ${fmt(amount)} под ${Math.round(co.loanRate * 100)}% годовых.`, null, companyId);
     return OK;
   },
 
-  repayLoan(state, { amount }) {
-    const co = state.company;
+  repayLoan(state, { amount }, companyId) {
+    const co = state.companies[companyId];
     const a = Math.min(amount, co.loan, Math.max(0, co.cash));
     if (!(a > 0)) return fail('Нечего гасить или нет денег');
     co.loan -= a;
-    pay(state, a);
+    pay(state, companyId, a);
     return OK;
   },
 
-  buyLot(state, { lotId }) {
+  // Покупка помещения у города. Если там арендатор-конкурент (PvP), его аренда пойдёт вам.
+  buyLot(state, { lotId }, companyId) {
     const lot = state.world.lots[lotId];
     if (!lot) return fail('Нет такого участка');
-    if (lot.owned) return fail('Уже ваш');
-    if (state.company.cash < lot.price) return fail(`Не хватает денег: нужно $${lot.price.toLocaleString('ru-RU')}`);
-    pay(state, lot.price);
-    lot.owned = true;
+    if (lot.ownerId === companyId) return fail('Уже ваш');
+    if (lot.ownerId) return fail(`Помещение уже принадлежит компании «${state.companies[lot.ownerId].name}»`);
+    if (state.companies[companyId].cash < lot.price) return fail(`Не хватает денег: нужно ${fmt(lot.price)}`);
+    pay(state, companyId, lot.price);
+    lot.ownerId = companyId;
     state.mapVersion++;
-    addNews(state, 'good', `Куплена недвижимость за $${lot.price.toLocaleString('ru-RU')}. Аренда больше не нужна.`);
+    const tenant = lot.unitId ? state.units[lot.unitId] : null;
+    if (tenant && tenant.companyId !== companyId) {
+      addNews(state, 'warn', `Компания «${state.companies[companyId].name}» купила помещение «${tenant.name}». Теперь аренда идёт ей.`, { unitId: tenant.id }, tenant.companyId);
+    }
+    addNews(state, 'good', `Куплена недвижимость за ${fmt(lot.price)}.`, null, companyId);
     return OK;
   },
 
-  sellLot(state, { lotId }) {
+  sellLot(state, { lotId }, companyId) {
     const lot = state.world.lots[lotId];
-    if (!lot || !lot.owned) return fail('Это не ваш участок');
-    receive(state, lot.price * 0.95);
-    lot.owned = false;
+    if (!lot || lot.ownerId !== companyId) return fail('Это не ваш участок');
+    receive(state, companyId, lot.price * 0.95);
+    lot.ownerId = null;
     state.mapVersion++;
     return OK;
   },
 
-  renameCompany(state, { name }) {
+  renameCompany(state, { name }, companyId) {
     const n = String(name || '').trim().slice(0, 40);
     if (!n) return fail('Пустое название');
-    state.company.name = n;
+    state.companies[companyId].name = n;
+    state.mapVersion++;
     return OK;
   },
 };
@@ -217,9 +220,13 @@ export function upgradeCost(state, unit) {
   return Math.round(def.capex * costIndex(state.world.places[unit.placeId]) * UPGRADE_COST_FACTOR * unit.level);
 }
 
-export function applyCommand(state, cmd) {
-  if (state.company.bankrupt) return fail('Компания обанкротилась');
-  const h = handlers[cmd.type];
-  if (!h) return fail(`Неизвестная команда ${cmd.type}`);
-  return h(state, cmd);
+export const COMMAND_TYPES = Object.keys(handlers);
+
+export function applyCommand(state, cmd, companyId) {
+  const co = state.companies[companyId];
+  if (!co) return fail('Нет такой компании');
+  if (co.bankrupt) return fail('Компания обанкротилась');
+  const h = handlers[cmd?.type];
+  if (!h) return fail(`Неизвестная команда ${cmd?.type}`);
+  return h(state, cmd, companyId);
 }

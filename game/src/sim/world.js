@@ -79,7 +79,7 @@ export function generateWorld(rng) {
       visibility,
       rent: Math.round(rent),
       price: Math.round(rent * 110),
-      owned: false,
+      ownerId: null, // компания-владелец помещения (иначе — аренда у города)
       unitId: null,
     };
     lots[id] = lot;

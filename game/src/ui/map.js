@@ -49,15 +49,17 @@ export function flyToLot(lot) {
   map.flyTo([lot.lat, lot.lng], Math.max(map.getZoom(), rural ? 12 : 16), { duration: 1.0 });
 }
 
-function unitsByPlace(state) {
+// Счётчики показывают только бизнесы своей компании
+function unitsByPlace(state, companyId) {
   const counts = {};
-  for (const u of Object.values(state.units)) counts[u.placeId] = (counts[u.placeId] || 0) + 1;
+  for (const u of Object.values(state.units)) if (u.companyId === companyId) counts[u.placeId] = (counts[u.placeId] || 0) + 1;
   return counts;
 }
 
-function unitsByDistrict(state) {
+function unitsByDistrict(state, companyId) {
   const counts = {};
   for (const u of Object.values(state.units)) {
+    if (u.companyId !== companyId) continue;
     const d = state.world.lots[u.lotId].districtId;
     counts[d] = (counts[d] || 0) + 1;
   }
@@ -78,7 +80,7 @@ function placeIcon(place, count) {
 function buildPlaces(app) {
   placesLayer.clearLayers();
   const { state } = app;
-  const counts = unitsByPlace(state);
+  const counts = unitsByPlace(state, app.companyId);
   for (const place of Object.values(state.world.places)) {
     // крупные города поверх мелких и поверх сельских регионов
     const z = place.kind === 'city' ? Math.round(place.pop * 10) : -500;
@@ -91,23 +93,37 @@ function buildPlaces(app) {
   }
 }
 
-function lotIcon(app, lot) {
+// Маркеры участков на экране: lotId → { marker, html }. Значок меняем, только если он изменился,
+// иначе частые обновления (в мультиплеере — несколько раз в секунду) «съедали» бы клики.
+const lotMarkers = new Map();
+
+function lotHtml(app, lot) {
   const { state, selection } = app;
   const unit = lot.unitId ? state.units[lot.unitId] : null;
   const selected = selection && ((selection.kind === 'lot' && selection.id === lot.id) || (unit && selection.kind === 'unit' && selection.id === unit.id));
   let html;
-  if (unit) {
+  const sel = selected ? ' selected' : '';
+  const key = lot.ownerId === app.companyId ? '<span class="key">🔑</span>' : '';
+  if (unit && unit.companyId === app.companyId) {
     const warn = unit.today?.stockout || unit.broken > 0 || unit.today?.inputShort ? '<span class="warn-dot"></span>' : '';
-    html = `<div class="lot lot-own${selected ? ' selected' : ''}" title="${esc(unit.name)}">${bizIcon(unit.type)}${warn}</div>`;
+    html = `<div class="lot lot-own${sel}" title="${esc(unit.name)}">${bizIcon(unit.type)}${warn}${key}</div>`;
+  } else if (unit) {
+    // бизнес другого игрока — рамка цвета его компании
+    const co = state.companies[unit.companyId];
+    html = `<div class="lot lot-rival${sel}" style="--rc:${co?.color}" title="${esc(unit.name)} · ${esc(co?.name ?? '')}">${bizIcon(unit.type)}${key}</div>`;
   } else {
-    const key = lot.owned ? '<span class="key">🔑</span>' : '';
-    html = `<div class="lot lot-free ${lot.zoning}${selected ? ' selected' : ''}">${ZONING_ICON[lot.zoning]}${key}</div>`;
+    html = `<div class="lot lot-free ${lot.zoning}${sel}">${ZONING_ICON[lot.zoning]}${key}</div>`;
   }
+  return html;
+}
+
+function makeLotIcon(html) {
   return L.divIcon({ className: 'lot-wrap', html, iconSize: [30, 30], iconAnchor: [15, 15] });
 }
 
 function buildDetail(app) {
   detailLayer.clearLayers();
+  lotMarkers.clear();
   const { state } = app;
   const zoom = map.getZoom();
   // Близко к земле маркеры городов только мешают кликать по районам
@@ -115,7 +131,7 @@ function buildDetail(app) {
   else if (!map.hasLayer(placesLayer)) placesLayer.addTo(map);
   if (zoom < ZOOM_DISTRICTS) return;
   const bounds = map.getBounds().pad(0.3);
-  const counts = unitsByDistrict(state);
+  const counts = unitsByDistrict(state, app.companyId);
   for (const d of Object.values(state.world.districts)) {
     if (!bounds.contains([d.lat, d.lng]) && d.type !== 'rural') continue;
     const def = DISTRICTS[d.type];
@@ -145,14 +161,32 @@ function buildDetail(app) {
     }
     for (const lotId of d.lotIds) {
       const lot = state.world.lots[lotId];
-      const m = L.marker([lot.lat, lot.lng], { icon: lotIcon(app, lot), riseOnHover: true });
+      const html = lotHtml(app, lot);
+      const m = L.marker([lot.lat, lot.lng], { icon: makeLotIcon(html), riseOnHover: true });
       m.on('click', () => app.select(lot.unitId ? { kind: 'unit', id: lot.unitId } : { kind: 'lot', id: lot.id }));
       detailLayer.addLayer(m);
+      lotMarkers.set(lot.id, { marker: m, html });
     }
   }
 }
 
-// force — перестроить слой районов/участков (после перемещения карты или выбора)
+// Новая игра или переход в комнату: перестроить карту целиком
+export function resetMap(app) {
+  builtVersion = -1;
+  refreshMap(app, true);
+}
+
+function updateLotIcons(app) {
+  for (const [id, entry] of lotMarkers) {
+    const html = lotHtml(app, app.state.world.lots[id]);
+    if (html === entry.html) continue;
+    entry.html = html;
+    entry.marker.setIcon(makeLotIcon(html));
+  }
+}
+
+// force — перестроить слой районов/участков (после перемещения карты).
+// Без force: перестраиваем, только если изменились владельцы участков, иначе лишь обновляем значки.
 export function refreshMap(app, force = false) {
   if (!map) return;
   const version = app.state.mapVersion;
@@ -162,9 +196,10 @@ export function refreshMap(app, force = false) {
     force = true;
   }
   if (force) buildDetail(app);
+  else updateLotIcons(app);
 }
 
-// Обновить предупреждения на иконках своих бизнесов (раз в игровой день)
+// Раз в игровой день: предупреждения на значках своих бизнесов
 export function refreshWarnings(app) {
-  if (map && map.getZoom() >= ZOOM_LOTS_RURAL) buildDetail(app);
+  refreshMap(app);
 }

@@ -6,10 +6,10 @@ import { procureAll, sellSurplus, spoilAll } from './supply.js';
 import { monthlyAI } from './ai.js';
 import { dailyEvents, monthlyEvents } from './events.js';
 import { costIndex } from './world.js';
-import { dateOf, addNews, netWorth, monthLabel } from './state.js';
+import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
 import {
   emptyMonth, monthProfit, retailCapacity, productionCapacity, dailyNeed, invQty, takeInv, addInv,
-  lotOf, placeOf, spend, earn, monthlyWage, monthlyRent, monthlyUpkeep, baseQuality,
+  lotOf, placeOf, spend, earn, spendCompany, earnCompany, monthlyWage, monthlyRent, monthlyUpkeep, baseQuality,
 } from './units.js';
 
 const BANKRUPT_DAYS = 45;
@@ -91,13 +91,18 @@ function updateUsage(state) {
 function dailyCosts(state) {
   for (const unit of Object.values(state.units)) {
     spend(state, unit, 'wages', (unit.staff * monthlyWage(state, unit)) / 30);
-    spend(state, unit, 'rent', monthlyRent(state, unit) / 30);
+    const rent = monthlyRent(state, unit) / 30;
+    spend(state, unit, 'rent', rent);
+    // помещение принадлежит другой компании — аренда идёт ей
+    const owner = lotOf(state, unit).ownerId;
+    if (owner && owner !== unit.companyId && state.companies[owner]) earnCompany(state, owner, 'rentIncome', rent);
     spend(state, unit, 'upkeep', monthlyUpkeep(state, unit) / 30);
     spend(state, unit, 'marketing', unit.marketing / 30);
     unit.month.days++;
   }
-  const co = state.company;
-  if (co.loan > 0) spend(state, null, 'interest', (co.loan * co.loanRate) / 365);
+  for (const co of activeCompanies(state)) {
+    if (co.loan > 0) spendCompany(state, co.id, 'interest', (co.loan * co.loanRate) / 365);
+  }
 }
 
 function updateBrand(state) {
@@ -117,59 +122,82 @@ function updateBrand(state) {
   }
 }
 
+// Банкротство: бизнесы компании закрываются, помещения возвращаются городу
+function liquidate(state, co) {
+  co.bankrupt = true;
+  for (const unit of companyUnits(state, co.id)) {
+    state.world.lots[unit.lotId].unitId = null;
+    delete state.units[unit.id];
+  }
+  for (const lot of Object.values(state.world.lots)) if (lot.ownerId === co.id) lot.ownerId = null;
+  state.mapVersion++;
+  const others = state.mode === 'pvp' ? null : co.id;
+  addNews(state, 'bad', state.mode === 'pvp' ? `Компания «${co.name}» обанкротилась! Её точки закрыты.` : 'Компания объявлена банкротом. Игра окончена.', null, others);
+}
+
 function checkSolvency(state) {
-  const co = state.company;
-  if (co.cash < 0) {
-    co.negativeDays++;
-    if (co.negativeDays === 1) addNews(state, 'bad', 'Касса ушла в минус! Возьмите кредит или сократите расходы.');
-    if (co.negativeDays === 30) addNews(state, 'bad', `Касса в минусе 30 дней. Через ${BANKRUPT_DAYS - 30} дней — банкротство.`);
-    if (co.negativeDays >= BANKRUPT_DAYS) {
-      co.bankrupt = true;
-      addNews(state, 'bad', 'Компания объявлена банкротом. Игра окончена.');
+  for (const co of activeCompanies(state)) {
+    if (co.cash < 0) {
+      co.negativeDays++;
+      if (co.negativeDays === 1) addNews(state, 'bad', 'Касса ушла в минус! Возьмите кредит или сократите расходы.', null, co.id);
+      if (co.negativeDays === 30) addNews(state, 'bad', `Касса в минусе 30 дней. Через ${BANKRUPT_DAYS - 30} дней — банкротство.`, null, co.id);
+      if (co.negativeDays >= BANKRUPT_DAYS) liquidate(state, co);
+    } else {
+      co.negativeDays = 0;
     }
-  } else {
-    co.negativeDays = 0;
   }
 }
 
-function monthEnd(state) {
-  const co = state.company;
+function closeCompanyMonth(state, co, units) {
   const byCountry = {};
   let revenue = 0;
   let profit = 0;
-  for (const unit of Object.values(state.units)) {
-    const p = monthProfit(unit.month);
-    unit.last = unit.month;
-    unit.history.push(Math.round(p));
-    if (unit.history.length > 24) unit.history.shift();
-    unit.month = emptyMonth();
-    unit.bookValue *= 0.99;
+  for (const unit of units) {
+    const p = monthProfit(unit.last);
     const c = placeOf(state, unit).country;
     byCountry[c] = (byCountry[c] || 0) + p;
     revenue += unit.last.revenue;
     profit += p;
   }
   for (const [c, p] of Object.entries(byCountry)) {
-    if (p > 0) spend(state, null, 'tax', p * COUNTRIES[c].tax);
+    if (p > 0) spendCompany(state, co.id, 'tax', p * COUNTRIES[c].tax);
   }
-  profit -= (co.month.interest || 0) + (co.month.tax || 0);
+  const m = co.month;
+  profit += (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0);
   co.history.push({
     label: monthLabel(state.day),
     revenue: Math.round(revenue),
     profit: Math.round(profit),
-    interest: Math.round(co.month.interest || 0),
-    tax: Math.round(co.month.tax || 0),
+    interest: Math.round(m.interest || 0),
+    tax: Math.round(m.tax || 0),
+    rentIncome: Math.round(m.rentIncome || 0),
     cash: Math.round(co.cash),
-    netWorth: Math.round(netWorth(state)),
+    netWorth: Math.round(netWorth(state, co.id)),
   });
   if (co.history.length > 120) co.history.shift();
   co.month = { interest: 0, tax: 0 };
+}
+
+function monthEnd(state) {
+  for (const unit of Object.values(state.units)) {
+    unit.last = unit.month;
+    unit.history.push(Math.round(monthProfit(unit.month)));
+    if (unit.history.length > 24) unit.history.shift();
+    unit.month = emptyMonth();
+    unit.bookValue *= 0.99;
+  }
+  for (const co of activeCompanies(state)) closeCompanyMonth(state, co, companyUnits(state, co.id));
   monthlyAI(state);
   monthlyEvents(state);
 }
 
+// Игра идёт, пока жива хотя бы одна компания
+export function isOver(state) {
+  return activeCompanies(state).length === 0;
+}
+
 export function stepDay(state) {
-  if (state.company.bankrupt) return;
+  if (isOver(state)) return;
   updateMarket(state);
   for (const unit of Object.values(state.units)) unit.today = {};
   runProduction(state);

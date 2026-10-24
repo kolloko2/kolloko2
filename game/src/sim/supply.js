@@ -2,7 +2,7 @@ import { GOODS, TRANSPORT_PER_KG_KM, TRANSPORT_HANDLING_PER_KG } from '../data/g
 import { buyPrice, sellPrice, recordTrade } from './market.js';
 import { distanceKm } from './world.js';
 import {
-  inputGoods, outputGood, invQty, addInv, takeInv, coverDays, lotOf, spend, earn,
+  inputGoods, outputGood, invQty, addInv, takeInv, coverDays, lotOf, spend, earn, pay,
 } from './units.js';
 
 export function transportCost(good, qty, km) {
@@ -13,23 +13,20 @@ function selfReserve(unit, good) {
   return (unit.usage[good] || 0) * coverDays(good);
 }
 
-// Сколько этого товара ежедневно нужно другим бизнесам компании
-function internalDemand(state, good, exceptId) {
+// Сколько этого товара ежедневно нужно другим бизнесам той же компании
+function internalDemand(state, unit, good) {
   let sum = 0;
-  for (const u of Object.values(state.units)) if (u.id !== exceptId) sum += u.usage[good] || 0;
+  for (const u of Object.values(state.units)) {
+    if (u.id !== unit.id && u.companyId === unit.companyId) sum += u.usage[good] || 0;
+  }
   return sum;
-}
-
-function payInventory(state, amount) {
-  state.company.cash -= amount;
-  state.company.totals.out += amount;
 }
 
 // Внутренняя поставка от своих производств (по рыночной цене продажи + перевозка)
 function supplyInternally(state, unit, good, deficit) {
   const here = lotOf(state, unit);
   const sources = Object.values(state.units)
-    .filter((s) => s.id !== unit.id && outputGood(s) === good)
+    .filter((s) => s.id !== unit.id && s.companyId === unit.companyId && outputGood(s) === good)
     .map((s) => ({ s, km: distanceKm(here, lotOf(state, s)) }))
     .sort((a, b) => a.km - b.km);
   for (const { s, km } of sources) {
@@ -53,13 +50,13 @@ function supplyInternally(state, unit, good, deficit) {
 
 function buyOnMarket(state, unit, good, qty) {
   const price = buyPrice(state, good, state.world.places[unit.placeId]);
-  const affordable = Math.max(0, state.company.cash) / price;
+  const affordable = Math.max(0, state.companies[unit.companyId].cash) / price;
   const q = Math.min(qty, affordable);
   if (q <= 0) {
     unit.supplied[good] = 'nocash';
     return;
   }
-  payInventory(state, q * price);
+  pay(state, unit.companyId, q * price);
   addInv(unit, good, q, price);
   recordTrade(state, good, -q);
   if (unit.supplied[good] !== 'internal') unit.supplied[good] = 'market';
@@ -86,7 +83,7 @@ export function sellSurplus(state) {
     const good = outputGood(unit);
     if (!good || unit.sellMode === 'hold') continue;
     let reserve = selfReserve(unit, good);
-    if (unit.sellMode === 'auto') reserve += internalDemand(state, good, unit.id) * coverDays(good);
+    if (unit.sellMode === 'auto') reserve += internalDemand(state, unit, good) * coverDays(good);
     const qty = invQty(unit, good) - reserve;
     if (qty <= 0) continue;
     const price = sellPrice(state, good);

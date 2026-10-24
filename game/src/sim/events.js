@@ -34,15 +34,15 @@ export function monthlyEvents(state) {
       if (unit.quality < 2.8) {
         const fine = Math.round(1500 * costIndex(placeOf(state, unit)));
         spend(state, unit, 'other', fine);
-        addNews(state, 'bad', `Санинспекция в «${unit.name}»: нарушения, штраф $${fine}.`, { unitId: unit.id });
+        addNews(state, 'bad', `Санинспекция в «${unit.name}»: нарушения, штраф $${fine}.`, { unitId: unit.id }, unit.companyId);
       } else {
         unit.awareness = Math.min(0.95, unit.awareness + 0.02);
-        addNews(state, 'info', `Санинспекция в «${unit.name}» прошла без замечаний.`, { unitId: unit.id });
+        addNews(state, 'info', `Санинспекция в «${unit.name}» прошла без замечаний.`, { unitId: unit.id }, unit.companyId);
       }
     }
-    if (!lot.owned && chance(rng, 0.02)) {
+    if (!lot.ownerId && chance(rng, 0.02)) {
       lot.rent = Math.round(lot.rent * 1.12);
-      addNews(state, 'warn', `Арендодатель поднял аренду для «${unit.name}» до $${lot.rent}/мес. Можно выкупить помещение.`, { unitId: unit.id });
+      addNews(state, 'warn', `Арендодатель поднял аренду для «${unit.name}» до $${lot.rent}/мес. Можно выкупить помещение.`, { unitId: unit.id }, unit.companyId);
     }
   }
 }
@@ -55,11 +55,11 @@ export function dailyEvents(state) {
       unit.broken = 2;
       const cost = Math.round(def.capex * 0.03 * costIndex(placeOf(state, unit)));
       spend(state, unit, 'other', cost);
-      addNews(state, 'bad', `Поломка оборудования в «${unit.name}»: 2 дня простоя, ремонт $${cost}.`, { unitId: unit.id });
+      addNews(state, 'bad', `Поломка оборудования в «${unit.name}»: 2 дня простоя, ремонт $${cost}.`, { unitId: unit.id }, unit.companyId);
     }
     if (def.retail && chance(rng, 0.0006)) {
       unit.awareness = Math.min(0.95, unit.awareness + 0.12);
-      addNews(state, 'good', `Блогер похвалил «${unit.name}» — о вас узнало больше людей!`, { unitId: unit.id });
+      addNews(state, 'good', `Блогер похвалил «${unit.name}» — о вас узнало больше людей!`, { unitId: unit.id }, unit.companyId);
     }
   }
 }

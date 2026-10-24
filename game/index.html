@@ -15,11 +15,12 @@
     <div class="stat" title="Деньги на счёте"><small>Касса</small><b id="hud-cash"></b></div>
     <div class="stat" title="Активы минус долги"><small>Капитал</small><b id="hud-worth"></b></div>
     <div class="stat" title="Прибыль компании за прошлый месяц после налогов и процентов"><small>Прибыль/мес</small><b id="hud-profit"></b></div>
+    <button id="hud-room" class="stat room-badge" title="Игроки и чат" hidden></button>
     <div class="spacer"></div>
     <div class="stat"><small>Дата</small><b id="hud-date"></b></div>
     <div id="speed"></div>
     <button id="btn-save" class="icon-btn" title="Сохранить">💾</button>
-    <button id="btn-new" class="icon-btn" title="Новая игра">🆕</button>
+    <button id="btn-new" class="icon-btn" title="Выйти в меню">🚪</button>
   </header>
 
   <nav id="nav"></nav>
@@ -29,18 +30,24 @@
   <div id="toast"></div>
 
   <div id="welcome" class="modal">
-    <form id="welcome-form" class="modal-box">
+    <form id="lobby-form" class="modal-box">
       <h1>💼 МАГНАТ: Империя</h1>
-      <p>Вам дали <b>$50 000</b> стартового капитала. Откройте первую кофейню, пекарню или фастфуд в любом городе мира,
+      <p>Стартовый капитал — <b>$50 000</b>. Откройте первую кофейню, пекарню или фастфуд в любом городе мира,
         а затем выстройте империю: свои обжарки, мельницы, фермы и плантации, которые снабжают ваши точки.</p>
-      <ul>
-        <li>🏙️ Кликните на город → район → свободный участок 🏬</li>
-        <li>📊 Смотрите прогноз прибыли и открывайте бизнес</li>
-        <li>💹 Следите за ценами, персоналом, рекламой и конкурентами</li>
-      </ul>
-      <label>Название компании <input id="welcome-name" maxlength="40" required></label>
-      <button class="btn" type="submit">Начать игру</button>
-      <p class="muted small">Прототип: без 3D, на реальной карте. Сохранение — в этом браузере.</p>
+      <div id="lobby-tabs" class="seg">
+        <button type="button" data-mode="solo">🧑 Одиночная</button>
+        <button type="button" data-mode="coop">🤝 Кооператив</button>
+        <button type="button" data-mode="pvp">⚔️ Против друзей</button>
+        <button type="button" data-mode="join">🔑 Войти по коду</button>
+      </div>
+      <p id="lobby-desc" class="muted small"></p>
+      <label data-field="player">Ваше имя <input id="lobby-player" maxlength="30" autocomplete="nickname"></label>
+      <label data-field="code">Код комнаты <input id="lobby-code" maxlength="5" autocomplete="off" style="text-transform: uppercase"></label>
+      <label data-field="company">Название компании <input id="lobby-company" maxlength="40"></label>
+      <p id="lobby-error" class="neg small"></p>
+      <button id="lobby-submit" class="btn" type="submit">Начать</button>
+      <div id="lobby-resume" class="btn-row"></div>
+      <p class="muted small">Мультиплеер работает, когда игра запущена через <code>npm start</code>: друзья открывают тот же адрес и вводят код комнаты.</p>
     </form>
   </div>
 

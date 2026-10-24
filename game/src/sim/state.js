@@ -3,37 +3,68 @@ import { generateWorld } from './world.js';
 import { initMarket } from './market.js';
 import { unitAssetValue } from './units.js';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const START_CASH = 50000;
 const START_DATE = Date.UTC(2000, 0, 1);
 
-export function createGame({ seed = 12345, companyName = 'Моя компания' } = {}) {
+// Режимы: solo — один игрок; coop — несколько игроков управляют одной компанией;
+// pvp — у каждого игрока своя компания, все конкурируют в одном мире.
+export const MODES = ['solo', 'coop', 'pvp'];
+export const COMPANY_COLORS = ['#2f6fed', '#e8590c', '#2b8a3e', '#ae3ec9', '#c92a2a', '#1098ad', '#e67700', '#5c7cfa'];
+
+function newCompany(id, name, color) {
+  return {
+    id,
+    name,
+    color,
+    cash: START_CASH,
+    loan: 0,
+    loanRate: 0.12,
+    month: { interest: 0, tax: 0 },
+    history: [],
+    negativeDays: 0,
+    bankrupt: false,
+    totals: { in: 0, out: 0 },
+  };
+}
+
+export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Моя компания'] } = {}) {
   const rng = createRng(seed);
   const world = generateWorld(rng);
-  return {
+  const state = {
     version: SAVE_VERSION,
     seed,
+    mode,
     rng,
     day: 0,
     world,
     market: initMarket(),
-    company: {
-      name: companyName,
-      cash: START_CASH,
-      loan: 0,
-      loanRate: 0.12,
-      month: { interest: 0, tax: 0 },
-      history: [],
-      negativeDays: 0,
-      bankrupt: false,
-      totals: { in: 0, out: 0 },
-      startCash: START_CASH,
-    },
+    companies: {},
+    nextCompanyId: 1,
     units: {},
     nextUnitId: 1,
     news: [],
+    newsSeq: 0,
     mapVersion: 0,
   };
+  for (const name of companyNames) addCompany(state, name);
+  return state;
+}
+
+export function addCompany(state, name) {
+  const n = state.nextCompanyId++;
+  const id = `c${n}`;
+  state.companies[id] = newCompany(id, name, COMPANY_COLORS[(n - 1) % COMPANY_COLORS.length]);
+  state.mapVersion++;
+  return id;
+}
+
+export function companyUnits(state, companyId) {
+  return Object.values(state.units).filter((u) => u.companyId === companyId);
+}
+
+export function activeCompanies(state) {
+  return Object.values(state.companies).filter((c) => !c.bankrupt);
 }
 
 export function dateOf(day) {
@@ -48,23 +79,34 @@ export function monthLabel(day) {
   return dateOf(day).toLocaleDateString('ru-RU', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
-export function addNews(state, kind, text, ref = null) {
-  state.news.unshift({ day: state.day, kind, text, ref });
-  if (state.news.length > 150) state.news.length = 150;
+// companyId = null — новость для всех (мировые события)
+export function addNews(state, kind, text, ref = null, companyId = null) {
+  state.news.unshift({ seq: ++state.newsSeq, day: state.day, kind, text, ref, companyId });
+  if (state.news.length > 300) state.news.length = 300;
 }
 
-export function netWorth(state) {
-  let assets = state.company.cash;
-  for (const u of Object.values(state.units)) assets += unitAssetValue(state, u);
-  for (const lot of Object.values(state.world.lots)) if (lot.owned) assets += lot.price;
-  return assets - state.company.loan;
+export function newsFor(state, companyId) {
+  return state.news.filter((n) => n.companyId === null || n.companyId === companyId);
 }
 
-export function loanLimit(state) {
-  const h = state.company.history.slice(-3);
+function ownedLotsValue(state, companyId) {
+  let sum = 0;
+  for (const lot of Object.values(state.world.lots)) if (lot.ownerId === companyId) sum += lot.price;
+  return sum;
+}
+
+export function netWorth(state, companyId) {
+  const co = state.companies[companyId];
+  let assets = co.cash + ownedLotsValue(state, companyId);
+  for (const u of companyUnits(state, companyId)) assets += unitAssetValue(state, u);
+  return assets - co.loan;
+}
+
+export function loanLimit(state, companyId) {
+  const co = state.companies[companyId];
+  const h = co.history.slice(-3);
   const avgProfit = h.length ? h.reduce((s, m) => s + m.profit, 0) / h.length : 0;
-  let assets = 0;
-  for (const u of Object.values(state.units)) assets += u.bookValue;
-  for (const lot of Object.values(state.world.lots)) if (lot.owned) assets += lot.price;
+  let assets = ownedLotsValue(state, companyId);
+  for (const u of companyUnits(state, companyId)) assets += u.bookValue;
   return Math.round(30000 + 24 * Math.max(0, avgProfit) + 0.5 * assets);
 }

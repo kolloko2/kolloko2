@@ -1,14 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, stepDays, applyCommand, forecast, buildableTypes } from '../src/sim/index.js';
+import { createGame, stepDays, applyCommand, forecast, buildableTypes, isOver } from '../src/sim/index.js';
 
-function firstLot(state, placeId, type) {
-  return Object.values(state.world.lots).find((l) => l.placeId === placeId && !l.unitId && buildableTypes(state, l).includes(type));
+function firstLot(state, placeId, type, skip = 0) {
+  return Object.values(state.world.lots).filter((l) => l.placeId === placeId && !l.unitId && buildableTypes(state, l).includes(type))[skip];
 }
 
-function open(state, placeId, type) {
+function open(state, placeId, type, companyId = 'c1') {
   const lot = firstLot(state, placeId, type);
-  const r = applyCommand(state, { type: 'openBusiness', lotId: lot.id, businessType: type });
+  const r = applyCommand(state, { type: 'openBusiness', lotId: lot.id, businessType: type }, companyId);
   assert.ok(r.ok, r.error);
   return state.units[r.unitId];
 }
@@ -32,28 +32,35 @@ test('одинаковые команды дают одинаковый резу
 
 test('кофейня обслуживает клиентов и зарабатывает', () => {
   const s = createGame({ seed: 1 });
-  s.company.cash = 200000;
+  s.companies.c1.cash = 200000;
   const unit = open(s, 'ber', 'coffee_shop');
   stepDays(s, 70);
   assert.ok(unit.last.customers > 1000, `клиентов ${unit.last.customers}`);
   assert.ok(unit.last.revenue > 0);
 });
 
-test('деньги сходятся: касса = старт + приходы − расходы', () => {
-  const s = createGame({ seed: 3 });
-  s.company.cash = 500000;
-  const start = s.company.cash;
-  open(s, 'nyc', 'coffee_shop');
-  open(s, 'chi', 'mill');
-  applyCommand(s, { type: 'takeLoan', amount: 20000 });
+test('деньги сходятся у каждой компании: касса = старт + приходы − расходы', () => {
+  const s = createGame({ seed: 3, mode: 'pvp', companyNames: ['А', 'Б'] });
+  const start = { c1: 500000, c2: 3000000 };
+  s.companies.c1.cash = start.c1;
+  s.companies.c2.cash = start.c2;
+  open(s, 'nyc', 'coffee_shop', 'c1');
+  open(s, 'chi', 'mill', 'c1');
+  open(s, 'nyc', 'coffee_shop', 'c2');
+  applyCommand(s, { type: 'takeLoan', amount: 20000 }, 'c2');
+  // c2 покупает помещение, где арендует c1 — аренда пойдёт от c1 к c2
+  const lot = Object.values(s.world.lots).find((l) => l.unitId && s.units[l.unitId].companyId === 'c1');
+  assert.ok(applyCommand(s, { type: 'buyLot', lotId: lot.id }, 'c2').ok);
   stepDays(s, 120);
-  const { in: inflow, out } = s.company.totals;
-  assert.ok(Math.abs(s.company.cash - (start + inflow - out)) < 1e-6);
+  for (const co of Object.values(s.companies)) {
+    assert.ok(Math.abs(co.cash - (start[co.id] + co.totals.in - co.totals.out)) < 1e-6, co.id);
+  }
+  assert.ok(s.companies.c2.history.at(-1).rentIncome > 0);
 });
 
-test('обжарка снабжает кофейни компании без рынка', () => {
+test('обжарка снабжает кофейни своей компании без рынка', () => {
   const s = createGame({ seed: 4 });
-  s.company.cash = 1000000;
+  s.companies.c1.cash = 1000000;
   const shop = open(s, 'ber', 'coffee_shop');
   const roastery = open(s, 'ber', 'coffee_roastery');
   stepDays(s, 40);
@@ -61,25 +68,63 @@ test('обжарка снабжает кофейни компании без р�
   assert.ok(roastery.last.revInternal > 0);
 });
 
+test('PvP: обжарка чужой компании не снабжает мою кофейню', () => {
+  const s = createGame({ seed: 4, mode: 'pvp', companyNames: ['А', 'Б'] });
+  s.companies.c1.cash = 1000000;
+  s.companies.c2.cash = 1000000;
+  const shop = open(s, 'ber', 'coffee_shop', 'c1');
+  open(s, 'ber', 'coffee_roastery', 'c2');
+  stepDays(s, 40);
+  assert.equal(shop.supplied.coffee_roasted, 'market');
+});
+
+test('PvP: нельзя управлять чужим бизнесом', () => {
+  const s = createGame({ seed: 4, mode: 'pvp', companyNames: ['А', 'Б'] });
+  const shop = open(s, 'ber', 'fastfood', 'c1');
+  const r = applyCommand(s, { type: 'setPrice', unitId: shop.id, productId: 'hotdog', price: 0.5 }, 'c2');
+  assert.equal(r.ok, false);
+  assert.equal(applyCommand(s, { type: 'closeBusiness', unitId: shop.id }, 'c2').ok, false);
+});
+
+test('PvP: конкуренты в одном районе делят покупателей', () => {
+  const s = createGame({ seed: 11, mode: 'pvp', companyNames: ['А', 'Б'] });
+  s.companies.c1.cash = 300000;
+  s.companies.c2.cash = 300000;
+  const a = open(s, 'ber', 'coffee_shop', 'c1');
+  stepDays(s, 20);
+  const alone = a.today.potential;
+  const lot = s.world.lots[a.lotId];
+  const other = s.world.districts[lot.districtId].lotIds.map((id) => s.world.lots[id]).find((l) => !l.unitId);
+  assert.ok(applyCommand(s, { type: 'openBusiness', lotId: other.id, businessType: 'coffee_shop' }, 'c2').ok);
+  applyCommand(s, { type: 'setPrice', unitId: Object.keys(s.units).at(-1), productId: 'coffee', price: 1 }, 'c2');
+  stepDays(s, 5);
+  assert.ok(a.today.potential < alone * 0.9, `${a.today.potential} vs ${alone}`);
+});
+
 test('нельзя открыть плантацию кофе в Канзасе', () => {
   const s = createGame({ seed: 2 });
   const lot = Object.values(s.world.lots).find((l) => l.placeId === 'r_kansas');
-  const r = applyCommand(s, { type: 'openBusiness', lotId: lot.id, businessType: 'coffee_plantation' });
+  const r = applyCommand(s, { type: 'openBusiness', lotId: lot.id, businessType: 'coffee_plantation' }, 'c1');
   assert.equal(r.ok, false);
 });
 
 test('прогноз даёт осмысленные числа', () => {
   const s = createGame({ seed: 6 });
   const lot = firstLot(s, 'par', 'coffee_shop');
-  const f = forecast(s, lot.id, 'coffee_shop');
+  const f = forecast(s, lot.id, 'coffee_shop', 'c1');
   assert.ok(f.capex > 0 && f.revenue > 0 && Number.isFinite(f.profit));
 });
 
-test('без денег — банкротство', () => {
-  const s = createGame({ seed: 8 });
-  s.company.cash = 200000;
-  open(s, 'lon', 'coffee_shop');
-  s.company.cash = -1e6;
+test('без денег — банкротство; в PvP игра продолжается для остальных', () => {
+  const s = createGame({ seed: 8, mode: 'pvp', companyNames: ['А', 'Б'] });
+  s.companies.c1.cash = 200000;
+  open(s, 'lon', 'coffee_shop', 'c1');
+  s.companies.c1.cash = -1e6;
   stepDays(s, 60);
-  assert.equal(s.company.bankrupt, true);
+  assert.equal(s.companies.c1.bankrupt, true);
+  assert.equal(Object.values(s.units).filter((u) => u.companyId === 'c1').length, 0);
+  assert.equal(isOver(s), false);
+  const day = s.day;
+  stepDays(s, 5);
+  assert.equal(s.day, day + 5);
 });

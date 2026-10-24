@@ -18,7 +18,7 @@ export function buildableTypes(state, lot) {
 }
 
 // Прогноз месячной экономики бизнеса типа type на участке lot.
-export function forecast(state, lotId, type) {
+export function forecast(state, lotId, type, companyId = null) {
   const lot = state.world.lots[lotId];
   const def = BUSINESSES[type];
   const place = state.world.places[lot.placeId];
@@ -61,7 +61,7 @@ export function forecast(state, lotId, type) {
   r.costs = {
     inputs: Math.round(inputsDay * 30),
     wages: Math.round(r.staff * def.staff.wage * place.wage),
-    rent: lot.owned ? 0 : lot.rent,
+    rent: companyId && lot.ownerId === companyId ? 0 : lot.rent,
     upkeep: Math.round((def.upkeep.base + def.upkeep.perArea * lot.area) * idx),
     marketing: Math.round(def.marketing * idx),
   };

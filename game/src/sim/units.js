@@ -39,9 +39,11 @@ export function monthlyUpkeep(state, unit) {
   return (u.base + u.perArea * lotOf(state, unit).area) * costIndex(place);
 }
 
+// Аренда: не платим, если помещение принадлежит своей компании.
+// Если владелец — другая компания (PvP), аренда уходит ей.
 export function monthlyRent(state, unit) {
   const lot = lotOf(state, unit);
-  return lot.owned ? 0 : lot.rent;
+  return lot.ownerId === unit.companyId ? 0 : lot.rent;
 }
 
 export function retailCapacity(state, unit) {
@@ -131,22 +133,44 @@ export function baseQuality(unit) {
   return 3 + QUALITY_PER_LEVEL * (unit.level - 1);
 }
 
-// Деньги: все движения кассы проходят через эти функции (для учёта и тестов)
-export function spend(state, unit, field, amount) {
-  if (amount <= 0) return;
-  const co = state.company;
+// Деньги: все движения кассы проходят через эти функции (для учёта и тестов).
+// Расход/доход бизнеса записывается в его месячный отчёт, расход/доход компании — в отчёт компании.
+export function pay(state, companyId, amount) {
+  const co = state.companies[companyId];
   co.cash -= amount;
   co.totals.out += amount;
-  if (unit) unit.month[field] += amount;
-  else co.month[field] = (co.month[field] || 0) + amount;
+}
+
+export function receive(state, companyId, amount) {
+  const co = state.companies[companyId];
+  co.cash += amount;
+  co.totals.in += amount;
+}
+
+export function spend(state, unit, field, amount) {
+  if (amount <= 0) return;
+  pay(state, unit.companyId, amount);
+  unit.month[field] += amount;
 }
 
 export function earn(state, unit, amount) {
   if (amount <= 0) return;
-  const co = state.company;
-  co.cash += amount;
-  co.totals.in += amount;
-  if (unit) unit.month.revenue += amount;
+  receive(state, unit.companyId, amount);
+  unit.month.revenue += amount;
+}
+
+export function spendCompany(state, companyId, field, amount) {
+  if (amount <= 0) return;
+  pay(state, companyId, amount);
+  const m = state.companies[companyId].month;
+  m[field] = (m[field] || 0) + amount;
+}
+
+export function earnCompany(state, companyId, field, amount) {
+  if (amount <= 0) return;
+  receive(state, companyId, amount);
+  const m = state.companies[companyId].month;
+  m[field] = (m[field] || 0) + amount;
 }
 
 export function unitAssetValue(state, unit) {

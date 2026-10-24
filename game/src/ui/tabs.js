@@ -1,7 +1,8 @@
 import { bizIcon, goodIcon } from './icons.js';
 import { BUSINESSES } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
-import { midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate } from '../sim/index.js';
+import { midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits } from '../sim/index.js';
+import { SPEEDS } from '../net/session.js';
 import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars } from './format.js';
 
 export const TABS = [
@@ -9,12 +10,13 @@ export const TABS = [
   { id: 'market', icon: '💹', img: 'market', name: 'Рынок' },
   { id: 'finance', icon: '🏦', img: 'finance', name: 'Финансы' },
   { id: 'news', icon: '📰', img: 'news', name: 'Новости' },
+  { id: 'room', icon: '👥', img: 'loan', name: 'Игроки' },
   { id: 'help', icon: '❓', img: 'help', name: 'Как играть' },
 ];
 
 function renderUnits(app) {
   const { state } = app;
-  const units = Object.values(state.units);
+  const units = companyUnits(state, app.companyId);
   if (!units.length) {
     return '<h2>🏢 Бизнесы</h2><p class="muted">Пока ничего нет. Выберите город на карте, приблизьтесь к району и нажмите на свободный участок 🏬.</p>';
   }
@@ -55,12 +57,12 @@ function renderMarket(app) {
 
 function renderFinance(app) {
   const { state } = app;
-  const co = state.company;
-  const limit = loanLimit(state);
+  const co = app.company;
+  const limit = loanLimit(state, app.companyId);
   const h = co.history.slice(-12).reverse();
   let html = `<h2>🏦 Финансы</h2><div class="card">
     ${row('Касса', money(co.cash), signClass(co.cash))}
-    ${row('Капитал (активы − долг)', money(netWorth(state)))}
+    ${row('Капитал (активы − долг)', money(netWorth(state, app.companyId)))}
     ${row('Кредит', `${money(co.loan)} под ${pct(co.loanRate)} годовых`)}
     ${row('Банк готов выдать ещё', money(Math.max(0, limit - co.loan)))}
     </div>
@@ -87,13 +89,46 @@ function row(label, value, cls = '') {
 
 function renderNews(app) {
   const { state } = app;
-  if (!state.news.length) return '<h2>📰 Новости</h2><p class="muted">Пока тихо.</p>';
+  const news = newsFor(state, app.companyId);
+  if (!news.length) return '<h2>📰 Новости</h2><p class="muted">Пока тихо.</p>';
   let html = '<h2>📰 Новости</h2><div class="news">';
-  for (const n of state.news.slice(0, 80)) {
+  for (const n of news.slice(0, 80)) {
     const action = n.ref?.unitId && state.units[n.ref.unitId] ? `data-action="selectUnit" data-fly="1" data-id="${n.ref.unitId}"` : '';
     html += `<div class="news-item ${n.kind}" ${action}><small>${formatDate(n.day)}</small>${esc(n.text)}</div>`;
   }
   return `${html}</div>`;
+}
+
+function renderRoom(app) {
+  const { state, session } = app;
+  if (!session.multiplayer) return '<h2>👥 Игроки</h2><p class="muted">Это одиночная игра. Чтобы играть с друзьями, выйдите в меню (🚪) и создайте комнату.</p>';
+  const coop = session.mode === 'coop';
+  let html = `<h2>👥 ${coop ? 'Кооператив' : 'Против друзей'}</h2>
+    <div class="card"><div class="row"><span>Код комнаты</span><span class="code-big">${esc(session.code)}</span></div>
+    <div class="muted small">Друзья открывают этот же адрес игры, выбирают «Войти по коду» и вводят код.</div>
+    <button class="btn ghost" data-action="copyCode">📋 Скопировать код</button></div>`;
+  html += '<h3>Игроки</h3><div class="card">';
+  for (const p of session.players) {
+    const co = state.companies[p.companyId];
+    const vote = coop ? '' : ` · голос: ${SPEEDS[p.speed]?.icon ?? '?'}`;
+    html += `<div class="player-row"><span class="dot ${p.online ? 'on' : ''}"></span><b>${esc(p.name)}</b>
+      <small class="muted">${p.id === session.playerId ? '(вы) ' : ''}${coop ? '' : `<span class="swatch" style="background:${co?.color}"></span>${esc(co?.name ?? '')}`}${vote}</small></div>`;
+  }
+  html += `</div>${coop ? '' : '<div class="muted small">Время идёт со скоростью самого медленного голоса: пауза одного игрока ставит игру на паузу.</div>'}`;
+  if (!coop) {
+    const ranking = Object.values(state.companies).map((c) => ({ c, worth: netWorth(state, c.id), n: companyUnits(state, c.id).length }))
+      .sort((a, b) => b.worth - a.worth);
+    html += '<h3>Рейтинг компаний</h3><table class="tbl"><tr><th>#</th><th>Компания</th><th>Бизнесов</th><th>Капитал</th></tr>';
+    ranking.forEach(({ c, worth, n }, i) => {
+      html += `<tr><td>${i + 1}</td><td><span class="swatch" style="background:${c.color}"></span>${esc(c.name)}${c.bankrupt ? ' 💀' : ''}</td><td>${n}</td><td>${moneyShort(worth)}</td></tr>`;
+    });
+    html += '</table>';
+  }
+  html += '<h3>Чат</h3><div class="chat" id="chat-log">';
+  if (!app.chat.length) html += '<span class="muted small">Сообщений пока нет.</span>';
+  for (const m of app.chat) html += `<div class="chat-msg"><b style="color:${m.color || 'inherit'}">${esc(m.from)}:</b>${esc(m.text)}</div>`;
+  html += '</div><form id="chat-form"><input maxlength="300" placeholder="Сообщение…" autocomplete="off"><button class="btn" type="submit">➤</button></form>';
+  return html;
 }
 
 function renderHelp() {
@@ -118,10 +153,19 @@ export function renderDrawer(app) {
     el.classList.remove('open');
     return;
   }
-  if (el.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
-  const render = { units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, help: renderHelp }[app.tab];
+  const active = el.contains(document.activeElement) ? document.activeElement : null;
+  const chatDraft = active?.closest('#chat-form') ? active.value : null;
+  if (active?.tagName === 'INPUT' && chatDraft === null) return; // не мешаем вводу суммы кредита и т.п.
+  const render = { units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, room: renderRoom, help: renderHelp }[app.tab];
   const scroll = el.scrollTop;
   el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${render(app)}`;
   el.scrollTop = scroll;
+  if (chatDraft !== null) {
+    const input = el.querySelector('#chat-form input');
+    input.value = chatDraft;
+    input.focus();
+  }
+  const log = document.getElementById('chat-log');
+  if (log) log.scrollTop = log.scrollHeight;
   el.classList.add('open');
 }

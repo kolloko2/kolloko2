@@ -1,42 +1,49 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
-import { createGame, stepDay, applyCommand, formatDate, netWorth, SAVE_VERSION } from './sim/index.js';
-import { initMap, refreshMap, refreshWarnings, flyToDistrict, flyToLot } from './ui/map.js';
+import { createGame, formatDate, netWorth, newsFor, isOver, SAVE_VERSION } from './sim/index.js';
+import { LocalSession, RemoteSession, SPEEDS } from './net/session.js';
+import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot } from './ui/map.js';
 import { renderPanel } from './ui/panels.js';
 import { renderDrawer, TABS } from './ui/tabs.js';
-import { money, moneyShort, signClass } from './ui/format.js';
+import { money, moneyShort, signClass, esc } from './ui/format.js';
 
-const SAVE_KEY = 'magnat-save-v1';
-// Длительность игрового дня в мс для каждой скорости
-const SPEEDS = [
-  { ms: Infinity, icon: '⏸', title: 'Пауза (пробел)' },
-  { ms: 1500, icon: '▶', title: 'Обычная скорость (1)' },
-  { ms: 500, icon: '⏩', title: 'Быстро (2)' },
-  { ms: 120, icon: '⏭', title: 'Очень быстро (3)' },
-];
+const SAVE_KEY = 'magnat-save-v2';
+const MP_KEY = 'magnat-mp';
 
 const app = {
-  state: null,
-  started: false, // false, пока игрок не начал игру (не сохраняем демо-мир под приветствием)
-  speed: 0,
+  session: null,
+  started: false, // false, пока игрок не начал игру (под лобби крутится демо-мир, его не сохраняем)
   selection: null,
   tab: null,
+  chat: [],
+  get state() {
+    return this.session.state;
+  },
+  get companyId() {
+    return this.session.companyId;
+  },
+  get company() {
+    return this.session.state.companies[this.session.companyId];
+  },
   select(sel) {
     app.selection = sel;
     renderPanel(app);
-    refreshMap(app, true);
+    refreshMap(app);
   },
-  dispatch(cmd) {
-    const r = applyCommand(app.state, cmd);
+  async dispatch(cmd) {
+    const r = await app.session.dispatch(cmd);
     if (!r.ok) toast(r.error, 'bad');
     render();
-    refreshMap(app, true);
+    refreshMap(app);
     return r;
+  },
+  sendChat(text) {
+    app.session.chat?.(text);
   },
 };
 
-// ---------- сохранения ----------
+// ---------- сохранения (соло) ----------
 function save(silent = false) {
-  if (!app.started) return;
+  if (!app.started || app.session.multiplayer) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(app.state));
     if (!silent) toast('Игра сохранена');
@@ -45,42 +52,70 @@ function save(silent = false) {
   }
 }
 
-function load() {
+function readJson(key) {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw);
-    return s.version === SAVE_VERSION ? s : null;
+    return JSON.parse(localStorage.getItem(key) || 'null');
   } catch {
     return null;
   }
 }
 
+function writeJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // хранилище недоступно — просто не запоминаем
+  }
+}
+
+function loadSolo() {
+  const s = readJson(SAVE_KEY);
+  return s && s.version === SAVE_VERSION ? s : null;
+}
+
 // ---------- HUD ----------
 function renderHud() {
-  const { state } = app;
-  const co = state.company;
+  const { state, session } = app;
+  const co = app.company;
   const last = co.history.at(-1);
   document.getElementById('hud-company').textContent = co.name;
+  document.getElementById('hud-company').style.borderLeft = `4px solid ${co.color}`;
   const cash = document.getElementById('hud-cash');
   cash.textContent = money(co.cash);
   cash.className = co.cash < 0 ? 'neg' : '';
-  document.getElementById('hud-worth').textContent = moneyShort(netWorth(state));
+  document.getElementById('hud-worth').textContent = moneyShort(netWorth(state, app.companyId));
   const profit = document.getElementById('hud-profit');
   profit.textContent = last ? moneyShort(last.profit) : '—';
   profit.className = last ? signClass(last.profit) : '';
   document.getElementById('hud-date').textContent = formatDate(state.day);
-  document.querySelectorAll('#speed button').forEach((b) => b.classList.toggle('active', Number(b.dataset.speed) === app.speed));
-  const unread = state.news.filter((n) => n.day >= state.day - 7 && (n.kind === 'bad' || n.kind === 'warn')).length;
-  const badge = document.querySelector('#nav button[data-tab="news"] .nav-badge');
-  badge.textContent = unread || '';
+
+  const mine = session.multiplayer ? session.mySpeed() : session.speed;
+  document.querySelectorAll('#speed button').forEach((b) => {
+    const i = Number(b.dataset.speed);
+    b.classList.toggle('active', i === mine);
+    b.classList.toggle('effective', session.multiplayer && i === session.speed && i !== mine);
+  });
+
+  const room = document.getElementById('hud-room');
+  if (session.multiplayer) {
+    const online = session.players.filter((p) => p.online).length;
+    room.hidden = false;
+    room.innerHTML = `<small>${session.mode === 'coop' ? 'Кооператив' : 'Против друзей'}</small><b>${session.code} · 👥 ${online}</b>`;
+  } else {
+    room.hidden = true;
+  }
+  document.getElementById('btn-save').hidden = session.multiplayer;
+
+  const unread = newsFor(state, app.companyId).filter((n) => n.day >= state.day - 7 && (n.kind === 'bad' || n.kind === 'warn')).length;
+  document.querySelector('#nav button[data-tab="news"] .nav-badge').textContent = unread || '';
+  document.querySelector('#nav button[data-tab="room"]').hidden = !session.multiplayer;
 }
 
 function render() {
   renderHud();
   const panel = document.getElementById('panel');
-  const editing = (el) => el.contains(document.activeElement) && ['INPUT', 'SELECT'].includes(document.activeElement.tagName);
-  if (!editing(panel)) renderPanel(app);
+  const editing = panel.contains(document.activeElement) && ['INPUT', 'SELECT'].includes(document.activeElement.tagName);
+  if (!editing) renderPanel(app);
   renderDrawer(app);
 }
 
@@ -94,52 +129,200 @@ function toast(text, kind = 'info') {
   toastTimer = setTimeout(() => (el.className = ''), 3500);
 }
 
-let lastNewsCount = 0;
+let lastNewsSeq = 0;
 function announceNews() {
-  const news = app.state.news;
-  const fresh = news.length - lastNewsCount;
-  if (fresh > 0 && lastNewsCount > 0) {
-    const n = news[0];
+  const news = newsFor(app.state, app.companyId);
+  const fresh = news.filter((n) => n.seq > lastNewsSeq);
+  if (fresh.length && lastNewsSeq > 0) {
+    const n = fresh[0];
     if (n.kind === 'bad' || n.kind === 'warn' || n.kind === 'good') toast(n.text, n.kind);
   }
-  lastNewsCount = news.length;
+  if (news.length) lastNewsSeq = Math.max(lastNewsSeq, news[0].seq);
 }
 
 // ---------- игровой цикл ----------
-let acc = 0;
 let prev = performance.now();
+let lastMonths = 0;
 function loop(now) {
   const dt = Math.min(now - prev, 1000);
   prev = now;
-  const speed = SPEEDS[app.speed];
-  if (Number.isFinite(speed.ms) && !app.state.company.bankrupt) {
-    acc += dt;
-    let steps = 0;
-    while (acc >= speed.ms && steps < 5) {
-      const months = app.state.company.history.length;
-      stepDay(app.state);
-      acc -= speed.ms;
-      steps++;
-      if (app.state.company.history.length !== months) save(true);
-    }
-    if (steps) {
-      announceNews();
-      render();
-      refreshWarnings(app);
-      if (app.state.company.bankrupt) setSpeed(0);
-    }
-  }
+  app.session.update(dt);
   requestAnimationFrame(loop);
 }
 
+function onTick() {
+  if (!app.started) return;
+  announceNews();
+  render();
+  refreshWarnings(app);
+  const months = app.company.history.length;
+  if (months !== lastMonths) {
+    lastMonths = months;
+    save(true);
+  }
+  if (!app.session.multiplayer && isOver(app.state)) app.session.setSpeed(0);
+}
+
 function setSpeed(i) {
-  app.speed = i;
-  acc = 0;
+  app.session.setSpeed(i);
   renderHud();
 }
 
+// ---------- сессии ----------
+function useSession(session) {
+  if (app.session?.multiplayer && app.session !== session) app.session.close();
+  app.session = session;
+  app.selection = null;
+  app.chat = [];
+  lastNewsSeq = 0;
+  lastMonths = app.company.history.length;
+  session.on('tick', onTick);
+  session.on('change', render);
+  session.on('speed', renderHud);
+  session.on('room', () => {
+    renderHud();
+    if (app.tab === 'room') renderDrawer(app);
+  });
+  session.on('chat', (m) => {
+    app.chat.push(m);
+    if (app.chat.length > 100) app.chat.shift();
+    if (app.tab === 'room') renderDrawer(app);
+    else toast(`💬 ${m.from}: ${m.text}`);
+  });
+  session.on('close', () => {
+    if (app.session !== session) return;
+    toast('Связь с сервером потеряна', 'bad');
+    showLobby('Связь с сервером потеряна. Можно вернуться в комнату.');
+  });
+  session.on('error', (message) => toast(message, 'bad'));
+  resetMap(app);
+  render();
+}
+
+function startSolo(companyName) {
+  const seed = Math.floor(Math.random() * 2 ** 31);
+  const session = new LocalSession(createGame({ seed, companyNames: [companyName || 'Моя компания'] }));
+  app.started = true;
+  useSession(session);
+  app.tab = 'help';
+  save(true);
+  render();
+  setSpeed(1);
+}
+
+function resumeSolo(state) {
+  app.started = true;
+  useSession(new LocalSession(state));
+  toast(`С возвращением, ${app.company.name}! Игра на паузе.`);
+}
+
+async function startRemote(hello) {
+  const session = await RemoteSession.connect(hello);
+  app.started = true;
+  useSession(session);
+  writeJson(MP_KEY, { code: session.code, playerId: session.playerId, mode: session.mode, name: hello.name });
+  app.tab = 'room';
+  render();
+  toast(`Вы в комнате ${session.code}. Отправьте код друзьям!`, 'good');
+}
+
+// ---------- лобби ----------
+const LOBBY = {
+  solo: { title: 'Одиночная игра', desc: 'Вы против ИИ-конкурентов. Игра сохраняется в этом браузере.', fields: ['company'], submit: 'Начать' },
+  coop: { title: 'Кооператив', desc: 'Одна общая компания на всех: каждый может открывать бизнесы и управлять ими. Друзья входят по коду комнаты.', fields: ['player', 'company'], submit: 'Создать комнату' },
+  pvp: { title: 'Против друзей', desc: 'У каждого своя компания в одном мире: конкуренция за районы и покупателей, можно выкупить помещение соперника.', fields: ['player', 'company'], submit: 'Создать комнату' },
+  join: { title: 'Войти по коду', desc: 'Введите код комнаты, который прислал друг. Название компании нужно только в игре против друзей.', fields: ['player', 'code', 'company'], submit: 'Войти' },
+};
+let lobbyMode = 'solo';
+
+function renderLobby() {
+  const cfg = LOBBY[lobbyMode];
+  document.querySelectorAll('#lobby-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.mode === lobbyMode));
+  document.getElementById('lobby-desc').textContent = cfg.desc;
+  document.querySelectorAll('#lobby-form [data-field]').forEach((el) => (el.hidden = !cfg.fields.includes(el.dataset.field)));
+  document.getElementById('lobby-submit').textContent = cfg.submit;
+  const resume = [];
+  if (loadSolo()) resume.push('<button type="button" class="btn ghost" data-resume="solo">▶ Продолжить одиночную игру</button>');
+  const mp = readJson(MP_KEY);
+  if (mp?.code) resume.push(`<button type="button" class="btn ghost" data-resume="mp">↩ Вернуться в комнату ${esc(mp.code)}</button>`);
+  document.getElementById('lobby-resume').innerHTML = resume.join('');
+}
+
+function showLobby(error = '') {
+  if (app.session && !app.session.multiplayer) app.session.setSpeed(0);
+  document.getElementById('welcome').classList.add('open');
+  document.getElementById('lobby-error').textContent = error;
+  renderLobby();
+}
+
+function hideLobby() {
+  document.getElementById('welcome').classList.remove('open');
+}
+
+function bindLobby() {
+  const mp = readJson(MP_KEY);
+  document.getElementById('lobby-player').value = mp?.name || '';
+  document.getElementById('lobby-company').value = 'Bean & Co';
+  document.getElementById('lobby-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-mode]');
+    if (!b) return;
+    lobbyMode = b.dataset.mode;
+    document.getElementById('lobby-error').textContent = '';
+    renderLobby();
+  });
+  document.getElementById('lobby-resume').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-resume]');
+    if (!b) return;
+    if (b.dataset.resume === 'solo') {
+      hideLobby();
+      resumeSolo(loadSolo());
+      return;
+    }
+    const saved = readJson(MP_KEY);
+    try {
+      await startRemote({ t: 'join', code: saved.code, playerId: saved.playerId, name: saved.name });
+      hideLobby();
+    } catch (err) {
+      document.getElementById('lobby-error').textContent = err.message;
+    }
+  });
+  document.getElementById('lobby-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('lobby-player').value.trim();
+    const companyName = document.getElementById('lobby-company').value.trim();
+    const code = document.getElementById('lobby-code').value.trim().toUpperCase();
+    const errorEl = document.getElementById('lobby-error');
+    errorEl.textContent = '';
+    if (lobbyMode === 'solo') {
+      if (loadSolo() && !confirm('Начать новую одиночную игру? Сохранение будет перезаписано.')) return;
+      hideLobby();
+      startSolo(companyName);
+      return;
+    }
+    if (!name) {
+      errorEl.textContent = 'Введите имя — его увидят другие игроки';
+      return;
+    }
+    const hello = lobbyMode === 'join' ? { t: 'join', code, name, companyName } : { t: 'create', mode: lobbyMode, name, companyName };
+    if (lobbyMode === 'join' && !/^[A-Z0-9]{5}$/.test(code)) {
+      errorEl.textContent = 'Код комнаты — 5 символов';
+      return;
+    }
+    const btn = document.getElementById('lobby-submit');
+    btn.disabled = true;
+    try {
+      await startRemote(hello);
+      hideLobby();
+    } catch (err) {
+      errorEl.textContent = location.protocol === 'file:' ? 'Для мультиплеера запустите сервер: npm start' : err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 // ---------- обработка действий ----------
-function handleAction(el) {
+async function handleAction(el) {
   const { action, id } = el.dataset;
   const { state } = app;
   switch (action) {
@@ -152,6 +335,7 @@ function handleAction(el) {
       flyToLot(state.world.lots[id]);
       break;
     case 'selectUnit':
+      if (!state.units[id]) return;
       app.select({ kind: 'unit', id });
       if (el.dataset.fly) flyToLot(state.world.lots[state.units[id].lotId]);
       break;
@@ -163,13 +347,13 @@ function handleAction(el) {
       renderDrawer(app);
       break;
     case 'open': {
-      const r = app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type });
+      const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type });
       if (r.ok) app.select({ kind: 'unit', id: r.unitId });
       break;
     }
     case 'close':
       if (confirm('Закрыть бизнес? Запасы будут проданы, оборудование — за 30% стоимости.')) {
-        app.dispatch({ type: 'closeBusiness', unitId: id });
+        await app.dispatch({ type: 'closeBusiness', unitId: id });
         app.select(null);
       }
       break;
@@ -186,7 +370,7 @@ function handleAction(el) {
       app.dispatch({ type: 'upgrade', unitId: id });
       break;
     case 'copySettings': {
-      const r = app.dispatch({ type: 'copySettings', unitId: id });
+      const r = await app.dispatch({ type: 'copySettings', unitId: id });
       if (r.ok) toast(`Настройки применены к ${r.count} бизнесам`);
       break;
     }
@@ -199,10 +383,13 @@ function handleAction(el) {
     case 'takeLoan':
     case 'repayLoan': {
       const amount = Math.round(Number(document.getElementById('loan-amount').value));
-      const r = app.dispatch({ type: action, amount });
+      const r = await app.dispatch({ type: action, amount });
       if (r.ok) toast(action === 'takeLoan' ? 'Кредит получен' : 'Кредит погашен', 'good');
       break;
     }
+    case 'copyCode':
+      navigator.clipboard?.writeText(app.session.code).then(() => toast('Код скопирован'), () => {});
+      break;
     default:
   }
 }
@@ -240,6 +427,13 @@ function bindUi() {
     root.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && e.target.dataset.change) e.target.blur();
     });
+    root.addEventListener('submit', (e) => {
+      if (e.target.id !== 'chat-form') return;
+      e.preventDefault();
+      const input = e.target.querySelector('input');
+      if (input.value.trim()) app.sendChat(input.value);
+      input.value = '';
+    });
   }
 
   const nav = document.getElementById('nav');
@@ -260,18 +454,27 @@ function bindUi() {
 
   document.getElementById('btn-save').addEventListener('click', () => save());
   document.getElementById('btn-new').addEventListener('click', () => {
-    if (confirm('Начать новую игру? Текущий прогресс будет потерян.')) showWelcome();
+    const msg = app.session.multiplayer ? 'Выйти из комнаты? Вернуться можно по коду.' : 'Выйти в меню? Игра сохранится.';
+    if (!confirm(msg)) return;
+    save(true);
+    showLobby();
+  });
+  document.getElementById('hud-room').addEventListener('click', () => {
+    app.tab = 'room';
+    renderDrawer(app);
   });
   document.getElementById('hud-company').addEventListener('click', () => {
-    const name = prompt('Название компании', app.state.company.name);
+    const name = prompt('Название компании', app.company.name);
     if (name) app.dispatch({ type: 'renameCompany', name });
   });
 
   document.addEventListener('keydown', (e) => {
     if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+    if (document.getElementById('welcome').classList.contains('open')) return;
     if (e.code === 'Space') {
       e.preventDefault();
-      setSpeed(app.speed === 0 ? 1 : 0);
+      const mine = app.session.multiplayer ? app.session.mySpeed() : app.session.speed;
+      setSpeed(mine === 0 ? 1 : 0);
     } else if (['Digit1', 'Digit2', 'Digit3'].includes(e.code)) {
       setSpeed(Number(e.code.slice(-1)));
     } else if (e.key === 'Escape') {
@@ -281,50 +484,15 @@ function bindUi() {
 }
 
 // ---------- старт ----------
-function showWelcome() {
-  setSpeed(0);
-  const modal = document.getElementById('welcome');
-  modal.classList.add('open');
-  const input = document.getElementById('welcome-name');
-  input.value = 'Bean & Co';
-  input.focus();
-  input.select();
-}
-
-function startNewGame(name) {
-  const seed = Math.floor(Math.random() * 2 ** 31);
-  app.state = createGame({ seed, companyName: name || 'Моя компания' });
-  app.selection = null;
-  app.tab = 'help';
-  app.started = true;
-  lastNewsCount = 0;
-  save(true);
-  refreshMap(app, true);
-  render();
-  setSpeed(1);
-}
-
 async function boot() {
   await loadIcons();
-  app.state = load();
+  // Пока открыто лобби, под ним показываем демо-мир (не сохраняется)
+  app.session = new LocalSession(createGame({ seed: 1 }));
   bindUi();
-  document.getElementById('welcome-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    document.getElementById('welcome').classList.remove('open');
-    startNewGame(document.getElementById('welcome-name').value.trim());
-  });
-  if (!app.state) {
-    app.state = createGame({ seed: 1, companyName: 'Моя компания' });
-    initMap(app);
-    render();
-    showWelcome();
-  } else {
-    app.started = true;
-    initMap(app);
-    lastNewsCount = app.state.news.length;
-    render();
-    toast(`С возвращением, ${app.state.company.name}! Игра на паузе.`);
-  }
+  bindLobby();
+  initMap(app);
+  render();
+  showLobby();
   requestAnimationFrame(loop);
   window.addEventListener('beforeunload', () => save(true));
 }

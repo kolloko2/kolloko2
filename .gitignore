@@ -23,3 +23,6 @@ Gemfile.lock
 
 # исходники сгенерированных иконок (большие)
 game/assets/icons/raw/
+
+# сохранения комнат сервера
+game/server-data/
