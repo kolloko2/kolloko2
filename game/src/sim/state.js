@@ -46,6 +46,10 @@ export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Мо�
     nextCompanyId: 1,
     units: {},
     nextUnitId: 1,
+    shipments: [], // грузы в пути дольше одного дня
+    nextShipmentId: 1,
+    contracts: [],
+    nextContractId: 1,
     news: [],
     newsSeq: 0,
     mapVersion: 0,

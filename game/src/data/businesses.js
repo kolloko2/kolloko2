@@ -132,6 +132,16 @@ export const BUSINESSES = {
       recipe: { output: 'milk', inputs: { wheat: 0.4 } },
     },
   },
+  warehouse: {
+    name: 'Склад', icon: '🏗️', zoning: 'industrial', category: 'logistics', tier: 2,
+    description: 'Держит запас для ваших точек в радиусе 1500 км: оптом дешевле, дальние поставки едут по оптовому тарифу, а точки получают товар за день.',
+    capex: 70000, renovPerM2: 30,
+    upkeep: { base: 600, perArea: 1.5 },
+    staff: { role: 'Кладовщик', wage: 2200, min: 1, max: 20, def: 2 },
+    marketing: 0,
+    // perArea — кг хранения на м², radiusKm — кого обслуживает, defaultCover — дней запаса
+    storage: { perArea: 400, radiusKm: 1500, defaultCover: 14 },
+  },
 };
 
 // Улучшения оборудования: уровень 1..3.

@@ -410,3 +410,14 @@ select { max-width: 220px; padding: 4px; border: 1px solid var(--line); border-r
 .modal-box select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; max-width: none; }
 .winner-box { text-align: center; }
 .winner-box h1 { font-size: 56px; margin: 0; }
+
+/* ---------- рынки, контракты, цепочки ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 14px; padding: 3px 10px; font-size: 12px; }
+.chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.mini.wide { width: auto; padding: 0 8px; font-size: 12px; white-space: nowrap; }
+.contract { border-left: 3px solid var(--accent); }
+.map-toggle { background: var(--panel); border: 2px solid rgba(0, 0, 0, 0.2); border-radius: 6px; padding: 6px 10px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+.map-toggle.active { background: #e8efff; color: var(--accent); }
+.tbl.compact { font-size: 12px; }
+.tbl.compact td, .tbl.compact th { padding: 4px 3px; }

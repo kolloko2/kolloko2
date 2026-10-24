@@ -1,8 +1,9 @@
 import { bizIcon, goodIcon } from './icons.js';
 import { BUSINESSES } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
+import { MARKET_REGIONS } from '../data/regions.js';
 import {
-  midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits, GOALS, goalContext, victoryText,
+  regionOf, midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits, GOALS, goalContext, victoryText,
 } from '../sim/index.js';
 import { SPEEDS } from '../net/session.js';
 import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars, lineChart } from './format.js';
@@ -32,7 +33,9 @@ function renderUnits(app) {
     const profit = u.last ? monthProfit(u.last) : null;
     if (profit !== null) total += profit;
     const warn = u.broken > 0 || t.stockout || t.inputShort ? ' ⚠️' : '';
-    const today = def.retail ? `${num(t.customers ?? 0)} кл.` : `${num(t.produced ?? 0)} ${GOODS[def.production.recipe.output].unit}`;
+    let today = 'склад';
+    if (def.retail) today = `${num(t.customers ?? 0)} кл.`;
+    else if (def.production) today = `${num(t.produced ?? 0)} ${GOODS[def.production.recipe.output].unit}`;
     html += `<tr data-action="selectUnit" data-fly="1" data-id="${u.id}"><td>${bizIcon(u.type, 'row')}</td><td>${esc(u.name)}${warn}<small class="muted"><br>${esc(place.name)}</small></td>
       <td>${today}</td><td class="stars">${def.retail ? stars(u.quality) : '—'}</td>
       <td class="${signClass(profit ?? 0)}">${profit === null ? '—' : moneyShort(profit)}</td></tr>`;
@@ -41,19 +44,32 @@ function renderUnits(app) {
   return html;
 }
 
+function defaultRegion(app) {
+  const u = companyUnits(app.state, app.companyId)[0];
+  return u ? regionOf(app.state.world.places[u.placeId]) : 'eu';
+}
+
 function renderMarket(app) {
   const { state } = app;
-  let html = '<h2>💹 Мировой рынок</h2><p class="muted small">Цены меняются каждый день. Ваши крупные покупки и продажи двигают цену. Закупка дороже на 7%, продажа дешевле на 8% (посредники).</p>';
-  html += '<table class="tbl"><tr><th>Товар</th><th>Купить</th><th>Продать</th><th>За 4 нед.</th><th>Тренд (2 года)</th></tr>';
+  const region = app.marketRegion || defaultRegion(app);
+  let html = `<h2>💹 Товарные рынки</h2><p class="muted small">У каждого региона свои цены: где товар производят — дешевле, где ввозят — дороже.
+    Ваши бизнесы покупают и продают на рынке своего региона. Крупные объёмы двигают цену. Закупка дороже на 7% (склады — 3%), продажа дешевле на 8%.</p>
+    <div class="chips">${Object.entries(MARKET_REGIONS).map(([id, r]) => `<button class="chip ${id === region ? 'active' : ''}" data-action="marketRegion" data-region="${id}">${r.name}</button>`).join('')}</div>`;
+  html += '<table class="tbl"><tr><th>Товар</th><th>Купить</th><th>Продать</th><th>Дешевле всего</th><th>Тренд</th></tr>';
   for (const [g, m] of Object.entries(state.market.goods)) {
     const def = GOODS[g];
-    const now = midPrice(state, g);
-    const prev = m.hist.length > 4 ? m.hist[m.hist.length - 5] : m.hist[0];
+    const now = midPrice(state, g, region);
+    const hist = m.regions[region].hist.length > 1 ? m.regions[region].hist : m.hist;
+    const prev = hist.length > 4 ? hist[hist.length - 5] : hist[0];
     const ch = now / prev - 1;
+    const cheapest = Object.keys(MARKET_REGIONS).reduce((a, b) => (midPrice(state, g, a) <= midPrice(state, g, b) ? a : b));
     const shock = m.shockDays > 0 ? ` <span class="tag ${m.shock > 1 ? 'bad' : 'good'}" title="Осталось ${m.shockDays} дн.">${m.shock > 1 ? '▲ шок' : '▼ избыток'}</span>` : '';
+    const mid = now * (1 + 0.07);
+    const sell = now * (1 - 0.08);
     html += `<tr><td>${goodIcon(g, 'inline')} ${def.name}${shock}<small class="muted"><br>за ${def.unit}${def.local ? ', цена зависит от города' : ''}</small></td>
-      <td>${money(buyPrice(state, g), { cents: true })}</td><td>${money(sellPrice(state, g), { cents: true })}</td>
-      <td>${ch >= 0 ? '▲ +' : '▼ '}${pct(ch, 1)}</td><td>${sparkline(m.hist)}</td></tr>`;
+      <td>${money(mid, { cents: true })}</td><td>${money(sell, { cents: true })}</td>
+      <td>${cheapest === region ? '<small class="pos">здесь</small>' : `<small>${MARKET_REGIONS[cheapest].name}<br>${money(midPrice(state, g, cheapest), { cents: true })}</small>`}</td>
+      <td>${sparkline(hist, 70, 22)}<br><small class="muted">${ch >= 0 ? '▲ +' : '▼ '}${pct(ch, 1)} за 4 нед.</small></td></tr>`;
   }
   return `${html}</table>`;
 }

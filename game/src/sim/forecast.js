@@ -50,7 +50,7 @@ export function forecast(state, lotId, type, companyId = null) {
     let ownUse = 0;
     if (def.retail) for (const pr of def.retail.products) ownUse += (pr.recipe[out] || 0) * pr.attach * served;
     r.output = out;
-    r.outputPrice = sellPrice(state, out);
+    r.outputPrice = sellPrice(state, out, place);
     revenueDay += Math.max(0, produced - ownUse) * r.outputPrice;
   }
   const need = dailyNeed({ type }, served, produced);

@@ -152,3 +152,61 @@ test('PvP: победа по капиталу останавливает игр�
   stepDays(s, 3);
   assert.equal(s.day, day);
 });
+
+test('регионы: кофе-зерно в Латинской Америке дешевле, чем в Европе', async () => {
+  const { buyPrice } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 14 });
+  const sao = s.world.places.sao;
+  const ber = s.world.places.ber;
+  assert.ok(buyPrice(s, 'coffee_green', sao) < buyPrice(s, 'coffee_green', ber) * 0.85);
+});
+
+test('логистика: зерно из Бразилии едет в Берлин больше недели', () => {
+  const s = createGame({ seed: 15 });
+  s.companies.c1.cash = 2000000;
+  const farm = open(s, 'r_minas', 'coffee_plantation');
+  const roastery = open(s, 'ber', 'coffee_roastery');
+  stepDays(s, 3);
+  const sh = s.shipments.find((x) => x.to === roastery.id && x.from === farm.id);
+  assert.ok(sh, 'есть груз в пути');
+  assert.ok(sh.arrive - sh.sent >= 10, `в пути ${sh.arrive - sh.sent} дней`);
+  stepDays(s, 30);
+  assert.equal(roastery.supplied.coffee_green, 'internal');
+  assert.ok(roastery.inv.coffee_green.q > 0);
+});
+
+test('склад: держит запас и снабжает точки рядом', () => {
+  const s = createGame({ seed: 16 });
+  s.companies.c1.cash = 2000000;
+  const shop = open(s, 'ber', 'coffee_shop');
+  const wh = open(s, 'ber', 'warehouse');
+  stepDays(s, 20);
+  assert.ok(wh.usage.coffee_roasted > 0, 'склад знает потребность точки');
+  assert.ok(wh.inv.coffee_roasted?.q > wh.usage.coffee_roasted * 5, 'склад держит запас');
+  assert.equal(shop.supplied.coffee_roasted, 'warehouse');
+});
+
+test('контракт: фиксированная цена, поставки каждый день, штраф за разрыв', () => {
+  const s = createGame({ seed: 17 });
+  s.companies.c1.cash = 500000;
+  const shop = open(s, 'ber', 'coffee_shop');
+  stepDays(s, 5);
+  const r = applyCommand(s, { type: 'signContract', unitId: shop.id, good: 'milk', side: 'buy', months: 3 }, 'c1');
+  assert.ok(r.ok, r.error);
+  const c = s.contracts[0];
+  stepDays(s, 10);
+  assert.equal(shop.supplied.milk, 'contract');
+  const cashBefore = s.companies.c1.cash;
+  assert.ok(applyCommand(s, { type: 'cancelContract', contractId: c.id }, 'c1').ok);
+  assert.ok(s.companies.c1.cash < cashBefore, 'штраф списан');
+  assert.equal(s.contracts.length, 0);
+});
+
+test('PvP: нельзя расторгнуть чужой контракт', () => {
+  const s = createGame({ seed: 18, mode: 'pvp', companyNames: ['А', 'Б'] });
+  s.companies.c1.cash = 500000;
+  const shop = open(s, 'ber', 'coffee_shop', 'c1');
+  stepDays(s, 3);
+  applyCommand(s, { type: 'signContract', unitId: shop.id, good: 'cups', side: 'buy', months: 6 }, 'c1');
+  assert.equal(applyCommand(s, { type: 'cancelContract', contractId: s.contracts[0].id }, 'c2').ok, false);
+});

@@ -3,14 +3,16 @@ import { BUSINESSES, MAX_LEVEL } from '../data/businesses.js';
 import { DISTRICTS, ZONING_NAMES } from '../data/districts.js';
 import { COUNTRIES } from '../data/cities.js';
 import { GOODS } from '../data/goods.js';
+import { MARKET_REGIONS } from '../data/regions.js';
 import {
+  regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
 const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка' };
-const SUPPLY_LABEL = { internal: '🔗 свои', market: '💹 рынок', nocash: '⛔ нет денег' };
+const SUPPLY_LABEL = { internal: '🔗 своё', warehouse: '🏗️ склад', contract: '📝 контракт', market: '💹 рынок', nocash: '⛔ нет денег' };
 
 function row(label, value, cls = '') {
   return `<div class="row"><span>${label}</span><b class="${cls}">${value}</b></div>`;
@@ -128,9 +130,10 @@ function renderLot(app, lot) {
   for (const f of forecasts) {
     const def = BUSINESSES[f.type];
     const afford = app.company.cash >= f.capex;
-    const activity = def.retail
-      ? `${num(f.customers)} клиентов/день${f.competitors ? ` · конкурентов: ${f.competitors}` : ''}`
-      : `${num(f.produced)} ${GOODS[f.output].unit}/день ${goodIcon(f.output, 'inline')}`;
+    let activity;
+    if (def.retail) activity = `${num(f.customers)} клиентов/день${f.competitors ? ` · конкурентов: ${f.competitors}` : ''}`;
+    else if (def.production) activity = `${num(f.produced)} ${GOODS[f.output].unit}/день ${goodIcon(f.output, 'inline')}`;
+    else activity = `запас для точек в радиусе ${num(def.storage.radiusKm)} км`;
     html += `<div class="offer">
       <div class="offer-head"><span class="li-icon big">${bizIcon(f.type)}</span><b>${def.name}</b><span class="tier">тир ${def.tier}</span></div>
       <div class="muted small">${def.description}</div>
@@ -142,7 +145,7 @@ function renderLot(app, lot) {
         <span>Прибыль/мес</span><b class="${signClass(f.profit)}">${money(f.profit)}</b>
         <span>Окупаемость</span><b>${months(f.payback)}</b>
       </div>
-      <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-profit="${f.profit}" data-capex="${f.capex}"
+      <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-profit="${def.storage ? 0 : f.profit}" data-capex="${f.capex}"
         data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>
         ${afford ? `Открыть за ${moneyShort(f.capex)}` : `Не хватает ${moneyShort(f.capex - app.company.cash)}`}</button>
     </div>`;
@@ -224,6 +227,63 @@ function renderRivalUnit(app, u) {
   return html;
 }
 
+function transitText(state, u, g) {
+  const q = inTransit(state, u, g);
+  if (q < 0.5) return '—';
+  const far = state.shipments.filter((s) => s.to === u.id && s.good === g);
+  const next = far.length ? Math.min(...far.map((s) => s.arrive)) - state.day : 1;
+  return `${num(q, q < 10 ? 1 : 0)} <small class="muted">${far.length ? `· ${next} дн.` : '· завтра'}</small>`;
+}
+
+function renderWarehouse(app, u) {
+  const { state } = app;
+  const cap = storageCapacity(state, u);
+  const used = storedKg(state, u);
+  const served = servedBy(state, u);
+  let html = `<h3>Склад</h3><div class="card">
+    ${row('Заполнен', `${num(used / 1000, 1)} из ${num(cap / 1000, 1)} т`)}
+    <div class="progress"><span style="width:${Math.min(100, (used / cap) * 100).toFixed(0)}%"></span></div>
+    <div class="row"><span>Держать запас, дней</span><span class="price-ctl"><input type="number" min="3" max="60" step="1" value="${u.coverDays}" data-change="setWarehouseCover" data-id="${u.id}"></span></div>
+    ${row('Обслуживает точек', `${served.length} (в радиусе ${num(BUSINESSES[u.type].storage.radiusKm)} км)`)}
+    <div class="muted small">Склад закупает оптом (наценка 3% вместо 7%), дальние партии едут по оптовому тарифу, точки рядом получают товар за 1 день. Скоропорт на складе портится вдвое медленнее.</div></div>`;
+  if (served.length) html += `<div class="list">${served.map((s) => unitListItem(app, s)).join('')}</div>`;
+  return html;
+}
+
+function renderContracts(app, u) {
+  const { state } = app;
+  const mine = state.contracts.filter((c) => c.unitId === u.id);
+  const { buy, sell } = contractGoods(u);
+  if (!mine.length && !buy.length && !sell.length) return '';
+  let html = '<h3>Контракты</h3>';
+  for (const c of mine) {
+    const left = c.end - state.day;
+    html += `<div class="card contract"><div class="row"><span>${goodIcon(c.good, 'inline')} <b>${c.side === 'buy' ? 'Закупка' : 'Продажа'}</b> ${GOODS[c.good].name}</span>
+      <b>${num(c.qtyPerDay, c.qtyPerDay < 10 ? 1 : 0)} ${GOODS[c.good].unit}/день × ${money(c.price, { cents: true })}</b></div>
+      <div class="row"><small class="muted">ещё ${left} дн. · рынок сейчас ${money(c.side === 'buy' ? buyPrice(state, c.good, state.world.places[u.placeId]) : sellPrice(state, c.good, state.world.places[u.placeId]), { cents: true })}</small>
+      <button class="mini wide" data-action="cancelContract" data-id="${c.id}" title="Штраф 15% от оставшегося объёма: ${money(remainingValue(state, c) * 0.15)}">Расторгнуть</button></div></div>`;
+  }
+  const offers = [...buy.map((g) => ['buy', g]), ...sell.map((g) => ['sell', g])]
+    .filter(([side, g]) => !mine.some((c) => c.side === side && c.good === g));
+  if (offers.length) {
+    html += `<div class="muted small">Фиксированная цена на весь срок: защищает от скачков рынка, но если рынок пойдёт в вашу сторону — вы проиграете.
+      Закупка — «бери или плати»: товар привозят каждый день. Продажа — штраф 10% за недопоставку. Разрыв — штраф 15%.</div>
+      <table class="tbl"><tr><th>Предложение</th><th>3 мес</th><th>6 мес</th><th>12 мес</th></tr>`;
+    for (const [side, g] of offers) {
+      const o3 = contractOffer(state, u, g, side, 3);
+      if (!(o3.qtyPerDay > 0)) continue;
+      html += `<tr><td>${goodIcon(g, 'inline')} ${side === 'buy' ? 'Закупка' : 'Продажа'} ${num(o3.qtyPerDay, o3.qtyPerDay < 10 ? 1 : 0)} ${GOODS[g].unit}/день</td>`;
+      for (const m of CONTRACT_MONTHS) {
+        const o = contractOffer(state, u, g, side, m);
+        html += `<td><button class="mini wide" data-action="signContract" data-id="${u.id}" data-good="${g}" data-side="${side}" data-months="${m}">${money(o.price, { cents: true })}</button></td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+  }
+  return html;
+}
+
 function renderUnit(app, u) {
   const { state } = app;
   if (u.companyId !== app.companyId) return renderRivalUnit(app, u);
@@ -243,7 +303,7 @@ function renderUnit(app, u) {
   if (def.production) {
     const out = GOODS[def.production.recipe.output];
     html += `<div class="kpi"><small>Выпуск сегодня</small><b>${num(t.produced ?? 0)} ${out.unit}</b><small>${goodIcon(def.production.recipe.output, 'inline')} ${out.name} · макс ${num(productionCapacity(state, u))}</small></div>
-      <div class="kpi"><small>Цена продажи</small><b>${money(sellPrice(state, def.production.recipe.output), { cents: true })}</b><small>за ${out.unit} на рынке</small></div>`;
+      <div class="kpi"><small>Цена продажи</small><b>${money(sellPrice(state, def.production.recipe.output, place), { cents: true })}</b><small>за ${out.unit} · рынок «${MARKET_REGIONS[regionOf(place)].name}»</small></div>`;
   }
   html += '</div>';
 
@@ -281,21 +341,25 @@ function renderUnit(app, u) {
   html += `<button class="btn ghost" data-action="copySettings" data-id="${u.id}" title="Те же цены (относительно местной нормы), реклама и сбыт">📋 Применить настройки ко всем «${def.name}»</button>`;
   html += `<button class="btn danger" data-action="close" data-id="${u.id}">✖ Закрыть бизнес</button></div>`;
 
+  if (def.storage) html += renderWarehouse(app, u);
   const goods = [...new Set([...Object.keys(u.usage), ...Object.keys(u.inv)])];
   if (goods.length) {
-    html += '<h3>Склад и поставки</h3><table class="tbl"><tr><th>Товар</th><th>Запас</th><th>Дней</th><th>Откуда</th><th>Цена</th></tr>';
+    html += `<h3>${def.storage ? 'Запасы' : 'Склад и поставки'}</h3><table class="tbl compact"><tr><th>Товар</th><th>Запас</th><th>Дней</th><th>В пути</th><th>Откуда</th><th>Цена</th></tr>`;
     const out = def.production?.recipe.output;
     for (const g of goods) {
       const q = invQty(u, g);
       const use = u.usage[g] || 0;
       const days = use > 0 ? q / use : null;
-      const src = g === out ? '🏭 своё производство' : SUPPLY_LABEL[u.supplied?.[g]] || '—';
+      const src = g === out ? '🏭 выпуск' : SUPPLY_LABEL[u.supplied?.[g]] || '—';
       html += `<tr><td>${goodIcon(g, 'inline')} ${GOODS[g].name}</td><td>${num(q, q < 10 ? 1 : 0)} ${GOODS[g].unit}</td>
-        <td class="${days !== null && days < 1 ? 'neg' : ''}">${days === null ? '—' : num(days, 1)}</td><td>${src}</td>
-        <td>${money(g === out ? sellPrice(state, g) : buyPrice(state, g, place), { cents: true })}</td></tr>`;
+        <td class="${days !== null && days < 1 ? 'neg' : ''}">${days === null ? '—' : num(days, 1)}</td>
+        <td>${transitText(state, u, g)}</td><td>${src}</td>
+        <td>${money(g === out ? sellPrice(state, g, place) : buyPrice(state, g, place, { bulk: !!def.storage }), { cents: true })}</td></tr>`;
     }
-    html += `</table><div class="muted small">Закупки идут автоматически: запас на ~${coverDays('flour')} дн. (скоропорт — на ${coverDays('milk')}). Сначала со своих производств, потом с рынка.</div>`;
+    html += `</table><div class="muted small">Закупки идут автоматически: запас на ~${coverDays('flour')} дн. (скоропорт — на ${coverDays('milk')}) плюс дни в пути.
+      Сначала со своих производств и складов (если с доставкой дешевле рынка), потом с рынка региона «${MARKET_REGIONS[regionOf(place)].name}».</div>`;
   }
+  html += renderContracts(app, u);
 
   if (u.history.length) html += `<h3>Прибыль по месяцам</h3>${bars(u.history.slice(-12), 300, 48)}`;
   html += plTable(u.month, `Текущий месяц (${u.month.days} дн.)`);

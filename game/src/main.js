@@ -413,6 +413,18 @@ async function handleAction(el) {
       if (r.ok) toast(action === 'takeLoan' ? 'Кредит получен' : 'Кредит погашен', 'good');
       break;
     }
+    case 'signContract': {
+      const r = await app.dispatch({ type: 'signContract', unitId: id, good: el.dataset.good, side: el.dataset.side, months: Number(el.dataset.months) });
+      if (r.ok) toast('Контракт подписан', 'good');
+      break;
+    }
+    case 'cancelContract':
+      if (confirm(`Расторгнуть контракт досрочно? ${el.title}`)) app.dispatch({ type: 'cancelContract', contractId: Number(id) });
+      break;
+    case 'marketRegion':
+      app.marketRegion = el.dataset.region;
+      renderDrawer(app);
+      break;
     case 'restartTutorial':
       restartTutorial();
       app.tab = null;
@@ -437,6 +449,9 @@ function handleChange(el) {
       break;
     case 'setSellMode':
       app.dispatch({ type: 'setSellMode', unitId: id, mode: el.value });
+      break;
+    case 'setWarehouseCover':
+      app.dispatch({ type: 'setWarehouseCover', unitId: id, days: Math.round(Number(el.value)) });
       break;
     default:
   }

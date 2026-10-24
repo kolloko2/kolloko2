@@ -6,6 +6,8 @@ import { procureAll, sellSurplus, spoilAll } from './supply.js';
 import { monthlyAI } from './ai.js';
 import { dailyEvents, monthlyEvents } from './events.js';
 import { checkGoals, checkVictory } from './goals.js';
+import { receiveDeliveries } from './logistics.js';
+import { runContracts } from './contracts.js';
 import { costIndex } from './world.js';
 import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
 import {
@@ -131,6 +133,8 @@ function liquidate(state, co) {
     delete state.units[unit.id];
   }
   for (const lot of Object.values(state.world.lots)) if (lot.ownerId === co.id) lot.ownerId = null;
+  state.contracts = state.contracts.filter((c) => c.companyId !== co.id);
+  state.shipments = state.shipments.filter((s) => s.companyId !== co.id);
   state.mapVersion++;
   const others = state.mode === 'pvp' ? null : co.id;
   addNews(state, 'bad', state.mode === 'pvp' ? `Компания «${co.name}» обанкротилась! Её точки закрыты.` : 'Компания объявлена банкротом. Игра окончена.', null, others);
@@ -201,10 +205,12 @@ export function isOver(state) {
 export function stepDay(state) {
   if (isOver(state)) return;
   updateMarket(state);
+  receiveDeliveries(state);
   for (const unit of Object.values(state.units)) unit.today = {};
   runProduction(state);
   runRetail(state);
   updateUsage(state);
+  runContracts(state);
   procureAll(state);
   sellSurplus(state);
   spoilAll(state);

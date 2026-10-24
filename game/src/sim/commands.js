@@ -4,7 +4,8 @@ import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { canBuildHere, forecast } from './forecast.js';
 import { addNews, loanLimit, companyUnits } from './state.js';
-import { emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv, pay, receive } from './units.js';
+import { emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv, pay, receive, placeOf } from './units.js';
+import { contractOffer, contractGoods, endContract, CONTRACT_MONTHS } from './contracts.js';
 
 // Все действия игрока — команды. applyCommand(state, cmd, companyId) возвращает { ok } или { ok: false, error }.
 // companyId — от чьего имени действие: в соло его подставляет локальная сессия, в мультиплеере — сервер
@@ -51,6 +52,7 @@ const handlers = {
       quality: 3,
       queue: 0,
       inv: {},
+      incoming: {},
       usage: {},
       supplied: {},
       sellMode: 'auto',
@@ -61,6 +63,7 @@ const handlers = {
       broken: 0,
       bookValue: capex,
     };
+    if (def.storage) unit.coverDays = def.storage.defaultCover;
     unit.usage = dailyNeed(unit, fc.customers, def.production ? productionCapacity(state, unit) : 0);
     state.units[id] = unit;
     lot.unitId = id;
@@ -72,11 +75,14 @@ const handlers = {
   closeBusiness(state, { unitId }, companyId) {
     const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
+    let fines = 0;
+    for (const c of state.contracts.filter((x) => x.unitId === unitId)) fines += endContract(state, c, { penalty: true });
     let cash = 0;
+    const place = placeOf(state, unit);
     for (const [g, s] of Object.entries(unit.inv)) {
       if (s.q <= 0) continue;
-      cash += s.q * sellPrice(state, g);
-      recordTrade(state, g, s.q);
+      cash += s.q * sellPrice(state, g, place);
+      recordTrade(state, g, s.q, place);
       takeInv(unit, g, s.q);
     }
     cash += unit.bookValue * 0.3;
@@ -84,7 +90,7 @@ const handlers = {
     state.world.lots[unit.lotId].unitId = null;
     delete state.units[unitId];
     state.mapVersion++;
-    addNews(state, 'info', `«${unit.name}» закрыт. Оборудование и запасы проданы за ${fmt(cash)}.`, null, companyId);
+    addNews(state, 'info', `«${unit.name}» закрыт. Оборудование и запасы проданы за ${fmt(cash)}.${fines ? ` Штрафы за разрыв контрактов: ${fmt(fines)}.` : ''}`, null, companyId);
     return OK;
   },
 
@@ -203,6 +209,36 @@ const handlers = {
     receive(state, companyId, lot.price * 0.95);
     lot.ownerId = null;
     state.mapVersion++;
+    return OK;
+  },
+
+  signContract(state, { unitId, good, side, months }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (!CONTRACT_MONTHS.includes(months)) return fail('Срок: 3, 6 или 12 месяцев');
+    if (!contractGoods(unit)[side]?.includes(good)) return fail('Такой контракт этому бизнесу не предлагают');
+    if (state.contracts.some((c) => c.unitId === unitId && c.good === good && c.side === side)) return fail('Такой контракт уже действует');
+    const offer = contractOffer(state, unit, good, side, months);
+    if (!(offer.qtyPerDay > 0)) return fail('Нечего законтрактовать: нет потребления или выпуска');
+    const c = { id: state.nextContractId++, companyId, unitId, ...offer, start: state.day, end: state.day + months * 30 };
+    state.contracts.push(c);
+    addNews(state, 'good', `Подписан контракт: ${side === 'buy' ? 'закупка' : 'продажа'} ${offer.qtyPerDay} в день по $${offer.price.toFixed(2)} на ${months} мес. («${unit.name}»).`, { unitId }, companyId);
+    return { ok: true, contractId: c.id };
+  },
+
+  cancelContract(state, { contractId }, companyId) {
+    const c = state.contracts.find((x) => x.id === contractId && x.companyId === companyId);
+    if (!c) return fail('Нет такого контракта');
+    const fine = endContract(state, c, { penalty: true });
+    addNews(state, 'warn', `Контракт расторгнут досрочно, штраф ${fmt(fine)}.`, { unitId: c.unitId }, companyId);
+    return OK;
+  },
+
+  setWarehouseCover(state, { unitId, days }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit || !BUSINESSES[unit.type].storage) return fail('Это не склад');
+    if (!Number.isInteger(days) || days < 3 || days > 60) return fail('Запас: от 3 до 60 дней');
+    unit.coverDays = days;
     return OK;
   },
 

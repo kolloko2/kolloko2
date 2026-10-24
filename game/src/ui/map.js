@@ -1,6 +1,7 @@
 /* global L */
 import { BUSINESSES } from '../data/businesses.js';
 import { DISTRICTS } from '../data/districts.js';
+import { GOODS } from '../data/goods.js';
 import { esc } from './format.js';
 import { bizIcon, districtIcon, uiIcon } from './icons.js';
 
@@ -12,6 +13,9 @@ const ZOOM_LOTS_RURAL = 10;
 let map;
 let placesLayer;
 let detailLayer;
+let routesLayer;
+let routesKey = '';
+let showRoutes = true;
 let builtVersion = -1;
 
 const ZONING_ICON = { commercial: '🏬', industrial: '🏭', farmland: '🟫' };
@@ -26,6 +30,24 @@ export function initMap(app) {
   }).addTo(map);
   placesLayer = L.layerGroup().addTo(map);
   detailLayer = L.layerGroup().addTo(map);
+  routesLayer = L.layerGroup().addTo(map);
+  // Кнопка «Цепочки»: линии от поставщиков к получателям своей компании
+  const RoutesControl = L.Control.extend({
+    onAdd() {
+      const b = L.DomUtil.create('button', 'map-toggle active');
+      b.innerHTML = '🔗 Цепочки';
+      b.title = 'Показать/скрыть цепочки поставок';
+      L.DomEvent.disableClickPropagation(b);
+      b.onclick = () => {
+        showRoutes = !showRoutes;
+        b.classList.toggle('active', showRoutes);
+        routesKey = '';
+        refreshRoutes(app);
+      };
+      return b;
+    },
+  });
+  new RoutesControl({ position: 'topright' }).addTo(map);
   const markZoom = () => {
     map.getContainer().classList.toggle('zoom-low', map.getZoom() < 5);
     map.getContainer().classList.toggle('zoom-mid', map.getZoom() < 12);
@@ -173,6 +195,7 @@ function buildDetail(app) {
 // Новая игра или переход в комнату: перестроить карту целиком
 export function resetMap(app) {
   builtVersion = -1;
+  routesKey = '';
   refreshMap(app, true);
 }
 
@@ -182,6 +205,34 @@ function updateLotIcons(app) {
     if (html === entry.html) continue;
     entry.html = html;
     entry.marker.setIcon(makeLotIcon(html));
+  }
+}
+
+// Линии цепочек поставок: от своего производства/склада к получателю; пунктир — груз в пути дольше дня
+function refreshRoutes(app) {
+  const { state } = app;
+  const links = [];
+  if (showRoutes) {
+    for (const u of Object.values(state.units)) {
+      if (u.companyId !== app.companyId || !u.sources) continue;
+      for (const [good, srcId] of Object.entries(u.sources)) {
+        const src = state.units[srcId];
+        if (src) links.push([src, u, good]);
+      }
+    }
+  }
+  const key = links.map(([a, b, g]) => `${a.id}>${b.id}:${g}`).join('|');
+  if (key === routesKey) return;
+  routesKey = key;
+  routesLayer.clearLayers();
+  const color = app.company?.color || '#2f6fed';
+  for (const [src, dst, good] of links) {
+    const a = state.world.lots[src.lotId];
+    const b = state.world.lots[dst.lotId];
+    const far = Math.abs(a.lat - b.lat) + Math.abs(a.lng - b.lng) > 8;
+    routesLayer.addLayer(L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
+      color, weight: 2.5, opacity: 0.7, dashArray: far ? '6 6' : null, interactive: true,
+    }).bindTooltip(`${esc(src.name)} → ${esc(dst.name)}: ${GOODS[good].name}`, { sticky: true }));
   }
 }
 
@@ -197,6 +248,7 @@ export function refreshMap(app, force = false) {
   }
   if (force) buildDetail(app);
   else updateLotIcons(app);
+  refreshRoutes(app);
 }
 
 // Раз в игровой день: предупреждения на значках своих бизнесов
