@@ -86,5 +86,49 @@
   "district/student": {
     "model": "meta/muse-image",
     "cost": 0.01
+  },
+  "district/mall": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "district/industrial": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "district/rural": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/cash": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/capital": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/market": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/finance": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/news": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/help": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/city": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/loan": {
+    "model": "meta/muse-image",
+    "cost": 0.01
   }
 }

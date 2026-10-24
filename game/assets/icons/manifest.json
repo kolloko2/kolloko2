@@ -10,8 +10,12 @@
  "business/wheat_farm",
  "district/cbd",
  "district/historic",
+ "district/industrial",
+ "district/mall",
  "district/premium",
  "district/residential",
+ "district/rural",
+ "district/student",
  "goods/coffee_green",
  "goods/coffee_roasted",
  "goods/cups",
@@ -21,5 +25,13 @@
  "goods/milk",
  "goods/pastry",
  "goods/sugar",
- "goods/wheat"
+ "goods/wheat",
+ "ui/capital",
+ "ui/cash",
+ "ui/city",
+ "ui/finance",
+ "ui/help",
+ "ui/loan",
+ "ui/market",
+ "ui/news"
 ]

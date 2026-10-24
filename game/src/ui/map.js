@@ -19,9 +19,9 @@ const ZONING_ICON = { commercial: '🏬', industrial: '🏭', farmland: '🟫' }
 export function initMap(app) {
   map = L.map('map', { worldCopyJump: true, minZoom: 2, maxZoom: 18, zoomControl: false }).setView([35, 15], 3);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    subdomains: 'abcd',
+  // Стандартные тайлы OpenStreetMap: без ключа, нужна только атрибуция.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
   }).addTo(map);
   placesLayer = L.layerGroup().addTo(map);
