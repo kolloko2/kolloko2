@@ -6,6 +6,7 @@ import { canBuildHere, forecast } from './forecast.js';
 import { addNews, loanLimit, companyUnits } from './state.js';
 import { emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv, pay, receive, placeOf } from './units.js';
 import { contractOffer, contractGoods, endContract, CONTRACT_MONTHS } from './contracts.js';
+import { WAGE_LEVELS } from './staff.js';
 
 // Все действия игрока — команды. applyCommand(state, cmd, companyId) возвращает { ok } или { ok: false, error }.
 // companyId — от чьего имени действие: в соло его подставляет локальная сессия, в мультиплеере — сервер
@@ -62,6 +63,10 @@ const handlers = {
       today: {},
       broken: 0,
       bookValue: capex,
+      wageLevel: 1,
+      morale: 65,
+      manager: false,
+      autoStaff: false,
     };
     if (def.storage) unit.coverDays = def.storage.defaultCover;
     unit.usage = dailyNeed(unit, fc.customers, def.production ? productionCapacity(state, unit) : 0);
@@ -209,6 +214,43 @@ const handlers = {
     receive(state, companyId, lot.price * 0.95);
     lot.ownerId = null;
     state.mapVersion++;
+    return OK;
+  },
+
+  setWage(state, { unitId, level }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (!WAGE_LEVELS.includes(level)) return fail('Уровень зарплаты: 80%, 100%, 120% или 150%');
+    unit.wageLevel = level;
+    return OK;
+  },
+
+  hireManager(state, { unitId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (unit.manager) return fail('Управляющий уже есть');
+    unit.manager = true;
+    unit.autoStaff = true;
+    state.mapVersion++; // меняется подсчёт «внимания»
+    addNews(state, 'good', `В «${unit.name}» нанят управляющий.`, { unitId }, companyId);
+    return OK;
+  },
+
+  fireManager(state, { unitId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit || !unit.manager) return fail('Управляющего нет');
+    unit.manager = false;
+    unit.autoStaff = false;
+    unit.morale = Math.max(0, (unit.morale ?? 65) - 10);
+    state.mapVersion++;
+    return OK;
+  },
+
+  setAutoStaff(state, { unitId, on }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (!unit.manager) return fail('Автоподбор штата делает управляющий — сначала наймите его');
+    unit.autoStaff = Boolean(on);
     return OK;
   },
 

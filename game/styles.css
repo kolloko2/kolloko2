@@ -421,3 +421,8 @@ select { max-width: 220px; padding: 4px; border: 1px solid var(--line); border-r
 .map-toggle.active { background: #e8efff; color: var(--accent); }
 .tbl.compact { font-size: 12px; }
 .tbl.compact td, .tbl.compact th { padding: 4px 3px; }
+.chips.tight { margin: 0; gap: 2px; }
+.chips.tight .chip { padding: 2px 7px; }
+.progress.warn span { background: var(--warn); }
+.progress.bad span { background: var(--neg); }
+label.row.check { cursor: pointer; font-weight: normal; }

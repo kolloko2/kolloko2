@@ -2,6 +2,7 @@ import { BUSINESSES } from '../data/businesses.js';
 import { regionOf } from './market.js';
 import { costIndex } from './world.js';
 import { invQty, takeInv, earn, placeOf } from './units.js';
+import { efficiency } from './staff.js';
 
 // Сервисные бизнесы (грузоперевозки, реклама, IT) зарабатывают на заказах ИИ-клиентов.
 // Чем больше одинаковых сервисов в регионе (у всех компаний), тем меньше заказов на каждого.
@@ -25,7 +26,7 @@ export function runServices(state) {
     working = Math.floor(Math.max(0, working));
     let cost = 0;
     for (const [g, q] of Object.entries(def.service.inputs)) cost += takeInv(unit, g, working * q);
-    const revenue = working * serviceRevenuePerStaff(state, def, placeOf(state, unit), unit.type, 0);
+    const revenue = working * serviceRevenuePerStaff(state, def, placeOf(state, unit), unit.type, 0) * efficiency(state, unit);
     earn(state, unit, revenue);
     unit.month.cogs += cost;
     unit.today.working = working;

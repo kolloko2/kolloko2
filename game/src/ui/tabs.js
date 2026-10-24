@@ -32,7 +32,7 @@ function renderUnits(app) {
     const t = u.today || {};
     const profit = u.last ? monthProfit(u.last) : null;
     if (profit !== null) total += profit;
-    const warn = u.broken > 0 || t.stockout || t.inputShort ? ' ⚠️' : '';
+    const warn = (u.broken > 0 || t.stockout || t.inputShort ? ' ⚠️' : '') + ((u.morale ?? 65) < 35 ? ' 😠' : '') + (u.manager ? ' 👔' : '');
     let today = 'склад';
     if (def.retail) today = `${num(t.customers ?? 0)} кл.`;
     else if (def.production) today = `${num(t.produced ?? 0)} ${GOODS[def.production.recipe.output].unit}`;

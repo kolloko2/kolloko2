@@ -9,6 +9,7 @@ import { checkGoals, checkVictory } from './goals.js';
 import { receiveDeliveries } from './logistics.js';
 import { runServices } from './services.js';
 import { marketingBoost } from './bonuses.js';
+import { updateStaff, monthlyStaffEvents, managerCost, morale } from './staff.js';
 import { runContracts } from './contracts.js';
 import { costIndex } from './world.js';
 import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
@@ -95,7 +96,7 @@ function updateUsage(state) {
 
 function dailyCosts(state) {
   for (const unit of Object.values(state.units)) {
-    spend(state, unit, 'wages', (unit.staff * monthlyWage(state, unit)) / 30);
+    spend(state, unit, 'wages', (unit.staff * monthlyWage(state, unit) + (unit.manager ? managerCost(placeOf(state, unit)) : 0)) / 30);
     const rent = monthlyRent(state, unit) / 30;
     spend(state, unit, 'rent', rent);
     // помещение принадлежит другой компании — аренда идёт ей
@@ -122,7 +123,7 @@ function updateBrand(state) {
     const floor = 0.05 + 0.15 * lot.visibility;
     unit.awareness += (1 - unit.awareness) * gain - 0.006 * unit.awareness + wordOfMouth;
     unit.awareness = Math.min(0.95, Math.max(floor, unit.awareness));
-    const q = baseQuality(unit) - unit.queue - (unit.today.stockout ? 0.4 : 0);
+    const q = baseQuality(unit) - unit.queue - (unit.today.stockout ? 0.4 : 0) - (morale(unit) < 40 ? 0.3 : 0);
     unit.quality = Math.min(5, Math.max(1, unit.quality * 0.97 + q * 0.03));
   }
 }
@@ -196,6 +197,7 @@ function monthEnd(state) {
   for (const co of activeCompanies(state)) closeCompanyMonth(state, co, companyUnits(state, co.id));
   monthlyAI(state);
   monthlyEvents(state);
+  monthlyStaffEvents(state);
   checkVictory(state);
 }
 
@@ -219,6 +221,7 @@ export function stepDay(state) {
   spoilAll(state);
   dailyCosts(state);
   updateBrand(state);
+  updateStaff(state);
   dailyEvents(state);
   checkSolvency(state);
   checkGoals(state);

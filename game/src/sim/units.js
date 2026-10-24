@@ -3,6 +3,7 @@ import { GOODS } from '../data/goods.js';
 import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { itCapacityBoost } from './bonuses.js';
+import { efficiency, laborFactor, wageLevel } from './staff.js';
 
 export function emptyMonth() {
   return {
@@ -30,8 +31,10 @@ export function capexFor(state, lot, type) {
   return Math.round(def.capex * costIndex(place) + renov);
 }
 
+// Зарплата одного сотрудника: ставка профессии × уровень зарплат города × выбранный уровень × рынок труда
 export function monthlyWage(state, unit) {
-  return BUSINESSES[unit.type].staff.wage * placeOf(state, unit).wage;
+  const place = placeOf(state, unit);
+  return BUSINESSES[unit.type].staff.wage * place.wage * wageLevel(unit) * laborFactor(state, place);
 }
 
 export function monthlyUpkeep(state, unit) {
@@ -50,14 +53,14 @@ export function monthlyRent(state, unit) {
 export function retailCapacity(state, unit) {
   const r = BUSINESSES[unit.type].retail;
   if (!r || unit.broken > 0) return 0;
-  return Math.min(unit.staff * r.perStaff, r.cap[unit.level - 1]) * itCapacityBoost(state, unit.companyId);
+  return Math.min(unit.staff * r.perStaff * efficiency(state, unit), r.cap[unit.level - 1]) * itCapacityBoost(state, unit.companyId);
 }
 
 export function productionCapacity(state, unit) {
   const p = BUSINESSES[unit.type].production;
   if (!p || unit.broken > 0) return 0;
   const place = placeOf(state, unit);
-  const byStaff = unit.staff * p.perStaff * (place.productivity ?? 1);
+  const byStaff = unit.staff * p.perStaff * (place.productivity ?? 1) * efficiency(state, unit);
   const cap = p.cap ? p.cap[unit.level - 1] : p.capPerArea * lotOf(state, unit).area * (1 + 0.5 * (unit.level - 1));
   return Math.min(byStaff, cap);
 }

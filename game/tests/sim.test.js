@@ -236,3 +236,42 @@ test('цепочка мяса: скотоводческая ферма → мя�
   assert.equal(plant.supplied.cattle, 'internal');
   assert.equal(kiosk.supplied.meat, 'internal');
 });
+
+test('персонал: низкая зарплата роняет мораль и производительность, увольнения', async () => {
+  const { efficiency } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 21 });
+  s.companies.c1.cash = 500000;
+  const shop = open(s, 'ber', 'coffee_shop');
+  applyCommand(s, { type: 'setStaff', unitId: shop.id, staff: 6 }, 'c1');
+  const e0 = efficiency(s, shop);
+  assert.ok(applyCommand(s, { type: 'setWage', unitId: shop.id, level: 0.8 }, 'c1').ok);
+  stepDays(s, 120);
+  assert.ok(shop.morale < 50, `мораль ${shop.morale}`);
+  assert.ok(efficiency(s, shop) < e0);
+  assert.equal(applyCommand(s, { type: 'setWage', unitId: shop.id, level: 0.5 }, 'c1').ok, false);
+});
+
+test('внимание: больше 5 точек без управляющих — штраф, управляющий его снимает', async () => {
+  const { attention, efficiency } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 22 });
+  s.companies.c1.cash = 5000000;
+  const units = [];
+  for (const city of ['ber', 'par', 'lon', 'mad', 'rom', 'ams', 'nyc', 'chi']) units.push(open(s, city, 'fastfood'));
+  stepDays(s, 1);
+  assert.equal(attention(s, 'c1').excess, 3);
+  const before = efficiency(s, units[0]);
+  assert.ok(applyCommand(s, { type: 'hireManager', unitId: units[0].id }, 'c1').ok);
+  stepDays(s, 1);
+  assert.equal(attention(s, 'c1').excess, 2);
+  assert.ok(efficiency(s, units[0]) > before);
+});
+
+test('управляющий подбирает штат под спрос', () => {
+  const s = createGame({ seed: 23 });
+  s.companies.c1.cash = 500000;
+  const shop = open(s, 'ber', 'coffee_shop');
+  applyCommand(s, { type: 'setStaff', unitId: shop.id, staff: 12 }, 'c1');
+  applyCommand(s, { type: 'hireManager', unitId: shop.id }, 'c1');
+  stepDays(s, 15);
+  assert.ok(shop.staff < 12, `штат ${shop.staff}`);
+});

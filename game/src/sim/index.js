@@ -10,6 +10,7 @@ export { buyPrice, sellPrice, midPrice, regionOf } from './market.js';
 export { contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS } from './contracts.js';
 export { leadDays, inTransit } from './logistics.js';
 export { isWarehouse, storageCapacity, storedKg, servedBy } from './supply.js';
+export { attention, efficiency, morale, wageLevel, managerCost, laborFactor, WAGE_LEVELS, BASE_ATTENTION } from './staff.js';
 export { districtShares, districtPotential, refPrice } from './demand.js';
 export { distanceKm, costIndex, priceIndex } from './world.js';
 export * from './units.js';

@@ -1,5 +1,5 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
-import { createGame, formatDate, netWorth, newsFor, isOver, SAVE_VERSION, VICTORY_OPTIONS } from './sim/index.js';
+import { createGame, formatDate, netWorth, newsFor, isOver, attention, SAVE_VERSION, VICTORY_OPTIONS } from './sim/index.js';
 import { renderTutorial, restartTutorial, skipTutorial } from './ui/tutorial.js';
 import { LocalSession, RemoteSession, SPEEDS } from './net/session.js';
 import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot } from './ui/map.js';
@@ -90,6 +90,10 @@ function renderHud() {
   profit.textContent = last ? moneyShort(last.profit) : '—';
   profit.className = last ? signClass(last.profit) : '';
   document.getElementById('hud-date').textContent = formatDate(state.day);
+  const att = attention(state, app.companyId);
+  const attEl = document.getElementById('hud-attention');
+  attEl.textContent = `${att.used} / ${att.limit}`;
+  attEl.className = att.excess ? 'neg' : '';
 
   const mine = session.multiplayer ? session.mySpeed() : session.speed;
   document.querySelectorAll('#speed button').forEach((b) => {
@@ -413,6 +417,15 @@ async function handleAction(el) {
       if (r.ok) toast(action === 'takeLoan' ? 'Кредит получен' : 'Кредит погашен', 'good');
       break;
     }
+    case 'setWage':
+      app.dispatch({ type: 'setWage', unitId: id, level: Number(el.dataset.level) });
+      break;
+    case 'hireManager':
+      app.dispatch({ type: 'hireManager', unitId: id });
+      break;
+    case 'fireManager':
+      if (confirm('Уволить управляющего? Мораль сотрудников упадёт.')) app.dispatch({ type: 'fireManager', unitId: id });
+      break;
     case 'signContract': {
       const r = await app.dispatch({ type: 'signContract', unitId: id, good: el.dataset.good, side: el.dataset.side, months: Number(el.dataset.months) });
       if (r.ok) toast('Контракт подписан', 'good');
@@ -449,6 +462,9 @@ function handleChange(el) {
       break;
     case 'setSellMode':
       app.dispatch({ type: 'setSellMode', unitId: id, mode: el.value });
+      break;
+    case 'setAutoStaff':
+      app.dispatch({ type: 'setAutoStaff', unitId: id, on: el.checked });
       break;
     case 'setWarehouseCover':
       app.dispatch({ type: 'setWarehouseCover', unitId: id, days: Math.round(Number(el.value)) });

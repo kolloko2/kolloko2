@@ -5,6 +5,7 @@ import { COUNTRIES } from '../data/cities.js';
 import { GOODS } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
 import {
+  attention, efficiency, morale, wageLevel, managerCost, WAGE_LEVELS, BASE_ATTENTION,
   regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
@@ -285,6 +286,33 @@ function renderContracts(app, u) {
   return html;
 }
 
+function renderStaff(app, u) {
+  const { state } = app;
+  const def = BUSINESSES[u.type];
+  const place = state.world.places[u.placeId];
+  const m = morale(u);
+  const eff = efficiency(state, u);
+  const att = attention(state, app.companyId);
+  const moodText = m >= 75 ? 'довольны' : m >= 50 ? 'нормально' : m >= 35 ? 'недовольны' : 'на грани увольнения';
+  let html = `<h3>Персонал</h3><div class="card">
+    <div class="row"><span>${def.staff.role}: <b>${u.staff}</b><small class="muted"> · ${money(monthlyWage(state, u))}/мес каждый</small></span>
+      <span class="price-ctl"><button class="mini" data-action="staff" data-id="${u.id}" data-delta="-1">−</button><button class="mini" data-action="staff" data-id="${u.id}" data-delta="1">+</button></span></div>
+    <div class="row"><span>Зарплата</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${wageLevel(u) === l ? 'active' : ''}" data-action="setWage" data-id="${u.id}" data-level="${l}">${Math.round(l * 100)}%</button>`).join('')}</span></div>
+    <div class="row"><span>Мораль: ${moodText}</span><b>${num(m)} / 100</b></div>
+    <div class="progress ${m < 35 ? 'bad' : m < 50 ? 'warn' : ''}"><span style="width:${m.toFixed(0)}%"></span></div>
+    ${row('Производительность', `<span class="${signClass(eff - 1)}">${pct(eff)}</span>`)}`;
+  if (u.manager) {
+    html += `<div class="row"><span>👔 Управляющий · ${money(managerCost(place))}/мес</span><button class="mini wide" data-action="fireManager" data-id="${u.id}">Уволить</button></div>
+      <label class="row check"><span>Сам подбирает число сотрудников под спрос</span><input type="checkbox" data-change="setAutoStaff" data-id="${u.id}" ${u.autoStaff ? 'checked' : ''}></label>`;
+  } else {
+    html += `<div class="row"><span>Управляющего нет${att.excess ? ' — <span class="neg">точка теряет эффективность</span>' : ''}</span>
+      <button class="mini wide" data-action="hireManager" data-id="${u.id}">👔 Нанять · ${money(managerCost(place))}/мес</button></div>`;
+  }
+  html += `<div class="muted small">Мораль растёт от зарплаты выше рынка и управляющего, падает от перегрузки. Ниже 35 — увольнения, ниже 25 — забастовки.
+    Вы лично ведёте до ${BASE_ATTENTION} точек без управляющих (сейчас ${att.used}); сверх этого каждая лишняя точка снижает эффективность всех неуправляемых на 4%.</div></div>`;
+  return html;
+}
+
 function renderUnit(app, u) {
   const { state } = app;
   if (u.companyId !== app.companyId) return renderRivalUnit(app, u);
@@ -325,9 +353,8 @@ function renderUnit(app, u) {
     html += '<div class="muted small">Дешевле нормы — больше клиентов, но меньше маржа. Дороже — наоборот.</div></div>';
   }
 
-  html += `<h3>Управление</h3><div class="card">
-    <div class="row"><span>${def.staff.role}: ${u.staff}<small class="muted"> · ${money(monthlyWage(state, u))}/мес каждый</small></span>
-      <span class="price-ctl"><button class="mini" data-action="staff" data-id="${u.id}" data-delta="-1">−</button><button class="mini" data-action="staff" data-id="${u.id}" data-delta="1">+</button></span></div>`;
+  html += renderStaff(app, u);
+  html += '<h3>Управление</h3><div class="card">';
   if (def.retail) {
     html += `<div class="row"><span>Реклама, $/мес</span><span class="price-ctl"><input type="number" step="100" min="0" value="${u.marketing}" data-change="setMarketing" data-id="${u.id}"></span></div>`;
   }

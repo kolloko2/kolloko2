@@ -28,7 +28,11 @@ const t0 = Date.now();
 for (let month = 0; month < years * 12; month++) {
   for (let k = 0; k < 2; k++) {
     const op = bestOpportunity();
-    if (op) applyCommand(state, { type: 'openBusiness', lotId: op.lot.id, businessType: op.type }, ME);
+    if (op) {
+      const r = applyCommand(state, { type: 'openBusiness', lotId: op.lot.id, businessType: op.type }, ME);
+      // после 5 точек бот нанимает управляющих, чтобы не терять эффективность
+      if (r.ok && Object.keys(state.units).length > 5) applyCommand(state, { type: 'hireManager', unitId: r.unitId }, ME);
+    }
   }
   stepDays(state, 30);
   if (co.bankrupt) break;
