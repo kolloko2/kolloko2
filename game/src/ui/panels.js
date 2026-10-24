@@ -1,3 +1,4 @@
+import { bizIcon, districtIcon, goodIcon } from './icons.js';
 import { BUSINESSES, MAX_LEVEL } from '../data/businesses.js';
 import { DISTRICTS, ZONING_NAMES } from '../data/districts.js';
 import { COUNTRIES } from '../data/cities.js';
@@ -21,7 +22,7 @@ function placeOfLot(state, lot) {
 
 function districtTitle(state, d) {
   const place = state.world.places[d.placeId];
-  return `${DISTRICTS[d.type].icon} ${DISTRICTS[d.type].name} · ${esc(place.name)}`;
+  return `${districtIcon(d.type, 'inline')} ${DISTRICTS[d.type].name} · ${esc(place.name)}`;
 }
 
 function renderPlace(app, place) {
@@ -34,7 +35,7 @@ function renderPlace(app, place) {
     html += row('Население', `${num(place.pop, 1)} млн`) + row('Доходы жителей', pct(place.income)) +
       row('Уровень аренды', pct(place.rent)) + row('Уровень зарплат', pct(place.wage));
   } else {
-    html += row('Можно выращивать', place.kinds.map((k) => `${BUSINESSES[k].icon} ${BUSINESSES[k].name}`).join('<br>')) +
+    html += row('Можно выращивать', place.kinds.map((k) => `${bizIcon(k, 'inline')} ${BUSINESSES[k].name}`).join('<br>')) +
       row('Урожайность', pct(place.productivity)) + row('Аренда земли', `${money(place.landRent)}/га в мес`) +
       row('Уровень зарплат', pct(place.wage));
   }
@@ -45,7 +46,7 @@ function renderPlace(app, place) {
     const free = d.lotIds.filter((l) => !state.world.lots[l].unitId).length;
     const ai = Object.entries(d.ai).filter(([, n]) => n > 0).map(([c, n]) => `${CATEGORY_LABEL[c].split(' ')[0]}${n}`).join(' ');
     html += `<button class="list-item" data-action="selectDistrict" data-id="${d.id}">
-      <span class="li-icon">${def.icon}</span><span class="li-main">${def.name}<small>свободно участков: ${free}${ai ? ` · конкуренты: ${ai}` : ''}</small></span></button>`;
+      <span class="li-icon">${districtIcon(d.type)}</span><span class="li-main">${def.name}<small>свободно участков: ${free}${ai ? ` · конкуренты: ${ai}` : ''}</small></span></button>`;
   }
   html += '</div>';
   if (units.length) {
@@ -59,7 +60,7 @@ function renderPlace(app, place) {
 function unitListItem(app, u) {
   const profit = u.last ? monthProfit(u.last) : null;
   return `<button class="list-item" data-action="selectUnit" data-id="${u.id}">
-    <span class="li-icon">${BUSINESSES[u.type].icon}</span>
+    <span class="li-icon">${bizIcon(u.type)}</span>
     <span class="li-main">${esc(u.name)}<small>${profit === null ? 'первый месяц' : `за месяц: <span class="${signClass(profit)}">${moneyShort(profit)}</span>`}</small></span></button>`;
 }
 
@@ -117,9 +118,9 @@ function renderLot(app, lot) {
     const afford = state.company.cash >= f.capex;
     const activity = def.retail
       ? `${num(f.customers)} клиентов/день${f.competitors ? ` · конкурентов: ${f.competitors}` : ''}`
-      : `${num(f.produced)} ${GOODS[f.output].unit}/день ${GOODS[f.output].icon}`;
+      : `${num(f.produced)} ${GOODS[f.output].unit}/день ${goodIcon(f.output, 'inline')}`;
     html += `<div class="offer">
-      <div class="offer-head"><span class="li-icon">${def.icon}</span><b>${def.name}</b><span class="tier">тир ${def.tier}</span></div>
+      <div class="offer-head"><span class="li-icon big">${bizIcon(f.type)}</span><b>${def.name}</b><span class="tier">тир ${def.tier}</span></div>
       <div class="muted small">${def.description}</div>
       <div class="offer-grid">
         <span>Вложения</span><b>${money(f.capex)}</b>
@@ -180,7 +181,7 @@ function renderUnit(app, u) {
   const d = state.world.districts[lot.districtId];
   const place = state.world.places[u.placeId];
   const t = u.today || {};
-  let html = `<h2>${def.icon} ${esc(u.name)}</h2>
+  let html = `<h2 class="with-icon">${bizIcon(u.type, 'title')} ${esc(u.name)}</h2>
     <div class="sub"><a href="#" data-action="selectDistrict" data-id="${d.id}">${districtTitle(state, d)}</a> · уровень ${u.level}/${MAX_LEVEL} · с ${formatDate(u.opened)}</div>
     <div class="badges">${statusBadges(app, u)}</div><div class="kpis">`;
   if (def.retail) {
@@ -190,7 +191,7 @@ function renderUnit(app, u) {
   }
   if (def.production) {
     const out = GOODS[def.production.recipe.output];
-    html += `<div class="kpi"><small>Выпуск сегодня</small><b>${num(t.produced ?? 0)} ${out.unit}</b><small>${out.icon} ${out.name} · макс ${num(productionCapacity(state, u))}</small></div>
+    html += `<div class="kpi"><small>Выпуск сегодня</small><b>${num(t.produced ?? 0)} ${out.unit}</b><small>${goodIcon(def.production.recipe.output, 'inline')} ${out.name} · макс ${num(productionCapacity(state, u))}</small></div>
       <div class="kpi"><small>Цена продажи</small><b>${money(sellPrice(state, def.production.recipe.output), { cents: true })}</b><small>за ${out.unit} на рынке</small></div>`;
   }
   html += '</div>';
@@ -238,7 +239,7 @@ function renderUnit(app, u) {
       const use = u.usage[g] || 0;
       const days = use > 0 ? q / use : null;
       const src = g === out ? '🏭 своё производство' : SUPPLY_LABEL[u.supplied?.[g]] || '—';
-      html += `<tr><td>${GOODS[g].icon} ${GOODS[g].name}</td><td>${num(q, q < 10 ? 1 : 0)} ${GOODS[g].unit}</td>
+      html += `<tr><td>${goodIcon(g, 'inline')} ${GOODS[g].name}</td><td>${num(q, q < 10 ? 1 : 0)} ${GOODS[g].unit}</td>
         <td class="${days !== null && days < 1 ? 'neg' : ''}">${days === null ? '—' : num(days, 1)}</td><td>${src}</td>
         <td>${money(g === out ? sellPrice(state, g) : buyPrice(state, g, place), { cents: true })}</td></tr>`;
     }

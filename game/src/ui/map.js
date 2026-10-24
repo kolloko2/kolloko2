@@ -2,6 +2,7 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { DISTRICTS } from '../data/districts.js';
 import { esc } from './format.js';
+import { bizIcon, districtIcon, uiIcon } from './icons.js';
 
 // Уровни карты: мир (города и регионы) → районы → участки
 const ZOOM_DISTRICTS = 9;
@@ -64,7 +65,7 @@ function unitsByDistrict(state) {
 }
 
 function placeIcon(place, count) {
-  const icon = place.kind === 'city' ? '🏙️' : BUSINESSES[place.kinds[0]].icon;
+  const icon = place.kind === 'city' ? uiIcon('city', '🏙️') : bizIcon(place.kinds[0]);
   const badge = count ? `<span class="badge">${count}</span>` : '';
   return L.divIcon({
     className: 'place-marker-wrap',
@@ -97,7 +98,7 @@ function lotIcon(app, lot) {
   let html;
   if (unit) {
     const warn = unit.today?.stockout || unit.broken > 0 || unit.today?.inputShort ? '<span class="warn-dot"></span>' : '';
-    html = `<div class="lot lot-own${selected ? ' selected' : ''}" title="${esc(unit.name)}">${BUSINESSES[unit.type].icon}${warn}</div>`;
+    html = `<div class="lot lot-own${selected ? ' selected' : ''}" title="${esc(unit.name)}">${bizIcon(unit.type)}${warn}</div>`;
   } else {
     const key = lot.owned ? '<span class="key">🔑</span>' : '';
     html = `<div class="lot lot-free ${lot.zoning}${selected ? ' selected' : ''}">${ZONING_ICON[lot.zoning]}${key}</div>`;
@@ -131,7 +132,7 @@ function buildDetail(app) {
       const label = L.marker([d.lat, d.lng], {
         icon: L.divIcon({
           className: 'district-label-wrap',
-          html: `<div class="district-label" style="--c:${def.color}" title="${def.name}">${def.icon}<span class="dl-name"> ${def.name}</span>${n ? ` <b>${n}</b>` : ''}</div>`,
+          html: `<div class="district-label" style="--c:${def.color}" title="${def.name}">${districtIcon(d.type)}<span class="dl-name"> ${def.name}</span>${n ? ` <b>${n}</b>` : ''}</div>`,
           iconSize: null,
         }),
       });

@@ -1,14 +1,15 @@
+import { bizIcon, goodIcon } from './icons.js';
 import { BUSINESSES } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
 import { midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars } from './format.js';
 
 export const TABS = [
-  { id: 'units', icon: '🏢', name: 'Бизнесы' },
-  { id: 'market', icon: '💹', name: 'Рынок' },
-  { id: 'finance', icon: '🏦', name: 'Финансы' },
-  { id: 'news', icon: '📰', name: 'Новости' },
-  { id: 'help', icon: '❓', name: 'Как играть' },
+  { id: 'units', icon: '🏢', img: 'city', name: 'Бизнесы' },
+  { id: 'market', icon: '💹', img: 'market', name: 'Рынок' },
+  { id: 'finance', icon: '🏦', img: 'finance', name: 'Финансы' },
+  { id: 'news', icon: '📰', img: 'news', name: 'Новости' },
+  { id: 'help', icon: '❓', img: 'help', name: 'Как играть' },
 ];
 
 function renderUnits(app) {
@@ -27,7 +28,7 @@ function renderUnits(app) {
     if (profit !== null) total += profit;
     const warn = u.broken > 0 || t.stockout || t.inputShort ? ' ⚠️' : '';
     const today = def.retail ? `${num(t.customers ?? 0)} кл.` : `${num(t.produced ?? 0)} ${GOODS[def.production.recipe.output].unit}`;
-    html += `<tr data-action="selectUnit" data-fly="1" data-id="${u.id}"><td>${def.icon}</td><td>${esc(u.name)}${warn}<small class="muted"><br>${esc(place.name)}</small></td>
+    html += `<tr data-action="selectUnit" data-fly="1" data-id="${u.id}"><td>${bizIcon(u.type, 'row')}</td><td>${esc(u.name)}${warn}<small class="muted"><br>${esc(place.name)}</small></td>
       <td>${today}</td><td class="stars">${def.retail ? stars(u.quality) : '—'}</td>
       <td class="${signClass(profit ?? 0)}">${profit === null ? '—' : moneyShort(profit)}</td></tr>`;
   }
@@ -45,7 +46,7 @@ function renderMarket(app) {
     const prev = m.hist.length > 4 ? m.hist[m.hist.length - 5] : m.hist[0];
     const ch = now / prev - 1;
     const shock = m.shockDays > 0 ? ` <span class="tag ${m.shock > 1 ? 'bad' : 'good'}" title="Осталось ${m.shockDays} дн.">${m.shock > 1 ? '▲ шок' : '▼ избыток'}</span>` : '';
-    html += `<tr><td>${def.icon} ${def.name}${shock}<small class="muted"><br>за ${def.unit}${def.local ? ', цена зависит от города' : ''}</small></td>
+    html += `<tr><td>${goodIcon(g, 'inline')} ${def.name}${shock}<small class="muted"><br>за ${def.unit}${def.local ? ', цена зависит от города' : ''}</small></td>
       <td>${money(buyPrice(state, g), { cents: true })}</td><td>${money(sellPrice(state, g), { cents: true })}</td>
       <td>${ch >= 0 ? '▲ +' : '▼ '}${pct(ch, 1)}</td><td>${sparkline(m.hist)}</td></tr>`;
   }

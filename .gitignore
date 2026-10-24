@@ -20,3 +20,6 @@ Gemfile.lock
 # секреты
 .env
 *.env
+
+# исходники сгенерированных иконок (большие)
+game/assets/icons/raw/

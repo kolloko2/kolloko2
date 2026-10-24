@@ -345,3 +345,20 @@ select { max-width: 220px; padding: 4px; border: 1px solid var(--line); border-r
   #drawer { left: 64px; width: calc(100vw - 76px); }
   #panel { width: calc(100vw - 24px); max-width: none; }
 }
+
+/* ---------- сгенерированные иконки ---------- */
+.ico { display: inline-block; width: 1.4em; height: 1.4em; object-fit: contain; vertical-align: middle; }
+.ico.inline { width: 22px; height: 22px; margin: -4px 2px -4px 0; }
+.ico.title { width: 40px; height: 40px; margin: -8px 4px -8px 0; }
+.ico.row { width: 32px; height: 32px; }
+.ico.nav { width: 32px; height: 32px; }
+.li-icon .ico { width: 30px; height: 30px; }
+.li-icon.big { width: 48px; }
+.li-icon.big .ico { width: 48px; height: 48px; }
+.pm-icon .ico { width: 26px; height: 26px; }
+.zoom-low .pm-icon .ico { width: 22px; height: 22px; }
+.district-label .ico { width: 22px; height: 22px; margin: -4px 0; }
+.lot .ico { width: 30px; height: 30px; }
+.lot-own .ico { width: 34px; height: 34px; }
+.lot-own { width: 42px; height: 42px; margin: -6px; }
+#nav button span { line-height: 1; }

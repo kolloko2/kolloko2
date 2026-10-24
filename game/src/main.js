@@ -1,3 +1,4 @@
+import { loadIcons, uiIcon } from './ui/icons.js';
 import { createGame, stepDay, applyCommand, formatDate, netWorth, SAVE_VERSION } from './sim/index.js';
 import { initMap, refreshMap, refreshWarnings, flyToDistrict, flyToLot } from './ui/map.js';
 import { renderPanel } from './ui/panels.js';
@@ -242,7 +243,7 @@ function bindUi() {
   }
 
   const nav = document.getElementById('nav');
-  nav.innerHTML = TABS.map((t) => `<button data-tab="${t.id}" title="${t.name}"><span>${t.icon}</span><small>${t.name}</small><i class="nav-badge"></i></button>`).join('');
+  nav.innerHTML = TABS.map((t) => `<button data-tab="${t.id}" title="${t.name}"><span>${uiIcon(t.img, t.icon, 'nav')}</span><small>${t.name}</small><i class="nav-badge"></i></button>`).join('');
   nav.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-tab]');
     if (!b) return;
@@ -303,7 +304,8 @@ function startNewGame(name) {
   setSpeed(1);
 }
 
-function boot() {
+async function boot() {
+  await loadIcons();
   app.state = load();
   bindUi();
   document.getElementById('welcome-form').addEventListener('submit', (e) => {

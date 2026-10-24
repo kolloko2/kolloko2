@@ -1,0 +1,90 @@
+{
+  "goods/coffee_green": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/coffee_roasted": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/wheat": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/flour": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/sugar": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/cups": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/pastry": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/meat": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/groceries": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/bakery": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/fastfood": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/minimarket": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/coffee_roastery": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/mill": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/coffee_plantation": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/wheat_farm": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/dairy_farm": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "district/cbd": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "district/historic": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "district/premium": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "district/residential": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "district/student": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  }
+}
