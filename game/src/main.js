@@ -1,5 +1,6 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
-import { createGame, formatDate, netWorth, newsFor, isOver, SAVE_VERSION } from './sim/index.js';
+import { createGame, formatDate, netWorth, newsFor, isOver, SAVE_VERSION, VICTORY_OPTIONS } from './sim/index.js';
+import { renderTutorial, restartTutorial, skipTutorial } from './ui/tutorial.js';
 import { LocalSession, RemoteSession, SPEEDS } from './net/session.js';
 import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot } from './ui/map.js';
 import { renderPanel } from './ui/panels.js';
@@ -28,6 +29,7 @@ const app = {
     app.selection = sel;
     renderPanel(app);
     refreshMap(app);
+    renderTutorial(app);
   },
   async dispatch(cmd) {
     const r = await app.session.dispatch(cmd);
@@ -113,10 +115,25 @@ function renderHud() {
 
 function render() {
   renderHud();
+  renderTutorial(app);
+  checkWinner();
   const panel = document.getElementById('panel');
   const editing = panel.contains(document.activeElement) && ['INPUT', 'SELECT'].includes(document.activeElement.tagName);
   if (!editing) renderPanel(app);
   renderDrawer(app);
+}
+
+// ---------- победа ----------
+let shownWinner = null;
+function checkWinner() {
+  const w = app.state.winner;
+  if (!app.started || !w || shownWinner === `${app.session.code || 'solo'}:${w.day}`) return;
+  shownWinner = `${app.session.code || 'solo'}:${w.day}`;
+  const co = app.state.companies[w.companyId];
+  const me = w.companyId === app.companyId;
+  document.getElementById('winner-text').innerHTML = `${me ? '🎉 Вы победили!' : '🏆 Игра окончена'}<br>
+    Компания <b style="color:${co.color}">«${esc(co.name)}»</b> — капитал ${money(w.worth)} на ${formatDate(w.day)}.`;
+  document.getElementById('winner').classList.add('open');
 }
 
 // ---------- уведомления ----------
@@ -230,7 +247,7 @@ async function startRemote(hello) {
 const LOBBY = {
   solo: { title: 'Одиночная игра', desc: 'Вы против ИИ-конкурентов. Игра сохраняется в этом браузере.', fields: ['company'], submit: 'Начать' },
   coop: { title: 'Кооператив', desc: 'Одна общая компания на всех: каждый может открывать бизнесы и управлять ими. Друзья входят по коду комнаты.', fields: ['player', 'company'], submit: 'Создать комнату' },
-  pvp: { title: 'Против друзей', desc: 'У каждого своя компания в одном мире: конкуренция за районы и покупателей, можно выкупить помещение соперника.', fields: ['player', 'company'], submit: 'Создать комнату' },
+  pvp: { title: 'Против друзей', desc: 'У каждого своя компания в одном мире: конкуренция за районы и покупателей, можно выкупить помещение соперника.', fields: ['player', 'company', 'victory'], submit: 'Создать комнату' },
   join: { title: 'Войти по коду', desc: 'Введите код комнаты, который прислал друг. Название компании нужно только в игре против друзей.', fields: ['player', 'code', 'company'], submit: 'Войти' },
 };
 let lobbyMode = 'solo';
@@ -263,6 +280,7 @@ function bindLobby() {
   const mp = readJson(MP_KEY);
   document.getElementById('lobby-player').value = mp?.name || '';
   document.getElementById('lobby-company').value = 'Bean & Co';
+  document.getElementById('lobby-victory').innerHTML = VICTORY_OPTIONS.map((v) => `<option value="${v.id}" ${v.id === 'worth1m' ? 'selected' : ''}>${v.name}</option>`).join('');
   document.getElementById('lobby-tabs').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-mode]');
     if (!b) return;
@@ -303,7 +321,8 @@ function bindLobby() {
       errorEl.textContent = 'Введите имя — его увидят другие игроки';
       return;
     }
-    const hello = lobbyMode === 'join' ? { t: 'join', code, name, companyName } : { t: 'create', mode: lobbyMode, name, companyName };
+    const victory = document.getElementById('lobby-victory').value;
+    const hello = lobbyMode === 'join' ? { t: 'join', code, name, companyName } : { t: 'create', mode: lobbyMode, name, companyName, victory };
     if (lobbyMode === 'join' && !/^[A-Z0-9]{5}$/.test(code)) {
       errorEl.textContent = 'Код комнаты — 5 символов';
       return;
@@ -347,6 +366,13 @@ async function handleAction(el) {
       renderDrawer(app);
       break;
     case 'open': {
+      // Защита новичка: предупреждаем об убыточном прогнозе и о пустой кассе после покупки
+      const profit = Number(el.dataset.profit);
+      const left = app.company.cash - Number(el.dataset.capex);
+      const warn = [];
+      if (profit < 0) warn.push(`По прогнозу бизнес убыточен (${money(profit)} в месяц).`);
+      if (left < Number(el.dataset.costs)) warn.push(`После открытия в кассе останется ${money(left)} — меньше месячных расходов. Пока точка раскручивается, деньги могут кончиться (через 45 дней в минусе — банкротство).`);
+      if (warn.length && !confirm(`${warn.join('\n\n')}\n\nВсё равно открыть?`)) break;
       const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type });
       if (r.ok) app.select({ kind: 'unit', id: r.unitId });
       break;
@@ -387,6 +413,12 @@ async function handleAction(el) {
       if (r.ok) toast(action === 'takeLoan' ? 'Кредит получен' : 'Кредит погашен', 'good');
       break;
     }
+    case 'restartTutorial':
+      restartTutorial();
+      app.tab = null;
+      renderDrawer(app);
+      renderTutorial(app);
+      break;
     case 'copyCode':
       navigator.clipboard?.writeText(app.session.code).then(() => toast('Код скопирован'), () => {});
       break;
@@ -443,6 +475,7 @@ function bindUi() {
     if (!b) return;
     app.tab = app.tab === b.dataset.tab ? null : b.dataset.tab;
     renderDrawer(app);
+    renderTutorial(app);
   });
 
   const speed = document.getElementById('speed');
@@ -490,6 +523,13 @@ async function boot() {
   app.session = new LocalSession(createGame({ seed: 1 }));
   bindUi();
   bindLobby();
+  document.getElementById('tutorial').addEventListener('click', (e) => {
+    if (e.target.closest('[data-tutorial="skip"]')) {
+      skipTutorial();
+      renderTutorial(app);
+    }
+  });
+  document.getElementById('winner-close').addEventListener('click', () => document.getElementById('winner').classList.remove('open'));
   initMap(app);
   render();
   showLobby();

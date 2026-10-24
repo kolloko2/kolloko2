@@ -28,13 +28,16 @@ function newCompany(id, name, color) {
   };
 }
 
-export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Моя компания'] } = {}) {
+// victory — условие победы (см. goals.js), обычно для PvP
+export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Моя компания'], victory = null } = {}) {
   const rng = createRng(seed);
   const world = generateWorld(rng);
   const state = {
     version: SAVE_VERSION,
     seed,
     mode,
+    victory,
+    winner: null,
     rng,
     day: 0,
     world,

@@ -128,3 +128,27 @@ test('без денег — банкротство; в PvP игра продол
   stepDays(s, 5);
   assert.equal(s.day, day + 5);
 });
+
+test('достижения засчитываются один раз и попадают в новости', async () => {
+  const { GOALS } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 12 });
+  s.companies.c1.cash = 300000;
+  open(s, 'ber', 'fastfood');
+  stepDays(s, 3);
+  assert.ok(s.companies.c1.goals.first_business !== undefined);
+  const count = s.news.filter((n) => n.ref?.goal === 'first_business').length;
+  stepDays(s, 40);
+  assert.equal(s.news.filter((n) => n.ref?.goal === 'first_business').length, count);
+  assert.ok(GOALS.length >= 10);
+});
+
+test('PvP: победа по капиталу останавливает игру', () => {
+  const s = createGame({ seed: 13, mode: 'pvp', companyNames: ['А', 'Б'], victory: { type: 'worth', target: 60000 } });
+  s.companies.c2.cash = 100000;
+  stepDays(s, 35);
+  assert.equal(s.winner?.companyId, 'c2');
+  assert.equal(isOver(s), true);
+  const day = s.day;
+  stepDays(s, 3);
+  assert.equal(s.day, day);
+});

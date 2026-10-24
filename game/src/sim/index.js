@@ -4,6 +4,7 @@ export {
 } from './state.js';
 export { stepDay, stepDays, isOver } from './tick.js';
 export { applyCommand, upgradeCost, COMMAND_TYPES } from './commands.js';
+export { GOALS, goalContext, VICTORY_OPTIONS, victoryText } from './goals.js';
 export { forecast, buildableTypes, canBuildHere } from './forecast.js';
 export { buyPrice, sellPrice, midPrice } from './market.js';
 export { districtShares, districtPotential, refPrice } from './demand.js';

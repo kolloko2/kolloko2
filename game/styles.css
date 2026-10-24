@@ -382,3 +382,31 @@ select { max-width: 220px; padding: 4px; border: 1px solid var(--line); border-r
 #chat-form input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
 .lot-rival { background: var(--panel); border: 3px solid var(--rc, #888); opacity: 0.95; }
 .code-big { font-size: 28px; letter-spacing: 0.2em; font-weight: 700; }
+
+/* ---------- цели, графики, обучение ---------- */
+.goals { display: flex; flex-direction: column; gap: 6px; }
+.goal { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.goal.done { background: #f1faf4; border-color: #bfe5cc; }
+.goal-icon { font-size: 22px; width: 30px; text-align: center; }
+.goal:not(.done) .goal-icon { filter: grayscale(1); opacity: 0.6; }
+.goal-main { display: flex; flex-direction: column; flex: 1; }
+.goal-main small { color: var(--muted); }
+.progress { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin: 4px 0 2px; }
+.progress span { display: block; height: 100%; background: var(--accent); }
+.chart { margin: 4px 0 8px; }
+.chart svg { display: block; height: 120px; background: var(--bg); border-radius: 8px; }
+.chart text { font-size: 10px; fill: var(--muted); }
+.chart line.zero { stroke: #c5cad6; stroke-dasharray: 3 3; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.legend i { display: inline-block; width: 10px; height: 3px; margin-right: 4px; vertical-align: middle; }
+#tutorial {
+  position: fixed; left: 88px; bottom: 16px; width: 380px; max-width: calc(100vw - 100px);
+  background: var(--hud); color: var(--hud-ink); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); z-index: 1500;
+}
+.tut-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.link { background: none; border: 0; color: #9db8ff; padding: 0; font-size: 12px; }
+.tut-bar { height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+.tut-bar span { display: block; height: 100%; background: #6fe09a; }
+.modal-box select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; max-width: none; }
+.winner-box { text-align: center; }
+.winner-box h1 { font-size: 56px; margin: 0; }

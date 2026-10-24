@@ -28,6 +28,15 @@
   <aside id="drawer"></aside>
   <aside id="panel"></aside>
   <div id="toast"></div>
+  <div id="tutorial" hidden></div>
+
+  <div id="winner" class="modal">
+    <div class="modal-box winner-box">
+      <h1>🏆</h1>
+      <p id="winner-text"></p>
+      <button id="winner-close" class="btn" type="button">Смотреть карту</button>
+    </div>
+  </div>
 
   <div id="welcome" class="modal">
     <form id="lobby-form" class="modal-box">
@@ -44,6 +53,7 @@
       <label data-field="player">Ваше имя <input id="lobby-player" maxlength="30" autocomplete="nickname"></label>
       <label data-field="code">Код комнаты <input id="lobby-code" maxlength="5" autocomplete="off" style="text-transform: uppercase"></label>
       <label data-field="company">Название компании <input id="lobby-company" maxlength="40"></label>
+      <label data-field="victory">Условие победы <select id="lobby-victory"></select></label>
       <p id="lobby-error" class="neg small"></p>
       <button id="lobby-submit" class="btn" type="submit">Начать</button>
       <div id="lobby-resume" class="btn-row"></div>

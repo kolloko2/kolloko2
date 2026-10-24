@@ -3,7 +3,7 @@
 import { createGame } from '../sim/index.js';
 
 // Изменяемые поля верхнего уровня
-const DYNAMIC = ['day', 'rng', 'mode', 'companies', 'nextCompanyId', 'units', 'nextUnitId', 'market', 'mapVersion', 'newsSeq'];
+const DYNAMIC = ['day', 'rng', 'mode', 'victory', 'winner', 'companies', 'nextCompanyId', 'units', 'nextUnitId', 'market', 'mapVersion', 'newsSeq'];
 
 // opts.lots — включить владельцев/аренду участков и ИИ-конкурентов в районах (меняются редко)
 // opts.newsAfter — номер последней новости, которую клиент уже видел; opts.companyId — чьи новости слать

@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createGame, addCompany, stepDay, applyCommand, isOver, addNews, dateOf } from '../src/sim/index.js';
+import { createGame, addCompany, stepDay, applyCommand, isOver, addNews, dateOf, VICTORY_OPTIONS } from '../src/sim/index.js';
 import { makeSnapshot } from '../src/net/snapshot.js';
 
 export const SPEED_MS = [Infinity, 1500, 500, 120];
@@ -43,8 +43,9 @@ export class Room {
     this.timer = setInterval(() => this.loop(), 50);
   }
 
-  static create({ mode, seed, dataDir }) {
-    const state = createGame({ seed, mode, companyNames: [] });
+  static create({ mode, seed, victoryId, dataDir }) {
+    const victory = mode === 'pvp' ? VICTORY_OPTIONS.find((v) => v.id === victoryId)?.victory ?? null : null;
+    const state = createGame({ seed, mode, companyNames: [], victory });
     return new Room({ code: newCode(), mode, state, dataDir });
   }
 

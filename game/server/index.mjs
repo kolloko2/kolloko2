@@ -52,7 +52,7 @@ function handleSocket(socket) {
     try {
       if (msg.t === 'create' && !room) {
         const mode = msg.mode === 'pvp' ? 'pvp' : 'coop';
-        room = Room.create({ mode, seed: Math.floor(Math.random() * 2 ** 31), dataDir });
+        room = Room.create({ mode, seed: Math.floor(Math.random() * 2 ** 31), victoryId: msg.victory, dataDir });
         rooms.set(room.code, room);
         player = room.join(socket, msg);
       } else if (msg.t === 'join' && !room) {

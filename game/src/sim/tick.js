@@ -5,6 +5,7 @@ import { districtShares } from './demand.js';
 import { procureAll, sellSurplus, spoilAll } from './supply.js';
 import { monthlyAI } from './ai.js';
 import { dailyEvents, monthlyEvents } from './events.js';
+import { checkGoals, checkVictory } from './goals.js';
 import { costIndex } from './world.js';
 import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
 import {
@@ -189,11 +190,12 @@ function monthEnd(state) {
   for (const co of activeCompanies(state)) closeCompanyMonth(state, co, companyUnits(state, co.id));
   monthlyAI(state);
   monthlyEvents(state);
+  checkVictory(state);
 }
 
-// Игра идёт, пока жива хотя бы одна компания
+// Игра идёт, пока жива хотя бы одна компания и никто не победил
 export function isOver(state) {
-  return activeCompanies(state).length === 0;
+  return Boolean(state.winner) || activeCompanies(state).length === 0;
 }
 
 export function stepDay(state) {
@@ -210,6 +212,7 @@ export function stepDay(state) {
   updateBrand(state);
   dailyEvents(state);
   checkSolvency(state);
+  checkGoals(state);
   if (dateOf(state.day + 1).getUTCMonth() !== dateOf(state.day).getUTCMonth()) monthEnd(state);
   state.day++;
 }

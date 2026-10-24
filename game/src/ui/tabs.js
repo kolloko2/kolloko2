@@ -1,15 +1,18 @@
 import { bizIcon, goodIcon } from './icons.js';
 import { BUSINESSES } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
-import { midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits } from '../sim/index.js';
+import {
+  midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits, GOALS, goalContext, victoryText,
+} from '../sim/index.js';
 import { SPEEDS } from '../net/session.js';
-import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars } from './format.js';
+import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars, lineChart } from './format.js';
 
 export const TABS = [
   { id: 'units', icon: '🏢', img: 'city', name: 'Бизнесы' },
   { id: 'market', icon: '💹', img: 'market', name: 'Рынок' },
   { id: 'finance', icon: '🏦', img: 'finance', name: 'Финансы' },
   { id: 'news', icon: '📰', img: 'news', name: 'Новости' },
+  { id: 'goals', icon: '🏆', img: 'capital', name: 'Цели' },
   { id: 'room', icon: '👥', img: 'loan', name: 'Игроки' },
   { id: 'help', icon: '❓', img: 'help', name: 'Как играть' },
 ];
@@ -70,7 +73,15 @@ function renderFinance(app) {
     <div class="btn-row"><button class="btn" data-action="takeLoan">Взять кредит</button><button class="btn ghost" data-action="repayLoan">Погасить</button></div>
     <div class="muted small">Лимит растёт с прибылью и стоимостью ваших бизнесов и недвижимости. Если касса в минусе 45 дней — банкротство.</div></div>`;
   if (h.length) {
-    html += `<h3>Прибыль компании по месяцам</h3>${bars(co.history.slice(-24).map((m) => m.profit), 340, 56)}
+    const hist = co.history.slice(-36);
+    html += `<h3>Капитал и касса</h3>${lineChart([
+      { values: hist.map((m) => m.netWorth), color: '#2f6fed', label: 'Капитал' },
+      { values: hist.map((m) => m.cash), color: '#1e8e4e', label: 'Касса' },
+    ])}
+      <h3>Выручка и прибыль</h3>${lineChart([
+      { values: hist.map((m) => m.revenue), color: '#e8590c', label: 'Выручка' },
+      { values: hist.map((m) => m.profit), color: '#ae3ec9', label: 'Прибыль' },
+    ])}
       <table class="tbl"><tr><th>Месяц</th><th>Выручка</th><th>Прибыль</th><th>Налог</th><th>Проценты</th><th>Касса</th></tr>`;
     for (const m of h) {
       html += `<tr><td>${m.label}</td><td>${moneyShort(m.revenue)}</td><td class="${signClass(m.profit)}">${moneyShort(m.profit)}</td>
@@ -123,12 +134,39 @@ function renderRoom(app) {
       html += `<tr><td>${i + 1}</td><td><span class="swatch" style="background:${c.color}"></span>${esc(c.name)}${c.bankrupt ? ' 💀' : ''}</td><td>${n}</td><td>${moneyShort(worth)}</td></tr>`;
     });
     html += '</table>';
+    html += `<div class="muted small">Цель: ${victoryText(state.victory)}</div>`;
+    const companies = Object.values(state.companies);
+    if (companies.some((c) => c.history.length > 1)) {
+      html += `<h3>Капитал по месяцам</h3>${lineChart(companies.map((c) => ({ values: c.history.slice(-36).map((m) => m.netWorth), color: c.color, label: esc(c.name) })))}`;
+    }
   }
   html += '<h3>Чат</h3><div class="chat" id="chat-log">';
   if (!app.chat.length) html += '<span class="muted small">Сообщений пока нет.</span>';
   for (const m of app.chat) html += `<div class="chat-msg"><b style="color:${m.color || 'inherit'}">${esc(m.from)}:</b>${esc(m.text)}</div>`;
   html += '</div><form id="chat-form"><input maxlength="300" placeholder="Сообщение…" autocomplete="off"><button class="btn" type="submit">➤</button></form>';
   return html;
+}
+
+function renderGoals(app) {
+  const { state } = app;
+  const co = app.company;
+  const ctx = goalContext(state, co);
+  const done = GOALS.filter((g) => co.goals?.[g.id] !== undefined).length;
+  let html = `<h2>🏆 Цели</h2><div class="sub">Выполнено ${done} из ${GOALS.length}</div>`;
+  if (state.victory) {
+    html += `<div class="card"><b>Условие победы:</b> ${victoryText(state.victory)}${state.winner ? `<br>🏆 Победитель — «${esc(state.companies[state.winner.companyId].name)}»` : ''}</div>`;
+  }
+  html += '<div class="goals">';
+  for (const g of GOALS) {
+    const day = co.goals?.[g.id];
+    const [cur, need] = g.progress(ctx);
+    const p = Math.min(1, cur / need);
+    const value = need >= 1000 ? `${moneyShort(Math.min(cur, need))} / ${moneyShort(need)}` : `${num(Math.min(cur, need))} / ${num(need)}`;
+    html += `<div class="goal ${day !== undefined ? 'done' : ''}"><span class="goal-icon">${g.icon}</span>
+      <div class="goal-main"><b>${g.name}</b><small>${g.desc}</small>
+      ${day !== undefined ? `<small class="pos">✓ ${formatDate(day)}</small>` : `<div class="progress"><span style="width:${(p * 100).toFixed(0)}%"></span></div><small class="muted">${value}</small>`}</div></div>`;
+  }
+  return `${html}</div>`;
 }
 
 function renderHelp() {
@@ -142,7 +180,8 @@ function renderHelp() {
     <li>Не хватает денег — возьмите <b>кредит</b> во вкладке 🏦. Касса в минусе 45 дней — банкротство.</li>
     <li>Время: ⏸ пауза, ▶ ⏩ ⏭ — скорость. Игра сохраняется автоматически каждый месяц.</li>
   </ol>
-  <p class="muted small">Прототип этапа 0 (см. docs/PLAN.md). Дальше: контракты, региональные рынки, мультиплеер.</p>`;
+  <button class="btn ghost" data-action="restartTutorial">🎓 Пройти обучение заново</button>
+  <p class="muted small">Прототип (см. docs/PLAN.md). Дальше: контракты, склады и логистика, новые бизнесы, персонал.</p>`;
 }
 
 export function renderDrawer(app) {
@@ -156,7 +195,7 @@ export function renderDrawer(app) {
   const active = el.contains(document.activeElement) ? document.activeElement : null;
   const chatDraft = active?.closest('#chat-form') ? active.value : null;
   if (active?.tagName === 'INPUT' && chatDraft === null) return; // не мешаем вводу суммы кредита и т.п.
-  const render = { units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, room: renderRoom, help: renderHelp }[app.tab];
+  const render = { units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, goals: renderGoals, room: renderRoom, help: renderHelp }[app.tab];
   const scroll = el.scrollTop;
   el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${render(app)}`;
   el.scrollTop = scroll;

@@ -71,3 +71,19 @@ export function bars(values, w = 160, h = 36) {
     .join('');
   return `<svg class="bars" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><line x1="0" x2="${w}" y1="${mid}" y2="${mid}" />${rects}</svg>`;
 }
+
+// Линейный график нескольких рядов: series = [{ values, color, label }]
+export function lineChart(series, w = 360, h = 120) {
+  const all = series.flatMap((s) => s.values);
+  if (all.length < 2) return '';
+  const min = Math.min(0, ...all);
+  const max = Math.max(...all, 1);
+  const n = Math.max(...series.map((s) => s.values.length));
+  const x = (i) => (n === 1 ? w / 2 : (i / (n - 1)) * (w - 4) + 2);
+  const y = (v) => h - 14 - ((v - min) / (max - min || 1)) * (h - 24);
+  const lines = series.map((s) => `<polyline fill="none" stroke="${s.color}" stroke-width="2" points="${s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" />`).join('');
+  const zero = min < 0 ? `<line x1="0" x2="${w}" y1="${y(0)}" y2="${y(0)}" class="zero" />` : '';
+  const legend = series.map((s) => `<span><i style="background:${s.color}"></i>${s.label}</span>`).join('');
+  return `<div class="chart"><svg width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${zero}${lines}
+    <text x="2" y="10">${moneyShort(max)}</text><text x="2" y="${h - 2}">${moneyShort(min)}</text></svg><div class="legend">${legend}</div></div>`;
+}

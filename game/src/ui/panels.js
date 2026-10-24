@@ -142,7 +142,8 @@ function renderLot(app, lot) {
         <span>Прибыль/мес</span><b class="${signClass(f.profit)}">${money(f.profit)}</b>
         <span>Окупаемость</span><b>${months(f.payback)}</b>
       </div>
-      <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" ${afford ? '' : 'disabled'}>
+      <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-profit="${f.profit}" data-capex="${f.capex}"
+        data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>
         ${afford ? `Открыть за ${moneyShort(f.capex)}` : `Не хватает ${moneyShort(f.capex - app.company.cash)}`}</button>
     </div>`;
   }
