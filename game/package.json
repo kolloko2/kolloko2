@@ -1,0 +1,12 @@
+{
+  "name": "magnat-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "МАГНАТ: Империя — прототип экономики на реальной карте",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "test": "node --test tests/*.test.js",
+    "headless": "node tools/headless.mjs"
+  }
+}

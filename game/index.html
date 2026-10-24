@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>МАГНАТ: Империя</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/leaflet/leaflet.js"></script>
+</head>
+<body>
+  <header id="hud">
+    <div class="brand">💼 <b>МАГНАТ</b></div>
+    <button id="hud-company" class="company" title="Переименовать компанию"></button>
+    <div class="stat" title="Деньги на счёте"><small>Касса</small><b id="hud-cash"></b></div>
+    <div class="stat" title="Активы минус долги"><small>Капитал</small><b id="hud-worth"></b></div>
+    <div class="stat" title="Прибыль компании за прошлый месяц после налогов и процентов"><small>Прибыль/мес</small><b id="hud-profit"></b></div>
+    <div class="spacer"></div>
+    <div class="stat"><small>Дата</small><b id="hud-date"></b></div>
+    <div id="speed"></div>
+    <button id="btn-save" class="icon-btn" title="Сохранить">💾</button>
+    <button id="btn-new" class="icon-btn" title="Новая игра">🆕</button>
+  </header>
+
+  <nav id="nav"></nav>
+  <main id="map"></main>
+  <aside id="drawer"></aside>
+  <aside id="panel"></aside>
+  <div id="toast"></div>
+
+  <div id="welcome" class="modal">
+    <form id="welcome-form" class="modal-box">
+      <h1>💼 МАГНАТ: Империя</h1>
+      <p>Вам дали <b>$50 000</b> стартового капитала. Откройте первую кофейню, пекарню или фастфуд в любом городе мира,
+        а затем выстройте империю: свои обжарки, мельницы, фермы и плантации, которые снабжают ваши точки.</p>
+      <ul>
+        <li>🏙️ Кликните на город → район → свободный участок 🏬</li>
+        <li>📊 Смотрите прогноз прибыли и открывайте бизнес</li>
+        <li>💹 Следите за ценами, персоналом, рекламой и конкурентами</li>
+      </ul>
+      <label>Название компании <input id="welcome-name" maxlength="40" required></label>
+      <button class="btn" type="submit">Начать игру</button>
+      <p class="muted small">Прототип: без 3D, на реальной карте. Сохранение — в этом браузере.</p>
+    </form>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
