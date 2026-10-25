@@ -5,6 +5,7 @@ import { GOODS } from '../data/goods.js';
 import { esc } from './format.js';
 import { bizIcon, districtIcon, uiIcon } from './icons.js';
 import { initBasemap } from './basemap.js';
+import { districtEventOf } from '../sim/index.js';
 
 // Уровни карты: мир (города и регионы) → районы → участки
 const ZOOM_DISTRICTS = 9;
@@ -19,6 +20,40 @@ let routesKey = '';
 let showRoutes = true;
 let builtVersion = -1;
 let basemap = null;
+let overlayLayer;
+let layerMode = 'none';
+let layerKey = '';
+
+// Слои карты: цветной ореол вокруг городов по выбранному показателю
+const LAYERS = {
+  none: { name: 'Без слоя' },
+  income: { name: 'Доходы жителей', value: (p) => p.income, fmt: (v) => `${Math.round(v * 100)}%` },
+  rent: { name: 'Аренда', value: (p) => p.rent, fmt: (v) => `${Math.round(v * 100)}%` },
+  tourism: { name: 'Туризм', value: (p) => p.tourism ?? 0, fmt: (v) => `${Math.round(v * 100)}%` },
+  growth: { name: 'Рост города (застройщики)', value: (p, s) => (s.growth?.[p.id] ?? 1) - 1, fmt: (v) => `+${Math.round(v * 100)}%` },
+  mine: { name: 'Мои бизнесы', value: (p, s, app) => unitsByPlace(s, app.companyId)[p.id] || 0, fmt: (v) => String(v) },
+  rivals: { name: 'Соперники', value: (p, s, app) => rivalsIn(s, app.companyId, p.id).total, fmt: (v) => String(v) },
+};
+
+// Цвета линий цепочек по видам товаров
+const GOOD_COLORS = {
+  coffee_green: '#6d4c2f', coffee_roasted: '#6d4c2f', wheat: '#d4a017', flour: '#d4a017', pastry: '#d4a017', sugar: '#c9b27c',
+  milk: '#4aa3df', cheese: '#4aa3df', meat: '#c0392b', cattle: '#c0392b', groceries: '#27ae60', cups: '#8e44ad', plastic: '#8e44ad',
+  oil: '#2c3e50', fuel: '#e67e22', chips: '#16a085', electronics: '#16a085', medicine: '#e84393', cosmetics: '#e84393',
+  parts: '#7f8c8d', cars: '#7f8c8d',
+};
+
+// Кто ещё работает в городе: компании (кроме вашей) и число их бизнесов
+function rivalsIn(state, companyId, placeId) {
+  const by = {};
+  let total = 0;
+  for (const u of Object.values(state.units)) {
+    if (u.placeId !== placeId || u.companyId === companyId) continue;
+    by[u.companyId] = (by[u.companyId] || 0) + 1;
+    total++;
+  }
+  return { by, total };
+}
 
 const ZONING_ICON = { commercial: '🏬', industrial: '🏭', farmland: '🟫' };
 
@@ -28,6 +63,7 @@ export function initMap(app) {
   L.control.attribution({ prefix: false }).addAttribution('Карта: <a href="https://www.naturalearthdata.com/">Natural Earth</a>').addTo(map);
   // Своя стилизованная подложка вместо тайлов: берега, страны, реки, кварталы
   basemap = initBasemap(map, () => app.state);
+  overlayLayer = L.layerGroup().addTo(map);
   placesLayer = L.layerGroup().addTo(map);
   detailLayer = L.layerGroup().addTo(map);
   routesLayer = L.layerGroup().addTo(map);
@@ -48,6 +84,21 @@ export function initMap(app) {
     },
   });
   new RoutesControl({ position: 'topright' }).addTo(map);
+  // Выбор слоя карты
+  const LayerControl = L.Control.extend({
+    onAdd() {
+      const box = L.DomUtil.create('div', 'map-layers');
+      box.innerHTML = `<select title="Слой карты">${Object.entries(LAYERS).map(([id, l]) => `<option value="${id}">🗺 ${l.name}</option>`).join('')}</select><div class="map-legend" hidden></div>`;
+      L.DomEvent.disableClickPropagation(box);
+      box.querySelector('select').onchange = (e) => {
+        layerMode = /** @type {HTMLSelectElement} */ (e.target).value;
+        layerKey = '';
+        refreshOverlay(app);
+      };
+      return box;
+    },
+  });
+  new LayerControl({ position: 'topright' }).addTo(map);
   const markZoom = () => {
     map.getContainer().classList.toggle('zoom-low', map.getZoom() < 5);
     map.getContainer().classList.toggle('zoom-mid', map.getZoom() < 12);
@@ -88,12 +139,17 @@ function unitsByDistrict(state, companyId) {
   return counts;
 }
 
-function placeIcon(place, count) {
+function placeIcon(app, place, count) {
   const icon = place.kind === 'city' ? uiIcon('city', '🏙️') : bizIcon(place.kinds[0]);
   const badge = count ? `<span class="badge">${count}</span>` : '';
+  // точки соперников: цвет компании, до 5 штук
+  const riv = rivalsIn(app.state, app.companyId, place.id);
+  const dots = Object.keys(riv.by).slice(0, 5).map((cid) => `<i style="background:${app.state.companies[cid]?.color}"></i>`).join('');
+  const port = place.port ? '<span class="pm-port" title="Морской порт">⚓</span>' : '';
+  const title = `${place.name}${riv.total ? ` · соперников: ${riv.total}` : ''}`;
   return L.divIcon({
     className: 'place-marker-wrap',
-    html: `<div class="place-marker ${place.kind}" title="${esc(place.name)}"><span class="pm-icon">${icon}</span><span class="pm-name">${esc(place.name)}</span>${badge}</div>`,
+    html: `<div class="place-marker ${place.kind}" title="${esc(title)}"><span class="pm-icon">${icon}</span><span class="pm-name">${esc(place.name)}</span>${port}${badge}${dots ? `<span class="rival-dots">${dots}</span>` : ''}</div>`,
     iconSize: null,
     iconAnchor: [14, 14],
   });
@@ -106,7 +162,7 @@ function buildPlaces(app) {
   for (const place of Object.values(state.world.places)) {
     // крупные города поверх мелких и поверх сельских регионов
     const z = place.kind === 'city' ? Math.round(place.pop * 10) : -500;
-    const m = L.marker([place.lat, place.lng], { icon: placeIcon(place, counts[place.id]), riseOnHover: true, zIndexOffset: z });
+    const m = L.marker([place.lat, place.lng], { icon: placeIcon(app, place, counts[place.id]), riseOnHover: true, zIndexOffset: z });
     m.on('click', () => {
       app.select({ kind: 'place', id: place.id });
       flyToPlace(place);
@@ -171,7 +227,7 @@ function buildDetail(app) {
       const label = L.marker([d.lat, d.lng], {
         icon: L.divIcon({
           className: 'district-label-wrap',
-          html: `<div class="district-label" style="--c:${def.color}" title="${def.name}">${districtIcon(d.type)}<span class="dl-name"> ${def.name}</span>${n ? ` <b>${n}</b>` : ''}</div>`,
+          html: `<div class="district-label" style="--c:${def.color}" title="${def.name}">${districtIcon(d.type)}<span class="dl-name"> ${def.name}</span>${n ? ` <b>${n}</b>` : ''}${eventBadge(state, d)}</div>`,
           iconSize: null,
         }),
       });
@@ -182,6 +238,10 @@ function buildDetail(app) {
       detailLayer.addLayer(label);
       continue;
     }
+    const ev = eventBadge(state, d);
+    if (ev && !rural) {
+      detailLayer.addLayer(L.marker([d.lat, d.lng], { icon: L.divIcon({ className: 'district-event-wrap', html: `<div class="district-event">${ev}</div>`, iconSize: null }), interactive: false }));
+    }
     for (const lotId of d.lotIds) {
       const lot = state.world.lots[lotId];
       const html = lotHtml(app, lot);
@@ -190,6 +250,46 @@ function buildDetail(app) {
       detailLayer.addLayer(m);
       lotMarkers.set(lot.id, { marker: m, html });
     }
+  }
+}
+
+const EVENT_ICONS = { festival: ['🎉', 'Фестиваль'], roadworks: ['🚧', 'Ремонт дороги'], metro: ['🚇', 'Новое метро'], office: ['🏢', 'Офисный центр'], closure: ['🏚️', 'Закрыт завод'] };
+function eventBadge(state, d) {
+  const e = districtEventOf(state, d.id);
+  if (!e) return '';
+  const [icon, name] = EVENT_ICONS[e.kind] || ['❗', e.kind];
+  return ` <span class="dl-event" title="${name}: спрос ${e.mult > 1 ? '+' : ''}${Math.round((e.mult - 1) * 100)}%">${icon}</span>`;
+}
+
+// Ореолы слоя вокруг городов (перерисовываем, только когда меняются значения)
+function refreshOverlay(app) {
+  const l = LAYERS[layerMode];
+  const legend = map.getContainer().querySelector('.map-legend');
+  const { state } = app;
+  const cities = Object.values(state.world.places).filter((p) => p.kind === 'city');
+  const values = l.value ? cities.map((p) => l.value(p, state, app)) : [];
+  const key = `${layerMode}:${values.join(',')}`;
+  if (key === layerKey) return;
+  layerKey = key;
+  overlayLayer.clearLayers();
+  if (!l.value) {
+    if (legend) legend.hidden = true;
+    return;
+  }
+  const max = Math.max(...values, 1e-9);
+  const min = Math.min(...values, 0);
+  cities.forEach((p, i) => {
+    const t = max > min ? (values[i] - min) / (max - min) : 0;
+    if (values[i] <= 0 && (layerMode === 'mine' || layerMode === 'rivals' || layerMode === 'growth')) return;
+    // от холодного синего к тёплому красному
+    const color = `hsl(${Math.round(220 - 220 * t)}, 70%, 50%)`;
+    overlayLayer.addLayer(L.circleMarker([p.lat, p.lng], {
+      radius: 10 + 26 * t, color, weight: 1, fillColor: color, fillOpacity: 0.35, interactive: false,
+    }).bindTooltip(`${esc(p.name)}: ${l.fmt(values[i])}`));
+  });
+  if (legend) {
+    legend.hidden = false;
+    legend.innerHTML = `<span style="color:hsl(220,70%,50%)">●</span> мало · <span style="color:hsl(0,70%,50%)">●</span> много`;
   }
 }
 
@@ -227,8 +327,8 @@ function refreshRoutes(app) {
   if (key === routesKey) return;
   routesKey = key;
   routesLayer.clearLayers();
-  const color = app.company?.color || '#2f6fed';
   for (const [src, dst, good] of links) {
+    const color = GOOD_COLORS[good] || app.company?.color || '#2f6fed';
     const a = state.world.lots[src.lotId];
     const b = state.world.lots[dst.lotId];
     const far = Math.abs(a.lat - b.lat) + Math.abs(a.lng - b.lng) > 8;
@@ -251,6 +351,7 @@ export function refreshMap(app, force = false) {
   if (force) buildDetail(app);
   else updateLotIcons(app);
   refreshRoutes(app);
+  refreshOverlay(app);
 }
 
 // Раз в игровой день: предупреждения на значках своих бизнесов

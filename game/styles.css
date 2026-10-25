@@ -513,3 +513,12 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after { animation:
 #settings h3 { margin: 14px 0 4px; }
 
 .modal-box label.row.check { flex-direction: row; justify-content: space-between; align-items: center; font-weight: 400; margin: 6px 0; }
+
+/* ---------- слои карты ---------- */
+.map-layers select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); font-size: 13px; }
+.map-legend { margin-top: 4px; background: var(--panel); border-radius: 8px; padding: 4px 8px; font-size: 12px; box-shadow: var(--shadow); }
+.rival-dots { display: inline-flex; gap: 2px; margin-left: 3px; }
+.rival-dots i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid #fff; display: inline-block; }
+.pm-port { font-size: 11px; margin-left: 2px; }
+.dl-event { font-size: 14px; }
+.district-event { font-size: 26px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); transform: translate(-50%, -50%); }
