@@ -40,3 +40,6 @@ export {
   techLevel, techCost, techLocked, researchSpeed, missingTech, lobbyCost, lobbyChance, employees, taxBreak,
   LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER,
 } from './research.js';
+export { adsOf, channelFit, adGain } from './ads.js';
+export { ownBillboards } from './bonuses.js';
+export { trendOf, districtEventOf } from './luck.js';

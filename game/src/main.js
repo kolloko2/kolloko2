@@ -587,8 +587,11 @@ function handleChange(el) {
     case 'joinBrand':
       app.dispatch({ type: 'joinBrand', unitId: id, brandId: el.value || null });
       break;
-    case 'brandMarketing':
-      app.dispatch({ type: 'updateBrand', brandId: id, marketing: Number(el.value) });
+    case 'brandAds':
+      app.dispatch({ type: 'updateBrand', brandId: id, ads: { [el.dataset.channel]: Number(el.value) } });
+      break;
+    case 'setAds':
+      app.dispatch({ type: 'setAds', unitId: id, channel: el.dataset.channel, budget: Number(el.value) });
       break;
     case 'brandNational':
       app.dispatch({ type: 'setBrandNational', brandId: id, country: el.dataset.country, budget: Number(el.value) });

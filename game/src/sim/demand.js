@@ -4,6 +4,7 @@ import { priceIndex } from './world.js';
 import { effectiveAwareness } from './brands.js';
 import { countryDemand } from './countries.js';
 import { dateOf } from './state.js';
+import { trendOf, districtEventOf } from './luck.js';
 
 // Логит-модель выбора покупателя:
 //   U = −βp·ln(цена/норма) + βq·(качество − 3) + βa·узнаваемость + βv·(видимость − 0.5)
@@ -61,7 +62,9 @@ export function districtPotential(state, district, category) {
   const incomeFactor = 0.5 + 0.5 * Math.min(place.income ?? 0.5, 1.2);
   let traffic = 0;
   for (const lotId of district.lotIds) traffic += state.world.lots[lotId].traffic;
-  return traffic * rate * incomeFactor * countryDemand(state, place.country) * seasonFactor(state, category, place);
+  const event = districtEventOf(state, district.id)?.mult ?? 1;
+  return traffic * rate * incomeFactor * countryDemand(state, place.country) * seasonFactor(state, category, place)
+    * trendOf(state, place.country, category) * event;
 }
 
 // Норма цены продукта в месте

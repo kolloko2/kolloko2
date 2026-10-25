@@ -1,6 +1,6 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { districtShares, utility, refPrice, districtBeta, seasonFactor } from './demand.js';
-import { BRAND_TIERS, brandAwareness, presenceTarget } from './brands.js';
+import { BRAND_TIERS, brandAwareness, presenceTarget, brandAds } from './brands.js';
 import {
   entryFee, presenceIn, purchasingDiscount, isConsumer, marginalOverhead, FOREIGN_COST, LOCAL_TEAM_UNITS,
 } from './expansion.js';
@@ -131,7 +131,7 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     wages: Math.round(r.staff * def.staff.wage * place.wage * (brand?.wageLevel ?? 1) * foreign),
     rent: companyId && lot.ownerId === companyId ? 0 : lot.rent,
     upkeep: Math.round((def.upkeep.base + def.upkeep.perArea * lot.area) * idx * foreign * (tier?.upkeep ?? 1) * (1 - 0.08 * (companyId ? techLevel(state, companyId, 'energy') : 0))),
-    marketing: Math.round((brand?.marketing ?? def.marketing) * idx),
+    marketing: Math.round((brand ? Object.values(brandAds(brand)).reduce((a, b) => a + b, 0) : def.marketing) * idx),
     overhead: companyId ? Math.round(marginalOverhead(state, companyId, Boolean(brand))) : 0, // рост расходов штаба
   };
   const totalCosts = Object.values(r.costs).reduce((a, b) => a + b, 0);

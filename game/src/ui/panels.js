@@ -3,6 +3,7 @@ import { BUSINESSES, MAX_LEVEL } from '../data/businesses.js';
 import { DISTRICTS, ZONING_NAMES } from '../data/districts.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
 import { GOODS } from '../data/goods.js';
+import { AD_CHANNELS } from '../data/ads.js';
 import { MARKET_REGIONS } from '../data/regions.js';
 import {
   attention, efficiency, morale, wageLevel, managerCost, WAGE_LEVELS, BASE_ATTENTION,
@@ -10,7 +11,7 @@ import {
   countryState, regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
-  condition, renovateCost, seasonFactor, rivalUnitPrice, ARCHETYPES,
+  condition, renovateCost, seasonFactor, rivalUnitPrice, ARCHETYPES, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
@@ -86,13 +87,16 @@ function renderDistrict(app, d) {
   let html = `<h2>${districtTitle(state, d)}</h2><div class="sub">${ZONING_NAMES[def.zoning]} · участков: ${d.lotIds.length}</div>`;
   const cats = Object.keys(def.demand);
   if (cats.length) {
-    html += '<h3>Спрос в районе</h3><table class="tbl"><tr><th>Категория</th><th>Покупателей/день</th><th>Сезон</th><th>Конкуренты</th></tr>';
+    const ev = districtEventOf(state, d.id);
+    if (ev) html += `<div class="note ${ev.mult > 1 ? '' : 'warn'}">${ev.mult > 1 ? '🎉' : '🚧'} Сейчас здесь ${{ festival: 'фестиваль', roadworks: 'ремонт дороги', metro: 'новая станция метро', office: 'новый офисный центр', closure: 'закрытый завод рядом' }[ev.kind]}: спрос ${ev.mult > 1 ? '+' : ''}${pct(ev.mult - 1)}.</div>`;
+    html += '<h3>Спрос в районе</h3><table class="tbl"><tr><th>Категория</th><th>Покупателей/день</th><th>Сезон и мода</th><th>Конкуренты</th></tr>';
     for (const c of cats) {
       const sh = districtShares(state, d, c);
       const owners = Object.keys(sh.byUnit).map((id) => state.units[id].companyId);
       const mine = owners.filter((c) => c === app.companyId).length;
       const rivals = owners.length - mine;
-      const season = seasonFactor(state, c, state.world.places[d.placeId]) - 1;
+      const dp = state.world.places[d.placeId];
+      const season = seasonFactor(state, c, dp) * trendOf(state, dp.country, c) - 1;
       html += `<tr><td>${CATEGORY_LABEL[c]}</td><td>${num(sh.potential)}</td><td class="${signClass(season)}">${Math.abs(season) < 0.02 ? '—' : `${season > 0 ? '+' : ''}${pct(season)}`}</td><td>${sh.ai} ИИ${mine ? ` + ${mine} ваших` : ''}${rivals ? ` + ${rivals} соперников` : ''}</td></tr>`;
     }
     html += '</table>';
@@ -335,6 +339,23 @@ function renderStaff(app, u) {
   return html;
 }
 
+// Реклама по каналам: бюджет и насколько канал подходит точке
+export function fitStars(f) {
+  return f >= 1.3 ? '★★★' : f >= 1 ? '★★' : f >= 0.75 ? '★' : '·';
+}
+
+function renderAds(app, u) {
+  const { state } = app;
+  const ads = adsOf(u);
+  let html = '<div class="muted small">Реклама по каналам, $/мес. Звёзды — насколько канал подходит этой точке.</div>';
+  for (const [ch, c] of Object.entries(AD_CHANNELS)) {
+    const own = ch === 'billboard' && ownBillboards(state, u.companyId, u.placeId);
+    html += `<div class="row"><span title="${esc(c.desc)}">${c.icon} ${c.name} <small class="muted">${fitStars(channelFit(state, u, ch))}${own ? ' · свои щиты ✓' : ''}</small></span>
+      <span class="price-ctl"><input type="number" step="50" min="0" value="${ads[ch] || 0}" data-change="setAds" data-id="${u.id}" data-channel="${ch}"></span></div>`;
+  }
+  return html;
+}
+
 // Выбор сети для точки и узнаваемость бренда в городе
 function renderBrandRow(app, u, brand) {
   const { state } = app;
@@ -393,7 +414,7 @@ function renderUnit(app, u) {
   html += renderStaff(app, u);
   html += '<h3>Управление</h3><div class="card">';
   if (def.retail && !brand) {
-    html += `<div class="row"><span>Реклама, $/мес</span><span class="price-ctl"><input type="number" step="100" min="0" value="${u.marketing}" data-change="setMarketing" data-id="${u.id}"></span></div>`;
+    html += renderAds(app, u);
   }
   if (def.production) {
     html += `<div class="row"><span>Сбыт продукции</span><select data-change="setSellMode" data-id="${u.id}">

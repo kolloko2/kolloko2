@@ -240,6 +240,15 @@ export const BUSINESSES = {
     marketing: 0,
     service: { revenuePerStaff: 240, inputs: {}, talent: true, bonus: '+10% мощности всех ваших точек продаж (нужно 3+ программиста)' },
   },
+  billboards: {
+    name: 'Рекламные щиты', icon: '🪧', zoning: 'commercial', category: 'service', tier: 2,
+    description: 'Свои щиты по городу: сдаёте их рекламодателям, а ваши точки в этом городе рекламируются на них бесплатно.',
+    capex: 160000, renovPerM2: 20,
+    upkeep: { base: 1200, perArea: 2 },
+    staff: { role: 'Монтажник', wage: 2600, min: 1, max: 15, def: 3 },
+    marketing: 0,
+    service: { revenuePerStaff: 230, inputs: {}, bonus: 'Ваши точки в этом городе бесплатно висят на билбордах (как $1500/мес рекламы каждой)' },
+  },
   warehouse: {
     name: 'Склад', icon: '🏗️', zoning: 'industrial', category: 'logistics', tier: 2,
     description: 'Держит запас для ваших точек в радиусе 1500 км: оптом дешевле, дальние поставки едут по оптовому тарифу, а точки получают товар за день.',

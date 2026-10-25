@@ -5,6 +5,7 @@ import { MARKET_REGIONS } from '../data/regions.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
 import { LICENSES } from '../data/laws.js';
 import { TECHS } from '../data/tech.js';
+import { AD_CHANNELS } from '../data/ads.js';
 import {
   ARCHETYPES, truceCost, TRUCE_MONTHS, techLevel, techCost, techLocked, researchSpeed, lobbyCost, lobbyChance, employees, taxBreak,
   LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER, loanRate,
@@ -288,7 +289,8 @@ function renderBrands(app) {
         <span class="price-ctl"><button class="mini" data-action="brandPrice" data-id="${b.id}" data-product="${p.id}" data-step="-0.05">−</button>
         <button class="mini" data-action="brandPrice" data-id="${b.id}" data-product="${p.id}" data-step="0.05">+</button></span></div>`;
     }
-    html += `<div class="row"><span>Реклама на точку, $/мес <small class="muted">(в дорогих городах больше)</small></span><span class="price-ctl"><input type="number" min="0" step="100" value="${b.marketing}" data-change="brandMarketing" data-id="${b.id}"></span></div>
+    html += `<div class="muted small">Реклама на каждую точку, $/мес при уровне цен 1 (в дорогих городах больше):</div>
+      ${Object.entries(AD_CHANNELS).map(([ch, c]) => `<div class="row"><span title="${esc(c.desc)}">${c.icon} ${c.name}</span><span class="price-ctl"><input type="number" min="0" step="50" value="${b.ads?.[ch] || 0}" data-change="brandAds" data-id="${b.id}" data-channel="${ch}"></span></div>`).join('')}
       <label class="row check"><span>🛠 Автообновление: сеть сама ремонтирует точки при износе 35% (если в кассе есть деньги)</span><input type="checkbox" data-change="setAutoRenew" data-id="${b.id}" ${b.autoRenew ? 'checked' : ''}></label>
       <div class="row"><span>Зарплаты</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${b.wageLevel === l ? 'active' : ''}" data-action="brandWage" data-id="${b.id}" data-level="${l}">${Math.round(l * 100)}%</button>`).join('')}</span></div>`;
     if (cities.length) {
@@ -300,7 +302,7 @@ function renderBrands(app) {
       html += '</table>';
     }
     for (const c of countries) {
-      html += `<div class="row"><span>Национальная реклама: ${COUNTRIES[c].name}, $/мес</span><span class="price-ctl"><input type="number" min="0" step="1000" value="${b.national[c] || 0}" data-change="brandNational" data-id="${b.id}" data-country="${c}"></span></div>`;
+      html += `<div class="row"><span>📺 ТВ-реклама по стране: ${COUNTRIES[c].name}, $/мес</span><span class="price-ctl"><input type="number" min="0" step="1000" value="${b.national[c] || 0}" data-change="brandNational" data-id="${b.id}" data-country="${c}"></span></div>`;
     }
     html += renderFranchise(app, b, units.length);
     const free = mine.filter((u) => u.type === b.type && u.brandId !== b.id);

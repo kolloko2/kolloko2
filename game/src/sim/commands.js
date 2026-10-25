@@ -18,6 +18,8 @@ import {
   missingTech, techLocked, techCost, startResearch, lobby, lobbyCost, LOBBY_GOALS, LOBBY_COOLDOWN,
 } from './research.js';
 import { TECHS } from '../data/tech.js';
+import { AD_CHANNELS } from '../data/ads.js';
+import { defaultAds, setAds, adsOf } from './ads.js';
 import { ROYALTIES, FRANCHISE_MIN_UNITS, packageCost } from './franchise.js';
 import {
   ipoCheck, doIpo, trade, controllerOf, stakeOf, absorb, absorbCost, ABSORB_SHARE,
@@ -89,7 +91,7 @@ const handlers = {
       level: 1,
       staff: fc.staff,
       prices: defaultPrices(state, lot, businessType),
-      marketing: Math.round(def.marketing * costIndex(place)),
+      marketing: 0,
       awareness: 0.1 + 0.2 * lot.visibility,
       quality: 3,
       queue: 0,
@@ -111,6 +113,7 @@ const handlers = {
       autoStaff: false,
     };
     if (def.storage) unit.coverDays = def.storage.defaultCover;
+    setAds(unit, def.retail ? defaultAds(businessType, costIndex(place)) : {});
     unit.brandId = brand?.id ?? null;
     unit.usage = dailyNeed(unit, fc.customers, def.production ? productionCapacity(state, unit) : 0);
     state.units[id] = unit;
@@ -158,7 +161,20 @@ const handlers = {
     if (!unit) return fail('Нет такого бизнеса');
     if (unit.brandId) return fail('Рекламу этой точки задаёт сеть');
     if (!(budget >= 0) || budget > 1e6) return fail('Недопустимый бюджет');
-    unit.marketing = Math.round(budget);
+    // общий бюджет — пропорционально по нынешним каналам
+    const ads = adsOf(unit);
+    const total = Object.values(ads).reduce((a, b) => a + b, 0);
+    setAds(unit, total ? Object.fromEntries(Object.entries(ads).map(([ch, b]) => [ch, (b / total) * budget])) : { social: budget });
+    return OK;
+  },
+
+  setAds(state, { unitId, channel, budget }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (unit.brandId) return fail('Рекламу этой точки задаёт сеть');
+    if (!AD_CHANNELS[channel]) return fail('Нет такого канала');
+    if (!(budget >= 0) || budget > 1e6) return fail('Недопустимый бюджет');
+    setAds(unit, { ...adsOf(unit), [channel]: budget });
     return OK;
   },
 
@@ -319,7 +335,7 @@ const handlers = {
           u.prices[p.id] = Math.round(refPrice(place, p) * ratio * 100) / 100;
         }
       }
-      u.marketing = Math.round((src.marketing / costIndex(srcPlace)) * costIndex(place));
+      if (!u.brandId) setAds(u, Object.fromEntries(Object.entries(adsOf(src)).map(([ch, b]) => [ch, (b / costIndex(srcPlace)) * costIndex(place)])));
       u.sellMode = src.sellMode;
       n++;
     }
@@ -448,7 +464,7 @@ const handlers = {
     return OK;
   },
 
-  updateBrand(state, { brandId, priceRatio, marketing, wageLevel, tier, name }, companyId) {
+  updateBrand(state, { brandId, priceRatio, ads, wageLevel, tier, name }, companyId) {
     const brand = state.brands[brandId];
     if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
     if (priceRatio) {
@@ -458,9 +474,14 @@ const handlers = {
         brand.priceRatio[p] = Math.round(r * 100) / 100;
       }
     }
-    if (marketing !== undefined) {
-      if (!(marketing >= 0 && marketing <= 1e5)) return fail('Недопустимый бюджет');
-      brand.marketing = Math.round(marketing);
+    if (ads) {
+      brand.ads ||= {};
+      for (const [ch, b] of Object.entries(ads)) {
+        if (!AD_CHANNELS[ch]) return fail('Нет такого канала');
+        if (!(b >= 0 && b <= 1e5)) return fail('Недопустимый бюджет');
+        if (b > 0) brand.ads[ch] = Math.round(b);
+        else delete brand.ads[ch];
+      }
     }
     if (wageLevel !== undefined) {
       if (!WAGE_LEVELS.includes(wageLevel)) return fail('Уровень зарплаты: 80%, 100%, 120% или 150%');

@@ -258,5 +258,9 @@
   "ui/research": {
     "model": "meta/muse-image",
     "cost": 0.01
+  },
+  "business/billboards": {
+    "model": "meta/muse-image",
+    "cost": 0.01
   }
 }

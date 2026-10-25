@@ -61,6 +61,8 @@ export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Мо�
     brands: {}, // сети компаний
     nextBrandId: 1,
     countries: initCountries(), // налоги, пошлины, состояние экономики стран
+    trends: {}, // мода на категории по странам (см. luck.js)
+    districtEvents: {}, // фестивали, ремонты, метро
     stocks: initStocks(rng), // биржа: ИИ-корпорации и компании игроков после IPO
     news: [],
     newsSeq: 0,

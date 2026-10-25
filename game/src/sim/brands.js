@@ -1,6 +1,8 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { refPrice } from './demand.js';
 import { costIndex } from './world.js';
+import { setAds } from './ads.js';
+import { DEFAULT_AD_SPLIT } from '../data/ads.js';
 
 // Сети (бренды): точки одного типа с общими настройками и общей узнаваемостью.
 // Цены сети задаются в долях от местной нормы — поэтому сами подстраиваются под город.
@@ -31,7 +33,7 @@ export function newBrand(state, companyId, { name, businessType, tier }) {
     type: businessType,
     tier,
     priceRatio,
-    marketing: Math.round(def.marketing * (tier === 'premium' ? 1.5 : tier === 'eco' ? 0.7 : 1)), // на точку, при индексе цен 1
+    ads: Object.fromEntries(Object.entries(DEFAULT_AD_SPLIT).map(([ch, share]) => [ch, Math.round(def.marketing * share * (tier === 'premium' ? 1.5 : tier === 'eco' ? 0.7 : 1))])), // на точку, при индексе цен 1
     wageLevel: tier === 'premium' ? 1.2 : 1,
     national: {}, // страна → бюджет национальной рекламы в месяц
     awareness: {}, // город → { p: эффект присутствия, ads: эффект нац. рекламы }
@@ -49,11 +51,16 @@ export function applyBrand(state, brand) {
   for (const u of brandUnits(state, brand)) {
     const place = state.world.places[u.placeId];
     for (const p of def.retail?.products || []) u.prices[p.id] = Math.round(refPrice(place, p) * (brand.priceRatio[p.id] ?? 1) * 100) / 100;
-    u.marketing = Math.round(brand.marketing * costIndex(place));
+    const idx = costIndex(place);
+    setAds(u, Object.fromEntries(Object.entries(brandAds(brand)).map(([ch, b]) => [ch, b * idx])));
     u.wageLevel = brand.wageLevel;
     u.tierQuality = t.quality;
     u.tierUpkeep = t.upkeep;
   }
+}
+
+export function brandAds(brand) {
+  return brand.ads || { social: brand.marketing || 0 };
 }
 
 export function detachFromBrand(unit) {

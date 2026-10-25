@@ -609,3 +609,47 @@ test('исследования: бонусы и открытие тира IV, л
   }
   if (won) assert.ok(s.countries.US.tax < tax);
 });
+
+// ---------- реклама и удача ----------
+
+test('каналы рекламы: подходящий канал работает лучше, свои щиты дают бесплатные билборды', async () => {
+  const { adGain, ownBillboards } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 25, rivals: 0 });
+  s.companies.c1.cash = 1e6;
+  const u = open(s, 'chi', 'gas_station');
+  u.awareness = 0.2;
+  applyCommand(s, { type: 'setAds', unitId: u.id, channel: 'flyers', budget: 0 }, 'c1');
+  applyCommand(s, { type: 'setAds', unitId: u.id, channel: 'social', budget: 2000 }, 'c1');
+  const social = adGain(s, u);
+  applyCommand(s, { type: 'setAds', unitId: u.id, channel: 'social', budget: 0 }, 'c1');
+  applyCommand(s, { type: 'setAds', unitId: u.id, channel: 'billboard', budget: 2000 }, 'c1');
+  const billboard = adGain(s, u);
+  assert.ok(billboard > social * 1.5, 'АЗС лучше рекламировать на билбордах, чем в соцсетях');
+  assert.equal(u.marketing, 2000);
+  applyCommand(s, { type: 'setAds', unitId: u.id, channel: 'billboard', budget: 0 }, 'c1');
+  assert.equal(adGain(s, u), 0);
+  open(s, 'chi', 'billboards');
+  assert.ok(ownBillboards(s, 'c1', 'chi'));
+  assert.ok(adGain(s, u) > 0, 'свои щиты рекламируют бесплатно');
+});
+
+test('удача: вирусные ролики, мода и события в районах делают партии разными', () => {
+  const run = (seed) => {
+    const s = createGame({ seed, rivals: 0 });
+    s.companies.c1.cash = 3e6;
+    for (let i = 0; i < 12; i++) {
+      const u = open(s, ['ber', 'nyc', 'tyo'][i % 3], 'coffee_shop');
+      applyCommand(s, { type: 'setAds', unitId: u.id, channel: 'social', budget: 1500 }, 'c1');
+    }
+    stepDays(s, 365 * 6);
+    return s;
+  };
+  const a = run(31);
+  const b = run(32);
+  for (const s of [a, b]) {
+    assert.ok(s.news.some((n) => n.text.includes('миллионы просмотров')), 'ролик залетел');
+    assert.ok(Object.values(s.trends.DE).some((m) => Math.abs(m - 1) > 0.03), 'мода гуляет');
+  }
+  assert.ok(Object.keys(a.districtEvents).length + Object.keys(b.districtEvents).length > 0, 'бывают события в районах');
+  assert.notEqual(Math.round(a.companies.c1.cash), Math.round(b.companies.c1.cash));
+});
