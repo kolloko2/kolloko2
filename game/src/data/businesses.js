@@ -337,7 +337,7 @@ export const BUSINESSES = {
     retail: {
       perStaff: 0.6, cap: [5, 9, 15],
       products: [
-        { id: 'car', name: 'Автомобиль', ref: 24000, attach: 1, tradable: 0.75, recipe: { cars: 1 } },
+        { id: 'car', name: 'Автомобиль', ref: 23700, attach: 1, tradable: 0.75, recipe: { cars: 1 } },
         { id: 'carservice', name: 'Допы и сервис', ref: 900, attach: 0.6, recipe: { parts: 5 } },
       ],
     },
@@ -419,7 +419,7 @@ export const BUSINESSES = {
     upkeep: { base: 8000, perArea: 3 },
     staff: { role: 'Строитель', wage: 3200, min: 10, max: 120, def: 25 },
     marketing: 0,
-    service: { revenuePerStaff: 120, volatility: 0.3, cycle: 2.5, inputs: {}, bonus: 'Каждый год +2% потока людей во всех районах города (до +20%)' },
+    service: { revenuePerStaff: 90, volatility: 0.3, cycle: 2.5, inputs: {}, bonus: 'Каждый год +2% потока людей во всех районах города (до +20%)' },
   },
   power_plant: {
     name: 'Электростанция', icon: '⚡', zoning: 'industrial', category: 'service', tier: 4, license: 'energy',

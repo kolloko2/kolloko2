@@ -18,13 +18,13 @@ export const DISTRICTS = {
   premium: {
     name: 'Престижный жилой', icon: '🏡', color: '#9b59b6', zoning: 'commercial', priceSensitivity: 1.4,
     traffic: [600, 1200], rent: 75, lots: [3, 4],
-    demand: { coffee: 0.07, fastfood: 0.02, grocery: 0.10, bakery: 0.09, restaurant: 0.05, fuel: 0.05, electronics: 0.005, hotel: 0.014, fitness: 0.144, beauty: 0.03, pharmacy: 0.05, cars: 0.0005, autoservice: 0.008 },
+    demand: { coffee: 0.07, fastfood: 0.02, grocery: 0.10, bakery: 0.09, restaurant: 0.05, fuel: 0.05, electronics: 0.005, hotel: 0.014, fitness: 0.144, beauty: 0.03, pharmacy: 0.05, cars: 0.0003, autoservice: 0.008 },
     ai: { coffee: 1, fastfood: 0, grocery: 1, bakery: 1, restaurant: 2, fuel: 1, electronics: 1, hotel: 1, fitness: 1, beauty: 2, pharmacy: 1, cars: 1, autoservice: 1 },
   },
   residential: {
     name: 'Спальный район', icon: '🏘️', color: '#27ae60', zoning: 'commercial', priceSensitivity: 2.8,
     traffic: [900, 1800], rent: 40, lots: [4, 6],
-    demand: { coffee: 0.04, fastfood: 0.04, grocery: 0.12, bakery: 0.10, restaurant: 0.02, fuel: 0.06, electronics: 0.0025, fitness: 0.108, beauty: 0.02, pharmacy: 0.06, cars: 0.0003, autoservice: 0.012 },
+    demand: { coffee: 0.04, fastfood: 0.04, grocery: 0.12, bakery: 0.10, restaurant: 0.02, fuel: 0.06, electronics: 0.0025, fitness: 0.108, beauty: 0.02, pharmacy: 0.06, cars: 0.00018, autoservice: 0.012 },
     ai: { coffee: 1, fastfood: 2, grocery: 3, bakery: 2, restaurant: 1, fuel: 2, electronics: 1, fitness: 1, beauty: 2, pharmacy: 2, autoservice: 1 },
   },
   student: {
@@ -36,7 +36,7 @@ export const DISTRICTS = {
   mall: {
     name: 'Торговый кластер', icon: '🛍️', color: '#e84393', zoning: 'commercial', priceSensitivity: 2.5,
     traffic: [1800, 3200], rent: 85, lots: [3, 4],
-    demand: { coffee: 0.06, fastfood: 0.08, grocery: 0.06, bakery: 0.03, restaurant: 0.05, fuel: 0.05, electronics: 0.008, hotel: 0.014, fitness: 0.072, beauty: 0.02, pharmacy: 0.04, cars: 0.0006, autoservice: 0.008 },
+    demand: { coffee: 0.06, fastfood: 0.08, grocery: 0.06, bakery: 0.03, restaurant: 0.05, fuel: 0.05, electronics: 0.008, hotel: 0.014, fitness: 0.072, beauty: 0.02, pharmacy: 0.04, cars: 0.00036, autoservice: 0.008 },
     ai: { coffee: 2, fastfood: 3, grocery: 2, bakery: 1, restaurant: 3, fuel: 1, electronics: 2, hotel: 1, fitness: 1, beauty: 1, pharmacy: 1, cars: 1, autoservice: 1 },
   },
   industrial: {
