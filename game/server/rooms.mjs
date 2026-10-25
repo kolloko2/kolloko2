@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createGame, addCompany, stepDay, applyCommand, isOver, addNews, dateOf, VICTORY_OPTIONS, SAVE_VERSION } from '../src/sim/index.js';
+import { createGame, addCompany, stepDay, applyCommand, isOver, addNews, dateOf, VICTORY_OPTIONS, migrate } from '../src/sim/index.js';
 import { makeSnapshot } from '../src/net/snapshot.js';
 
 export const SPEED_MS = [Infinity, 1500, 500, 120];
@@ -204,8 +204,9 @@ export class Room {
     if (!/^[A-Z0-9]{5}$/.test(code)) return null;
     try {
       const data = JSON.parse(await readFile(join(dataDir, `${code}.json`), 'utf8'));
-      if (data.state?.version !== SAVE_VERSION) return null; // старый формат мира
-      return new Room({ ...data, dataDir });
+      const state = migrate(data.state); // старая комната дополняется новыми полями
+      if (!state) return null;
+      return new Room({ ...data, state, dataDir });
     } catch {
       return null;
     }

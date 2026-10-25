@@ -743,3 +743,27 @@ test('недвижимость стабильна, застройщик раст
   assert.ok(bc.last.revenue > 0 && bc.today.occupancy > 0.3);
   assert.ok(s.growth.nyc > 1, 'город растёт');
 });
+
+test('миграция: старое сохранение без новых систем загружается и играется', async () => {
+  const { migrate, SAVE_VERSION } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 33, rivals: 0 });
+  s.companies.c1.cash = 1e6;
+  const u = open(s, 'ber', 'coffee_shop');
+  stepDays(s, 60);
+  const old = JSON.parse(JSON.stringify(s));
+  // как в версии 4: нет моды, событий, предложений, роста городов, новых товаров, туризма и износа
+  for (const k of ['trends', 'districtEvents', 'offers', 'nextOfferId', 'growth', 'nextRivalId']) delete old[k];
+  delete old.market.goods.cars;
+  delete old.market.goods.medicine;
+  for (const p of Object.values(old.world.places)) delete p.tourism;
+  for (const d of Object.values(old.world.districts)) delete d.ai.hotel;
+  delete old.units[u.id].condition;
+  old.version = 4;
+  const m = migrate(old);
+  assert.ok(m && m.version === SAVE_VERSION);
+  assert.ok(m.market.goods.cars && m.world.places.par.tourism > 0);
+  assert.equal(Object.values(m.companies).filter((c) => c.ai).length, 4, 'в старый мир пришли корпорации');
+  stepDays(m, 120);
+  assert.ok(m.units[u.id].condition < 100);
+  assert.equal(migrate({ version: 99 }), null);
+});

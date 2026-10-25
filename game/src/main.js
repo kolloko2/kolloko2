@@ -1,6 +1,6 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
 import {
-  createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, searchLots, SAVE_VERSION, VICTORY_OPTIONS,
+  createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, searchLots, migrate, VICTORY_OPTIONS,
 } from './sim/index.js';
 import { renderTutorial, restartTutorial, skipTutorial, advisorAction, hideHint, resetHints } from './ui/tutorial.js';
 import { LocalSession, RemoteSession, SPEEDS, setDayScale } from './net/session.js';
@@ -93,9 +93,9 @@ function writeJson(key, value) {
   }
 }
 
+// Старые сохранения переводятся на текущую версию игры (см. sim/migrate.js)
 function loadSolo(n = slot) {
-  const s = readJson(slotKey(n));
-  return s && s.version === SAVE_VERSION ? s : null;
+  return migrate(readJson(slotKey(n)));
 }
 
 function freeSlot() {
@@ -115,8 +115,8 @@ function exportSave() {
 
 async function importSave(file) {
   try {
-    const s = JSON.parse(await file.text());
-    if (s?.version !== SAVE_VERSION) throw new Error('Файл от другой версии игры');
+    const s = migrate(JSON.parse(await file.text()));
+    if (!s) throw new Error('Файл от слишком старой или неизвестной версии игры');
     slot = freeSlot() ?? 1;
     if (loadSolo(slot) && !confirm(`Все слоты заняты. Записать поверх слота ${slot}?`)) return;
     localStorage.setItem(slotKey(slot), JSON.stringify(s));

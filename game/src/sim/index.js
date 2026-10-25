@@ -48,3 +48,4 @@ export { advice } from './advisor.js';
 export { serviceMood, realEstateRent } from './services.js';
 export { DELIVERY, DELIVERY_CATEGORIES } from './tick.js';
 export { ownBillboards, ownCourier, energyFactor, hasPort, mallDiscount } from './bonuses.js';
+export { migrate, OLDEST_SUPPORTED } from './migrate.js';
