@@ -85,7 +85,7 @@ function handleSocket(socket) {
   });
 }
 
-export function startServer(port = 8080) {
+export function startServer(port = 8080, host = undefined) {
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const pathname = decodeURIComponent(url.pathname);
@@ -115,7 +115,7 @@ export function startServer(port = 8080) {
     }
   });
   attachWebSocket(server, '/ws', handleSocket);
-  return new Promise((ok) => server.listen(port, () => ok(server)));
+  return new Promise((ok) => server.listen(port, host, () => ok(server)));
 }
 
 export async function stopServer(server) {
@@ -130,7 +130,8 @@ export async function stopServer(server) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const port = Number(process.argv[2] || process.env.PORT || 8080);
-  const server = await startServer(port);
+  // HOST=127.0.0.1 — слушать только локально (за nginx на сервере)
+  const server = await startServer(port, process.env.HOST || undefined);
   console.log(`МАГНАТ: http://localhost:${port}  (мультиплеер: поделитесь адресом и кодом комнаты)`);
   const shutdown = async () => {
     await stopServer(server);
