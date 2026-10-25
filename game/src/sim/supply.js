@@ -55,13 +55,69 @@ function cover(unit, good) {
   return isWarehouse(unit) ? unit.coverDays : coverDays(good);
 }
 
+// Индекс на игровой день: кто что производит, где склады, сколько каждого товара нужно компании.
+// Без него поиск поставщиков перебирал бы все бизнесы мира для каждой точки и товара.
+const indexCache = new WeakMap();
+function dayIndex(state) {
+  let c = indexCache.get(state);
+  if (c && c.day === state.day && c.version === state.mapVersion) return c;
+  c = { day: state.day, version: state.mapVersion, producers: new Map(), warehouses: new Map(), demand: new Map() };
+  for (const u of Object.values(state.units)) {
+    const out = outputGood(u);
+    if (out) {
+      const k = `${u.companyId}|${out}`;
+      if (!c.producers.has(k)) c.producers.set(k, []);
+      c.producers.get(k).push(u);
+    }
+    if (isWarehouse(u)) {
+      if (!c.warehouses.has(u.companyId)) c.warehouses.set(u.companyId, []);
+      c.warehouses.get(u.companyId).push(u);
+    }
+  }
+  indexCache.set(state, c);
+  return c;
+}
+
+// Свои поставщики товара для точки, ближайшие первыми. Расстояния не меняются, пока не открылся/закрылся бизнес,
+// поэтому список кэшируется до следующего изменения карты.
+const sourceCache = new WeakMap();
+function sortedSources(state, unit, good, toWarehouse) {
+  let c = sourceCache.get(state);
+  if (!c || c.version !== state.mapVersion) {
+    c = { version: state.mapVersion, lists: new Map() };
+    sourceCache.set(state, c);
+  }
+  const key = `${unit.id}|${good}`;
+  let list = c.lists.get(key);
+  if (!list) {
+    const idx = dayIndex(state);
+    const here = lotOf(state, unit);
+    const candidates = [...(idx.producers.get(`${unit.companyId}|${good}`) || []), ...(toWarehouse ? [] : idx.warehouses.get(unit.companyId) || [])];
+    list = candidates.filter((s) => s.id !== unit.id).map((s) => ({ s, km: distanceKm(here, lotOf(state, s)) })).sort((a, b) => a.km - b.km);
+    c.lists.set(key, list);
+  }
+  return list;
+}
+
+// Потребность компании в товаре (считается по свежим usage, поэтому — после закупок, раз в день)
+function companyDemand(state, companyId, good) {
+  const c = dayIndex(state);
+  if (!c.demandReady) {
+    for (const u of Object.values(state.units)) {
+      if (isWarehouse(u)) continue;
+      for (const [g, q] of Object.entries(u.usage)) {
+        const k = `${u.companyId}|${g}`;
+        c.demand.set(k, (c.demand.get(k) || 0) + q);
+      }
+    }
+    c.demandReady = true;
+  }
+  return c.demand.get(`${companyId}|${good}`) || 0;
+}
+
 // Сколько этого товара ежедневно нужно другим бизнесам той же компании
 function internalDemand(state, unit, good) {
-  let sum = 0;
-  for (const u of Object.values(state.units)) {
-    if (u.id !== unit.id && u.companyId === unit.companyId && !isWarehouse(u)) sum += u.usage[good] || 0;
-  }
-  return sum;
+  return companyDemand(state, unit.companyId, good) - (isWarehouse(unit) ? 0 : unit.usage[good] || 0);
 }
 
 // Сколько заказать, если товар идёт lead дней: запас на (страховые дни + дорога) минус то, что есть
@@ -79,13 +135,9 @@ function capRoom(state, unit, good, qty) {
 
 // Поставки от своих производств и складов: ближайшие первыми, с учётом дней в пути
 function supplyInternally(state, unit, good) {
-  const here = lotOf(state, unit);
   const toWarehouse = isWarehouse(unit);
-  const sources = Object.values(state.units)
-    .filter((s) => s.id !== unit.id && s.companyId === unit.companyId
-      && (outputGood(s) === good || (isWarehouse(s) && !toWarehouse && invQty(s, good) > 0)))
-    .map((s) => ({ s, km: distanceKm(here, lotOf(state, s)) }))
-    .sort((a, b) => a.km - b.km);
+  const sources = sortedSources(state, unit, good, toWarehouse).filter(({ s }) => state.units[s.id] && invQty(s, good) > 0);
+  if (!sources.length) return;
   const market = buyPrice(state, good, placeOf(state, unit), { bulk: toWarehouse });
   for (const { s, km } of sources) {
     // свой порт в регионе отправления: без простоя в портах и дешевле по морю

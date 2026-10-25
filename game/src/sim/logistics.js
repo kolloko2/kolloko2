@@ -27,7 +27,7 @@ export function deliver(state, unit, good, qty, unitCost, days, fromId = null) {
     s.q += qty;
     return;
   }
-  state.shipments.push({
+  const sh = {
     id: state.nextShipmentId++,
     companyId: unit.companyId,
     to: unit.id,
@@ -37,14 +37,39 @@ export function deliver(state, unit, good, qty, unitCost, days, fromId = null) {
     unitCost,
     sent: state.day,
     arrive: state.day + days,
-  });
+  };
+  state.shipments.push(sh);
+  // держим индекс в актуальном виде без полной пересборки
+  const c = shipIndex.get(state);
+  if (c && c.list === state.shipments && c.n === state.shipments.length - 1) {
+    c.n++;
+    const k = `${sh.to}|${sh.good}`;
+    if (!c.map.has(k)) c.map.set(k, []);
+    c.map.get(k).push(sh);
+  }
+}
+
+// Индекс грузов в пути «получатель|товар» → грузы (пересобирается, когда меняется список)
+const shipIndex = new WeakMap();
+function shipmentsTo(state, unitId, good) {
+  let c = shipIndex.get(state);
+  if (!c || c.list !== state.shipments || c.n !== state.shipments.length) {
+    c = { list: state.shipments, n: state.shipments.length, map: new Map() };
+    for (const s of state.shipments) {
+      const k = `${s.to}|${s.good}`;
+      if (!c.map.has(k)) c.map.set(k, []);
+      c.map.get(k).push(s);
+    }
+    shipIndex.set(state, c);
+  }
+  return c.map.get(`${unitId}|${good}`) || [];
 }
 
 // Сколько товара едет к бизнесу. within — учитывать только то, что прибудет за этот срок (дней)
 export function inTransit(state, unit, good, within = Infinity) {
   let q = unit.incoming[good]?.q ?? 0;
-  for (const s of state.shipments) {
-    if (s.to === unit.id && s.good === good && s.arrive - state.day <= within) q += s.qty;
+  for (const s of shipmentsTo(state, unit.id, good)) {
+    if (s.arrive - state.day <= within) q += s.qty;
   }
   return q;
 }
