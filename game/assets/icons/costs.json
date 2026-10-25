@@ -334,5 +334,17 @@
   "ui/search": {
     "model": "meta/muse-image",
     "cost": 0.01
+  },
+  "business/cosmetics_factory": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/parts_factory": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/car_plant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
   }
 }

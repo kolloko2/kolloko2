@@ -86,6 +86,9 @@
     "goods/cosmetics": "a set of cosmetic bottles and a lipstick",
     "goods/parts": "a car tire next to a brake disc and a wrench",
     "goods/cars": "a modern compact passenger car",
-    "ui/search": "a magnifying glass over a small map with a pin"
+    "ui/search": "a magnifying glass over a small map with a pin",
+    "business/cosmetics_factory": "a small cosmetics factory with a conveyor of cream jars",
+    "business/parts_factory": "an auto parts factory with gears and a stack of tires",
+    "business/car_plant": "a car assembly plant with a car body on a production line and robotic arms"
   }
 }

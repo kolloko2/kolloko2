@@ -357,6 +357,42 @@ export const BUSINESSES = {
       ],
     },
   },
+  cosmetics_factory: {
+    name: 'Косметическая фабрика', icon: '🧴', zoning: 'industrial', category: 'industry', tier: 3, license: 'eco',
+    description: 'Кремы и шампуни из пластика, сахара и молока — для ваших салонов красоты и аптек.',
+    capex: 7000000, renovPerM2: 60,
+    upkeep: { base: 15000, perArea: 4 },
+    staff: { role: 'Технолог', wage: 3000, min: 5, max: 80, def: 30 },
+    marketing: 0,
+    production: {
+      perStaff: 100, cap: [3000, 6000, 10000],
+      recipe: { output: 'cosmetics', inputs: { plastic: 0.8, sugar: 0.2, milk: 0.5 } },
+    },
+  },
+  parts_factory: {
+    name: 'Завод автозапчастей', icon: '⚙️', zoning: 'industrial', category: 'industry', tier: 3,
+    description: 'Запчасти из пластика и микросхем — для автосервисов, автосалонов и автозавода.',
+    capex: 5000000, renovPerM2: 60,
+    upkeep: { base: 12000, perArea: 4 },
+    staff: { role: 'Станочник', wage: 3200, min: 5, max: 120, def: 50 },
+    marketing: 0,
+    production: {
+      perStaff: 10, cap: [500, 1000, 1800],
+      recipe: { output: 'parts', inputs: { plastic: 5, chips: 0.4 } },
+    },
+  },
+  car_plant: {
+    name: 'Автозавод', icon: '🏭', zoning: 'industrial', category: 'industry', tier: 4, requiresTech: 'electronics', license: 'eco',
+    description: 'Вершина цепочки: машины из запчастей, электроники и пластика. Огромные вложения и обороты; без своего завода запчастей почти не окупается.',
+    capex: 80000000, renovPerM2: 500,
+    upkeep: { base: 150000, perArea: 20 },
+    staff: { role: 'Сборщик', wage: 4000, min: 50, max: 400, def: 200 },
+    marketing: 0,
+    production: {
+      perStaff: 0.1, cap: [20, 40, 70],
+      recipe: { output: 'cars', inputs: { parts: 550, electronics: 2, plastic: 150 } },
+    },
+  },
   // ---------- недвижимость, стройка, инфраструктура ----------
   shopping_mall: {
     name: 'Торговый центр', icon: '🏬', zoning: 'commercial', category: 'service', tier: 3, minArea: 120,
@@ -566,6 +602,9 @@ export const RISK = {
   business_center: ['low', 'Самый спокойный доход'], developer: ['high', 'Бум — огромные деньги, кризис — убытки'],
   power_plant: ['low', 'Регулируемый тариф: очень стабильно'], port: ['mid', 'Зависит от мировой торговли'],
   courier: ['mid', 'Своя доставка для ваших кафе'],
+  cosmetics_factory: ['mid', 'Снабжает салоны и аптеки, высокая маржа'],
+  parts_factory: ['mid', 'Запчасти нужны всем автосервисам'],
+  car_plant: ['high', 'Гигантские вложения, обороты и риск'],
 };
 export const RISK_NAMES = { low: '🟢 низкий риск', mid: '🟡 средний риск', high: '🔴 высокий риск' };
 
