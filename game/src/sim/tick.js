@@ -27,6 +27,7 @@ import {
   lotOf, placeOf, spend, earn, spendCompany, earnCompany, monthlyWage, monthlyRent, monthlyUpkeep, baseQuality,
   WEAR_PER_DAY, condition, renovateCost, pay,
 } from './units.js';
+/** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 const BANKRUPT_DAYS = 45;
 
@@ -264,6 +265,7 @@ export function isOver(state) {
   return Boolean(state.winner) || !activeCompanies(state).some((c) => !c.ai);
 }
 
+/** @param {State} state */
 export function stepDay(state) {
   if (isOver(state)) return;
   updateMarket(state);

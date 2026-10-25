@@ -11,6 +11,7 @@ import { serviceRevenuePerStaff } from './services.js';
 import { licenseNeeded } from './countries.js';
 import { attention } from './staff.js';
 import { techLevel, missingTech } from './research.js';
+/** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 const FORECAST_AWARENESS = 0.35; // узнаваемость через пару месяцев при стандартной рекламе
 

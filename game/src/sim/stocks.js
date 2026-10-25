@@ -1,6 +1,7 @@
 import { randNormal, rand } from './rng.js';
 import { addNews, coreWorth, activeCompanies } from './state.js';
 import { pay, receive, spendCompany, earnCompany } from './units.js';
+/** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 // Биржа. Бумаги («листинги»): ИИ-корпорации и компании игроков, вышедшие на IPO.
 // listing.holders — сколько акций у каждой компании игроков; float — акции у публики (их можно купить).

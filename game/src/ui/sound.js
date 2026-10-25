@@ -24,7 +24,7 @@ export function toggleSound() {
 
 function audio() {
   if (!ctx) {
-    const AC = window.AudioContext || window.webkitAudioContext;
+    const AC = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
     if (!AC) return null;
     ctx = new AC();
   }

@@ -26,3 +26,6 @@ game/assets/icons/raw/
 
 # сохранения комнат сервера
 game/server-data/
+
+# зависимости для разработки (проверка типов)
+node_modules/

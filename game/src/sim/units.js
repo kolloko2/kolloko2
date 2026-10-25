@@ -6,6 +6,7 @@ import { itCapacityBoost } from './bonuses.js';
 import { efficiency, laborFactor, wageLevel } from './staff.js';
 import { foreignFactor } from './expansion.js';
 import { techLevel } from './research.js';
+/** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 export function emptyMonth() {
   return {
@@ -34,11 +35,13 @@ export function capexFor(state, lot, type) {
 }
 
 // Зарплата одного сотрудника: ставка профессии × уровень зарплат города × выбранный уровень × рынок труда
+/** @param {State} state @param {Unit} unit */
 export function monthlyWage(state, unit) {
   const place = placeOf(state, unit);
   return BUSINESSES[unit.type].staff.wage * place.wage * (place.cpi ?? 1) * wageLevel(unit) * laborFactor(state, place) * foreignFactor(state, unit);
 }
 
+/** @param {State} state @param {Unit} unit */
 export function monthlyUpkeep(state, unit) {
   const u = BUSINESSES[unit.type].upkeep;
   const place = placeOf(state, unit);
@@ -48,6 +51,7 @@ export function monthlyUpkeep(state, unit) {
 
 // Аренда: не платим, если помещение принадлежит своей компании.
 // Если владелец — другая компания (PvP), аренда уходит ей.
+/** @param {State} state @param {Unit} unit */
 export function monthlyRent(state, unit) {
   const lot = lotOf(state, unit);
   return lot.ownerId === unit.companyId ? 0 : lot.rent;
@@ -73,12 +77,14 @@ export function wearUpkeep(unit) {
   return 1 + (100 - condition(unit)) / 200;
 }
 
+/** @param {State} state @param {Unit} unit */
 export function renovateCost(state, unit) {
   const lot = lotOf(state, unit);
   const base = capexFor(state, lot, unit.type) * (1 + 0.5 * (unit.level - 1));
   return Math.round(base * RENOVATE_SHARE * (100 - condition(unit)) / 100);
 }
 
+/** @param {State} state @param {Unit} unit */
 export function retailCapacity(state, unit) {
   const r = BUSINESSES[unit.type].retail;
   if (!r || unit.broken > 0) return 0;
@@ -86,6 +92,7 @@ export function retailCapacity(state, unit) {
   return Math.min(unit.staff * r.perStaff * efficiency(state, unit) * pos, r.cap[unit.level - 1]) * itCapacityBoost(state, unit.companyId);
 }
 
+/** @param {State} state @param {Unit} unit */
 export function productionCapacity(state, unit) {
   const p = BUSINESSES[unit.type].production;
   if (!p || unit.broken > 0) return 0;
@@ -114,6 +121,7 @@ export function outputGood(unit) {
 // Сколько товара юнит тратит в день при заданном числе клиентов/выпуске
 export function dailyNeed(unit, customers, produced) {
   const def = BUSINESSES[unit.type];
+  /** @type {Record<string, number>} */
   const need = {};
   if (def.retail) {
     for (const p of def.retail.products) {
@@ -160,6 +168,7 @@ export function takeInv(unit, good, qty) {
 
 export function defaultPrices(state, lot, type) {
   const def = BUSINESSES[type];
+  /** @type {Record<string, number>} */
   const prices = {};
   if (def.retail) {
     const place = state.world.places[lot.placeId];
@@ -213,6 +222,7 @@ export function earnCompany(state, companyId, field, amount) {
   m[field] = (m[field] || 0) + amount;
 }
 
+/** @param {State} state @param {Unit} unit */
 export function unitAssetValue(state, unit) {
   let inv = 0;
   for (const s of Object.values(unit.inv)) inv += s.q * s.c;

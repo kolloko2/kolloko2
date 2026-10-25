@@ -81,8 +81,11 @@ function aiScale(pop) {
 }
 
 export function generateWorld(rng) {
+  /** @type {Record<string, any>} */
   const places = {};
+  /** @type {Record<string, any>} */
   const districts = {};
+  /** @type {Record<string, import('./types.js').Lot>} */
   const lots = {};
 
   const addLot = (district, place, type, [minDist, maxDist]) => {

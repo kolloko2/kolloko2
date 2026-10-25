@@ -9,6 +9,7 @@ import { buyPrice } from './market.js';
 import { GOODS } from '../data/goods.js';
 import { listingOf, ipoCheck, doIpo, trade, stakeOf } from './stocks.js';
 import { newBrand, brandUnits } from './brands.js';
+/** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 // ИИ-корпорации — настоящие компании в мире: свои точки на карте, сети, кредиты, биржа.
 // У каждой свой характер. С ними можно договариваться: купить точку, заплатить за перемирие.

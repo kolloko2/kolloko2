@@ -9,6 +9,16 @@ import { money, moneyShort, signClass, esc } from './ui/format.js';
 import { play, toggleSound, soundOn } from './ui/sound.js';
 
 const SAVE_KEY = 'magnat-save-v3';
+
+// Типизированный доступ к элементам формы (для проверки типов)
+/** @param {string} id @returns {HTMLInputElement} */
+const $in = (id) => /** @type {HTMLInputElement} */ (document.getElementById(id));
+/** @param {string} sel @returns {HTMLElement[]} */
+const $all = (sel) => /** @type {HTMLElement[]} */ ([...document.querySelectorAll(sel)]);
+/** @param {Event} e @returns {HTMLInputElement} */
+const target = (e) => /** @type {HTMLInputElement} */ (e.target);
+/** @param {Event} e @param {string} sel @returns {HTMLElement | null} */
+const closestEl = (e, sel) => target(e).closest(sel);
 const MP_KEY = 'magnat-mp';
 
 const app = {
@@ -102,7 +112,7 @@ function renderHud() {
   attEl.className = att.excess ? 'neg' : '';
 
   const mine = session.multiplayer ? session.mySpeed() : session.speed;
-  document.querySelectorAll('#speed button').forEach((b) => {
+  $all('#speed button').forEach((b) => {
     const i = Number(b.dataset.speed);
     b.classList.toggle('active', i === mine);
     b.classList.toggle('effective', session.multiplayer && i === session.speed && i !== mine);
@@ -119,10 +129,10 @@ function renderHud() {
   document.getElementById('btn-save').hidden = session.multiplayer;
 
   const unread = newsFor(state, app.companyId).filter((n) => n.day >= state.day - 7 && (n.kind === 'bad' || n.kind === 'warn')).length;
-  document.querySelector('#nav button[data-tab="news"] .nav-badge').textContent = unread || '';
-  document.querySelector('#nav button[data-tab="room"]').hidden = !session.multiplayer;
+  document.querySelector('#nav button[data-tab="news"] .nav-badge').textContent = String(unread || '');
+  /** @type {HTMLElement} */ (document.querySelector('#nav button[data-tab="room"]')).hidden = !session.multiplayer;
   const tasks = companyAlerts(state, app.companyId).filter((a) => a.kind !== 'contract').length;
-  document.querySelector('#nav button[data-tab="tasks"] .nav-badge').textContent = tasks || '';
+  document.querySelector('#nav button[data-tab="tasks"] .nav-badge').textContent = String(tasks || '');
 }
 
 function render() {
@@ -305,9 +315,9 @@ let lobbyMode = 'solo';
 
 function renderLobby() {
   const cfg = LOBBY[lobbyMode];
-  document.querySelectorAll('#lobby-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.mode === lobbyMode));
+  $all('#lobby-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.mode === lobbyMode));
   document.getElementById('lobby-desc').textContent = cfg.desc;
-  document.querySelectorAll('#lobby-form [data-field]').forEach((el) => (el.hidden = !cfg.fields.includes(el.dataset.field)));
+  $all('#lobby-form [data-field]').forEach((el) => (el.hidden = !cfg.fields.includes(el.dataset.field)));
   document.getElementById('lobby-submit').textContent = cfg.submit;
   const resume = [];
   if (loadSolo()) resume.push('<button type="button" class="btn ghost" data-resume="solo">▶ Продолжить одиночную игру</button>');
@@ -329,18 +339,18 @@ function hideLobby() {
 
 function bindLobby() {
   const mp = readJson(MP_KEY);
-  document.getElementById('lobby-player').value = mp?.name || '';
-  document.getElementById('lobby-company').value = 'Bean & Co';
+  $in('lobby-player').value = mp?.name || '';
+  $in('lobby-company').value = 'Bean & Co';
   document.getElementById('lobby-victory').innerHTML = VICTORY_OPTIONS.map((v) => `<option value="${v.id}" ${v.id === 'worth1m' ? 'selected' : ''}>${v.name}</option>`).join('');
   document.getElementById('lobby-tabs').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-mode]');
+    const b = closestEl(e, 'button[data-mode]');
     if (!b) return;
     lobbyMode = b.dataset.mode;
     document.getElementById('lobby-error').textContent = '';
     renderLobby();
   });
   document.getElementById('lobby-resume').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-resume]');
+    const b = closestEl(e, '[data-resume]');
     if (!b) return;
     if (b.dataset.resume === 'solo') {
       hideLobby();
@@ -357,9 +367,9 @@ function bindLobby() {
   });
   document.getElementById('lobby-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('lobby-player').value.trim();
-    const companyName = document.getElementById('lobby-company').value.trim();
-    const code = document.getElementById('lobby-code').value.trim().toUpperCase();
+    const name = $in('lobby-player').value.trim();
+    const companyName = $in('lobby-company').value.trim();
+    const code = $in('lobby-code').value.trim().toUpperCase();
     const errorEl = document.getElementById('lobby-error');
     errorEl.textContent = '';
     if (lobbyMode === 'solo') {
@@ -372,13 +382,13 @@ function bindLobby() {
       errorEl.textContent = 'Введите имя — его увидят другие игроки';
       return;
     }
-    const victory = document.getElementById('lobby-victory').value;
+    const victory = $in('lobby-victory').value;
     const hello = lobbyMode === 'join' ? { t: 'join', code, name, companyName } : { t: 'create', mode: lobbyMode, name, companyName, victory };
     if (lobbyMode === 'join' && !/^[A-Z0-9]{5}$/.test(code)) {
       errorEl.textContent = 'Код комнаты — 5 символов';
       return;
     }
-    const btn = document.getElementById('lobby-submit');
+    const btn = /** @type {HTMLButtonElement} */ (document.getElementById('lobby-submit'));
     btn.disabled = true;
     try {
       await startRemote(hello);
@@ -454,7 +464,7 @@ async function handleAction(el) {
     case 'bulk': {
       const op = el.dataset.op;
       const unitIds = el.dataset.ids ? el.dataset.ids.split(',') : filteredUnits(app).map((u) => u.id);
-      const ratio = op === 'priceNorm' ? Number(document.getElementById('bulk-ratio')?.value || 100) / 100 : undefined;
+      const ratio = op === 'priceNorm' ? Number($in('bulk-ratio')?.value || 100) / 100 : undefined;
       if (op === 'close' && !confirm(`Закрыть бизнесов: ${unitIds.length}? Оборудование продаётся за 30% стоимости.`)) break;
       const r = await app.dispatch({ type: 'bulk', op, unitIds, ratio });
       if (r.ok) toast(r.done ? `Готово: ${r.done}${r.spent > 0 ? `, потрачено ${money(r.spent)}` : ''}` : 'Нечего менять', r.done ? 'good' : 'info');
@@ -487,7 +497,7 @@ async function handleAction(el) {
     }
     case 'sellToRival': {
       if (!confirm('Продать бизнес корпорации?')) break;
-      const r = await app.dispatch({ type: 'sellToRival', unitId: id, rivalId: document.getElementById(`sell-to-${id}`).value });
+      const r = await app.dispatch({ type: 'sellToRival', unitId: id, rivalId: $in(`sell-to-${id}`).value });
       if (r.ok) {
         toast(`Продано за ${money(r.price)}`, 'good');
         app.select(null);
@@ -519,7 +529,7 @@ async function handleAction(el) {
       break;
     case 'takeLoan':
     case 'repayLoan': {
-      const amount = Math.round(Number(document.getElementById('loan-amount').value));
+      const amount = Math.round(Number($in('loan-amount').value));
       const r = await app.dispatch({ type: action, amount });
       if (r.ok) toast(action === 'takeLoan' ? 'Кредит получен' : 'Кредит погашен', 'good');
       break;
@@ -550,11 +560,11 @@ async function handleAction(el) {
       renderDrawer(app);
       break;
     case 'createBrand': {
-      const businessType = document.getElementById('brand-type').value;
-      const unitIds = document.getElementById('brand-all').checked
+      const businessType = $in('brand-type').value;
+      const unitIds = $in('brand-all').checked
         ? Object.values(state.units).filter((u) => u.companyId === app.companyId && u.type === businessType && !u.brandId).map((u) => u.id)
         : [];
-      const r = await app.dispatch({ type: 'createBrand', name: document.getElementById('brand-name').value, businessType, tier: document.getElementById('brand-tier').value, unitIds });
+      const r = await app.dispatch({ type: 'createBrand', name: $in('brand-name').value, businessType, tier: $in('brand-tier').value, unitIds });
       if (r.ok) toast('Сеть создана', 'good');
       break;
     }
@@ -585,7 +595,7 @@ async function handleAction(el) {
       app.dispatch({ type: 'setRoyalty', brandId: id, royalty: Number(el.dataset.royalty) });
       break;
     case 'openFranchise': {
-      const country = document.getElementById(`fr-country-${id}`).value;
+      const country = $in(`fr-country-${id}`).value;
       const r = await app.dispatch({ type: 'openFranchise', brandId: id, country });
       if (r.ok) toast('Франшиза выставлена на продажу', 'good');
       break;
@@ -594,7 +604,7 @@ async function handleAction(el) {
       if (confirm('Перестать продавать франшизу в этой стране? Франчайзи там закроются.')) app.dispatch({ type: 'closeFranchise', brandId: id, country: el.dataset.country });
       break;
     case 'ipo': {
-      const share = Number(document.getElementById('ipo-share').value);
+      const share = Number($in('ipo-share').value);
       if (!confirm(`Продать публике ${Math.round(share * 100)}% акций компании? Вернуть их можно только выкупом по рыночной цене.`)) break;
       const r = await app.dispatch({ type: 'ipo', share });
       if (r.ok) toast(`IPO состоялось: привлечено ${money(r.cash)}`, 'good');
@@ -602,7 +612,7 @@ async function handleAction(el) {
     }
     case 'trade': {
       const l = state.stocks.listings[id];
-      const amount = Number(document.getElementById('trade-amount').value);
+      const amount = Number($in('trade-amount').value);
       const side = Number(el.dataset.side);
       let qty = Math.floor(amount / l.price);
       if (side < 0) qty = Math.min(qty, l.holders[app.companyId] || 0);
@@ -691,24 +701,24 @@ function handleChange(el) {
 function bindUi() {
   for (const root of [document.getElementById('panel'), document.getElementById('drawer')]) {
     root.addEventListener('click', (e) => {
-      const el = e.target.closest('[data-action]');
+      const el = closestEl(e, '[data-action]');
       if (!el || !root.contains(el)) return;
       e.preventDefault();
       handleAction(el);
     });
     root.addEventListener('change', (e) => {
-      if (e.target.dataset.change) {
+      if (target(e).dataset.change) {
         handleChange(e.target);
-        e.target.blur();
+        target(e).blur();
       }
     });
     root.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && e.target.dataset.change) e.target.blur();
+      if (e.key === 'Enter' && target(e).dataset.change) target(e).blur();
     });
     root.addEventListener('submit', (e) => {
-      if (e.target.id !== 'chat-form') return;
+      if (target(e).id !== 'chat-form') return;
       e.preventDefault();
-      const input = e.target.querySelector('input');
+      const input = target(e).querySelector('input');
       if (input.value.trim()) app.sendChat(input.value);
       input.value = '';
     });
@@ -717,7 +727,7 @@ function bindUi() {
   const nav = document.getElementById('nav');
   nav.innerHTML = TABS.map((t) => `<button data-tab="${t.id}" title="${t.name}"><span>${uiIcon(t.img, t.icon, 'nav')}</span><small>${t.name}</small><i class="nav-badge"></i></button>`).join('');
   nav.addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-tab]');
+    const b = closestEl(e, 'button[data-tab]');
     if (!b) return;
     app.tab = app.tab === b.dataset.tab ? null : b.dataset.tab;
     renderDrawer(app);
@@ -727,7 +737,7 @@ function bindUi() {
   const speed = document.getElementById('speed');
   speed.innerHTML = SPEEDS.map((s, i) => `<button data-speed="${i}" title="${s.title}">${s.icon}</button>`).join('');
   speed.addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-speed]');
+    const b = closestEl(e, 'button[data-speed]');
     if (b) setSpeed(Number(b.dataset.speed));
   });
 
@@ -773,11 +783,11 @@ async function boot() {
   bindUi();
   bindLobby();
   document.getElementById('tutorial').addEventListener('click', (e) => {
-    if (e.target.closest('[data-tutorial="skip"]')) {
+    if (closestEl(e, '[data-tutorial="skip"]')) {
       skipTutorial();
       renderTutorial(app);
     }
-    const a = e.target.closest('[data-advisor]');
+    const a = closestEl(e, '[data-advisor]');
     if (!a) return;
     if (a.dataset.advisor === 'open') {
       app.tab = a.dataset.tab;

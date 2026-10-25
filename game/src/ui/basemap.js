@@ -62,7 +62,7 @@ const FacetLayer = L.GridLayer.extend({
         const b = pt(i + 1, j);
         const c = pt(i, j + 1);
         const d = pt(i + 1, j + 1);
-        for (const [tri, k] of [[[a, b, c], 1], [[b, d, c], 2]]) {
+        for (const [tri, k] of /** @type {[number[][], number][]} */ ([[[a, b, c], 1], [[b, d, c], 2]])) {
           const v = hash(i, j, k + coords.z * 3);
           ctx.fillStyle = v < 0.5 ? `rgba(255,255,255,${(0.5 - v) * 0.16})` : `rgba(70,50,30,${(v - 0.5) * 0.09})`;
           ctx.beginPath();

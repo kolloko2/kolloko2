@@ -26,6 +26,7 @@ import { ROYALTIES, FRANCHISE_MIN_UNITS, packageCost } from './franchise.js';
 import {
   ipoCheck, doIpo, trade, controllerOf, stakeOf, absorb, absorbCost, ABSORB_SHARE,
 } from './stocks.js';
+/** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 function companyBrands(state, companyId) {
   return Object.values(state.brands).filter((b) => b.companyId === companyId);
@@ -44,6 +45,7 @@ function ownUnit(state, id, companyId) {
   return u && u.companyId === companyId ? u : null;
 }
 
+/** @type {Record<string, (state: State, cmd: any, companyId: string) => any>} */
 const handlers = {
   // brandId — открыть сразу в составе сети (undefined — в первой сети этого типа, null — отдельно)
   openBusiness(state, { lotId, businessType, brandId }, companyId) {
@@ -82,6 +84,7 @@ const handlers = {
     if (fee) addNews(state, 'info', `Выход на рынок страны ${COUNTRIES[place.country].name}: регистрация и юристы — ${fmt(fee)}. Пока у вас меньше ${LOCAL_TEAM_UNITS} точек здесь, своей команды нет: зарплаты и содержание на 10% дороже.`, null, companyId);
     const sameType = companyUnits(state, companyId).filter((u) => u.type === businessType).length;
     const id = `u${state.nextUnitId++}`;
+    /** @type {Unit} */
     const unit = {
       id,
       companyId,
@@ -676,6 +679,7 @@ export function upgradeCost(state, unit) {
 
 export const COMMAND_TYPES = Object.keys(handlers);
 
+/** @param {State} state @param {{ type: string } & Record<string, any>} cmd @param {string} companyId */
 export function applyCommand(state, cmd, companyId) {
   const co = state.companies[companyId];
   if (!co) return fail('Нет такой компании');

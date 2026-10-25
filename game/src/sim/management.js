@@ -8,6 +8,7 @@ import {
 } from './units.js';
 import { sellPrice, recordTrade } from './market.js';
 import { endContract } from './contracts.js';
+/** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 // Инструменты управления большой компанией: региональные директора (автопилот по стране),
 // список проблем с исправлением в один клик и массовые действия.

@@ -82,6 +82,10 @@ export class RemoteSession extends Emitter {
     this.multiplayer = true;
     this.state = null;
     this.players = [];
+    this.playerId = null;
+    this.code = null;
+    this.mode = null;
+    this.companyId = null;
     this.speed = 0;
     this.pending = new Map();
     this.nextId = 1;

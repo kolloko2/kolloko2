@@ -5,6 +5,7 @@ import { unitAssetValue } from './units.js';
 import { initCountries, syncCpi } from './countries.js';
 import { initStocks, portfolioValue } from './stocks.js';
 import { addRivals } from './rivals.js';
+/** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 export const SAVE_VERSION = 6; // 6: магазины техники в районах, ИИ-корпорации
 export const START_CASH = 100000;
@@ -15,6 +16,7 @@ const START_DATE = Date.UTC(2000, 0, 1);
 export const MODES = ['solo', 'coop', 'pvp'];
 export const COMPANY_COLORS = ['#2f6fed', '#e8590c', '#2b8a3e', '#ae3ec9', '#c92a2a', '#1098ad', '#e67700', '#5c7cfa'];
 
+/** @returns {Company} */
 function newCompany(id, name, color) {
   return {
     id,
@@ -36,9 +38,14 @@ function newCompany(id, name, color) {
 
 // victory — условие победы (см. goals.js), обычно для PvP
 // rivals — сколько ИИ-корпораций в мире (0–4)
+/**
+ * @param {{ seed?: number, mode?: 'solo'|'coop'|'pvp', companyNames?: string[], victory?: any, rivals?: number }} [opts]
+ * @returns {State}
+ */
 export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Моя компания'], victory = null, rivals = 4 } = {}) {
   const rng = createRng(seed);
   const world = generateWorld(rng);
+  /** @type {State} */
   const state = {
     version: SAVE_VERSION,
     seed,

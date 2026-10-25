@@ -573,12 +573,12 @@ function renderHelp() {
 export function renderDrawer(app) {
   const el = document.getElementById('drawer');
   const nav = document.getElementById('nav');
-  nav.querySelectorAll('button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === app.tab));
+  /** @type {NodeListOf<HTMLElement>} */ (nav.querySelectorAll('button[data-tab]')).forEach((b) => b.classList.toggle('active', b.dataset.tab === app.tab));
   if (!app.tab) {
     el.classList.remove('open');
     return;
   }
-  const active = el.contains(document.activeElement) ? document.activeElement : null;
+  const active = /** @type {HTMLInputElement | null} */ (el.contains(document.activeElement) ? document.activeElement : null);
   const chatDraft = active?.closest('#chat-form') ? active.value : null;
   if (active?.tagName === 'INPUT' && chatDraft === null) return; // не мешаем вводу суммы кредита и т.п.
   const render = {
@@ -589,7 +589,7 @@ export function renderDrawer(app) {
   el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${tabHint(app.tab)}${render(app)}`;
   el.scrollTop = scroll;
   if (chatDraft !== null) {
-    const input = el.querySelector('#chat-form input');
+    const input = /** @type {HTMLInputElement} */ (el.querySelector('#chat-form input'));
     input.value = chatDraft;
     input.focus();
   }
