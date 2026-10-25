@@ -50,6 +50,7 @@ export function goalContext(state, co) {
 
 export function checkGoals(state) {
   for (const co of activeCompanies(state)) {
+    if (co.ai) continue;
     co.goals ||= {};
     const ctx = goalContext(state, co);
     for (const g of GOALS) {
@@ -84,11 +85,11 @@ export function victoryText(victory) {
 export function checkVictory(state) {
   const v = state.victory;
   if (!v || state.winner) return;
-  const ranking = activeCompanies(state).map((c) => ({ c, worth: netWorth(state, c.id) })).sort((a, b) => b.worth - a.worth);
+  const ranking = activeCompanies(state).filter((c) => !c.ai).map((c) => ({ c, worth: netWorth(state, c.id) })).sort((a, b) => b.worth - a.worth);
   let win = null;
   if (v.type === 'worth') win = ranking.find((r) => r.worth >= v.target);
   else if (dateOf(state.day + 1).getUTCFullYear() >= 2000 + v.years) win = ranking[0];
-  if (state.mode === 'pvp' && ranking.length === 1 && Object.keys(state.companies).length > 1) win = ranking[0]; // остальные разорились
+  if (state.mode === 'pvp' && ranking.length === 1 && Object.values(state.companies).filter((c) => !c.ai).length > 1) win = ranking[0]; // остальные разорились
   if (!win) return;
   state.winner = { companyId: win.c.id, day: state.day, worth: Math.round(win.worth) };
   addNews(state, 'good', `🏆 Победа! Компания «${win.c.name}» — капитал $${Math.round(win.worth).toLocaleString('ru-RU')}.`);

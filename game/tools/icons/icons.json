@@ -58,6 +58,15 @@
     "goods/oil": "a steel oil barrel with a drop of black crude oil",
     "ui/stocks": "a stock exchange ticker board with green and red candlestick chart",
     "ui/globe": "a small globe on a stand with continents and a few pins",
-    "ui/franchise": "a handshake over a small shop storefront with a brand sign"
+    "ui/franchise": "a handshake over a small shop storefront with a brand sign",
+    "business/bank": "a classical bank building with columns and a small vault door",
+    "business/saas": "a server rack with glowing blue lights and a small cloud above it",
+    "business/electronics_plant": "a clean modern electronics factory building with a circuit board pattern on the wall",
+    "business/electronics_store": "a modern electronics shop storefront with smartphones and laptops in the window",
+    "goods/chips": "a computer microchip with golden pins",
+    "goods/electronics": "a modern smartphone lying next to a small laptop",
+    "ui/tasks": "a clipboard with a checklist and a red exclamation mark",
+    "ui/rivals": "a shark fin above blue water",
+    "ui/research": "a laboratory flask with a glowing liquid next to a small microscope"
   }
 }

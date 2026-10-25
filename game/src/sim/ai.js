@@ -11,8 +11,9 @@ const THRESHOLDS = {
   fastfood: [70, 240],
   grocery: [80, 280],
   bakery: [60, 200],
-  restaurant: [35, 130],
+  restaurant: [25, 90],
   fuel: [40, 150],
+  electronics: [15, 50],
 };
 
 const CATEGORY_NAMES = {
@@ -22,6 +23,7 @@ const CATEGORY_NAMES = {
   bakery: 'пекарню',
   restaurant: 'ресторан',
   fuel: 'АЗС',
+  electronics: 'магазин техники',
 };
 
 export function monthlyAI(state) {

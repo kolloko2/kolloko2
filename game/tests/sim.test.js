@@ -41,7 +41,7 @@ test('кофейня обслуживает клиентов и зарабаты
 
 test('деньги сходятся у каждой компании: касса = старт + приходы − расходы', () => {
   const s = createGame({ seed: 3, mode: 'pvp', companyNames: ['А', 'Б'] });
-  const start = { c1: 500000, c2: 6000000 };
+  const start = { c1: 1500000, c2: 6000000 };
   s.companies.c1.cash = start.c1;
   s.companies.c2.cash = start.c2;
   open(s, 'nyc', 'coffee_shop', 'c1');
@@ -52,7 +52,7 @@ test('деньги сходятся у каждой компании: касса
   const lot = Object.values(s.world.lots).find((l) => l.unitId && s.units[l.unitId].companyId === 'c1');
   assert.ok(applyCommand(s, { type: 'buyLot', lotId: lot.id }, 'c2').ok);
   stepDays(s, 120);
-  for (const co of Object.values(s.companies)) {
+  for (const co of Object.values(s.companies).filter((c) => !c.ai)) {
     assert.ok(Math.abs(co.cash - (start[co.id] + co.totals.in - co.totals.out)) < 1e-6, co.id);
   }
   assert.ok(s.companies.c2.history.at(-1).rentIncome > 0);
@@ -446,7 +446,7 @@ test('IPO и поглощение соперника в PvP', () => {
   assert.ok(!applyCommand(s, { type: 'renameCompany', name: 'x' }, 'c1').ok);
   stepDays(s, 40);
   assert.equal(s.winner?.companyId, undefined, 'без условия победы игра продолжается');
-  for (const co of Object.values(s.companies)) {
+  for (const co of Object.values(s.companies).filter((c) => !c.ai)) {
     assert.ok(Math.abs(co.cash - (start[co.id] + co.totals.in - co.totals.out)) < 1e-3, co.id);
   }
 });
@@ -526,4 +526,86 @@ test('расходы штаба растут быстрее числа бизн�
   for (let i = 10; i < 40; i++) applyCommand(s, { type: 'openBusiness', lotId: lots[i].id, businessType: 'fastfood' }, 'c1');
   const o40 = overhead(s, 'c1');
   assert.ok(o10 > 0 && o40 / o10 > 6, `${o10} → ${o40}`);
+});
+
+// ---------- управление, соперники, исследования ----------
+
+test('региональный директор сам поднимает цены, подгоняет штат и экономит внимание', async () => {
+  const { attention, refPrice } = await import('../src/sim/index.js');
+  const { BUSINESSES } = await import('../src/data/businesses.js');
+  const s = createGame({ seed: 21, rivals: 0 });
+  s.companies.c1.cash = 2e6;
+  const units = [];
+  for (let i = 0; i < 8; i++) units.push(open(s, 'ber', 'fastfood'));
+  assert.ok(attention(s, 'c1').excess > 0);
+  assert.ok(applyCommand(s, { type: 'hireDirector', country: 'DE' }, 'c1').ok);
+  assert.equal(attention(s, 'c1').excess, 0, 'с директором внимания хватает');
+  units[0].staff = 9;
+  stepDays(s, 400);
+  const p = BUSINESSES.fastfood.retail.products[0];
+  assert.ok(Math.abs(units[1].prices.hotdog - refPrice(s.world.places.ber, p)) < 0.02, 'цены — по норме после инфляции');
+  assert.ok(units[0].staff < 9, 'лишний штат сокращён');
+  assert.ok(s.companies.c1.history.at(-1).directors > 0);
+});
+
+test('задачи и массовые действия', async () => {
+  const { companyAlerts } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 22, rivals: 0 });
+  s.companies.c1.cash = 3e6;
+  const a = open(s, 'ber', 'coffee_shop');
+  const b = open(s, 'ber', 'coffee_shop');
+  stepDays(s, 365 * 3);
+  const alerts = companyAlerts(s, 'c1');
+  assert.ok(alerts.some((x) => x.kind === 'worn'), 'износ заметен');
+  assert.ok(alerts.some((x) => x.kind === 'cheap'), 'цены отстали от инфляции');
+  const r = applyCommand(s, { type: 'bulk', op: 'renovate', unitIds: [a.id, b.id] }, 'c1');
+  assert.ok(r.ok && r.done === 2 && a.condition === 100 && b.condition === 100);
+  assert.ok(applyCommand(s, { type: 'bulk', op: 'priceNorm', unitIds: [a.id, b.id], ratio: 1.05 }, 'c1').ok);
+  assert.ok(!companyAlerts(s, 'c1').some((x) => x.kind === 'cheap'));
+});
+
+test('ИИ-корпорации открывают бизнесы, у них можно купить точку и перемирие', () => {
+  const s = createGame({ seed: 23 });
+  s.companies.c1.cash = 5e6;
+  open(s, 'nyc', 'coffee_shop');
+  stepDays(s, 400);
+  const rivals = Object.values(s.companies).filter((c) => c.ai);
+  assert.equal(rivals.length, 4);
+  const theirs = Object.values(s.units).filter((u) => s.companies[u.companyId].ai);
+  assert.ok(theirs.length > 10, `у корпораций ${theirs.length} бизнесов`);
+  const u = theirs[0];
+  const seller = u.companyId;
+  assert.ok(applyCommand(s, { type: 'buyRivalUnit', unitId: u.id }, 'c1').ok);
+  assert.equal(u.companyId, 'c1');
+  const raider = rivals.find((r) => r.ai.archetype === 'raider');
+  assert.ok(applyCommand(s, { type: 'buyTruce', rivalId: raider.id }, 'c1').ok);
+  assert.ok(s.companies.c1.truces[raider.id] > s.day);
+  assert.ok(s.companies[seller].cash > 0);
+  assert.equal(s.winner, null);
+});
+
+test('исследования: бонусы и открытие тира IV, лоббирование', async () => {
+  const { forecast } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 24, rivals: 0 });
+  s.companies.c1.cash = 1e7;
+  const lot = firstLot(s, 'nyc', 'bank');
+  assert.ok(forecast(s, lot.id, 'bank', 'c1').locked);
+  assert.ok(!applyCommand(s, { type: 'openBusiness', lotId: lot.id, businessType: 'bank' }, 'c1').ok);
+  assert.ok(applyCommand(s, { type: 'startResearch', techId: 'banking' }, 'c1').ok);
+  assert.ok(!applyCommand(s, { type: 'startResearch', techId: 'pos' }, 'c1').ok, 'одно исследование за раз');
+  stepDays(s, 370);
+  assert.equal(s.companies.c1.tech.banking, 1);
+  const rate = s.companies.c1.loanRate;
+  open(s, 'nyc', 'bank');
+  const { loanRate } = await import('../src/sim/index.js');
+  assert.ok(loanRate(s, 'c1') < rate, 'свой банк снижает ставку');
+  const tax = s.countries.US.tax;
+  let won = false;
+  for (let i = 0; i < 6 && !won; i++) {
+    const r = applyCommand(s, { type: 'lobby', country: 'US', goal: 'tax' }, 'c1');
+    assert.ok(r.ok, r.error);
+    won = r.success;
+    s.companies.c1.lobbied.US = -1000;
+  }
+  if (won) assert.ok(s.countries.US.tax < tax);
 });

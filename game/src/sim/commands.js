@@ -1,11 +1,10 @@
 import { BUSINESSES, MAX_LEVEL, UPGRADE_COST_FACTOR } from '../data/businesses.js';
-import { sellPrice, recordTrade } from './market.js';
 import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { canBuildHere, forecast } from './forecast.js';
 import { addNews, loanLimit, companyUnits } from './state.js';
 import {
-  emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv, pay, receive, placeOf, renovateCost, condition,
+  emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, pay, receive, placeOf, renovateCost, condition,
 } from './units.js';
 import { contractOffer, contractGoods, endContract, CONTRACT_MONTHS } from './contracts.js';
 import { WAGE_LEVELS } from './staff.js';
@@ -13,6 +12,12 @@ import { COUNTRIES } from '../data/cities.js';
 import { BRAND_TIERS, newBrand, applyBrand, detachFromBrand, brandUnits } from './brands.js';
 import { entryFee, LOCAL_TEAM_UNITS } from './expansion.js';
 import { licenseNeeded, grantLicense } from './countries.js';
+import { bulk, closeUnit, newDirector, directorCost } from './management.js';
+import { buyRivalUnit, rivalUnitPrice, truceCost, TRUCE_MONTHS } from './rivals.js';
+import {
+  missingTech, techLocked, techCost, startResearch, lobby, lobbyCost, LOBBY_GOALS, LOBBY_COOLDOWN,
+} from './research.js';
+import { TECHS } from '../data/tech.js';
 import { ROYALTIES, FRANCHISE_MIN_UNITS, packageCost } from './franchise.js';
 import {
   ipoCheck, doIpo, trade, controllerOf, stakeOf, absorb, absorbCost, ABSORB_SHARE,
@@ -45,6 +50,8 @@ const handlers = {
     if (lot.unitId) return fail('Участок уже занят');
     if (lot.ownerId && lot.ownerId !== companyId) return fail(`Помещение принадлежит компании «${state.companies[lot.ownerId].name}»`);
     if (!canBuildHere(state, lot, businessType)) return fail('Здесь нельзя открыть такой бизнес');
+    const tech = missingTech(state, companyId, businessType);
+    if (tech) return fail(`Нужна технология «${tech}» — изучите её во вкладке «Исследования»`);
     const place = state.world.places[lot.placeId];
     const fee = entryFee(state, companyId, place, businessType);
     const capex = capexFor(state, lot, businessType);
@@ -120,21 +127,7 @@ const handlers = {
   closeBusiness(state, { unitId }, companyId) {
     const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
-    let fines = 0;
-    for (const c of state.contracts.filter((x) => x.unitId === unitId)) fines += endContract(state, c, { penalty: true });
-    let cash = 0;
-    const place = placeOf(state, unit);
-    for (const [g, s] of Object.entries(unit.inv)) {
-      if (s.q <= 0) continue;
-      cash += s.q * sellPrice(state, g, place);
-      recordTrade(state, g, s.q, place);
-      takeInv(unit, g, s.q);
-    }
-    cash += unit.bookValue * 0.3;
-    receive(state, companyId, cash);
-    state.world.lots[unit.lotId].unitId = null;
-    delete state.units[unitId];
-    state.mapVersion++;
+    const { cash, fines } = closeUnit(state, unit);
     addNews(state, 'info', `«${unit.name}» закрыт. Оборудование и запасы проданы за ${fmt(cash)}.${fines ? ` Штрафы за разрыв контрактов: ${fmt(fines)}.` : ''}`, null, companyId);
     return OK;
   },
@@ -192,6 +185,105 @@ const handlers = {
   },
 
   // Обновление: ремонт, новое оборудование и интерьер — износ снова 0%
+  // ---------- управление ----------
+  hireDirector(state, { country }, companyId) {
+    if (!COUNTRIES[country]) return fail('Нет такой страны');
+    const co = state.companies[companyId];
+    co.directors ||= {};
+    if (co.directors[country]) return fail('Директор здесь уже есть');
+    if (!companyUnits(state, companyId).some((u) => placeOf(state, u).country === country)) return fail('В этой стране у вас нет бизнесов');
+    co.directors[country] = newDirector();
+    state.mapVersion++;
+    addNews(state, 'good', `Нанят региональный директор: ${COUNTRIES[country].name}, ${fmt(directorCost(state, country))}/мес.`, null, companyId);
+    return OK;
+  },
+
+  fireDirector(state, { country }, companyId) {
+    const co = state.companies[companyId];
+    if (!co.directors?.[country]) return fail('Директора нет');
+    delete co.directors[country];
+    state.mapVersion++;
+    return OK;
+  },
+
+  setDirector(state, { country, staff, renovate, prices, priceRatio }, companyId) {
+    const d = state.companies[companyId].directors?.[country];
+    if (!d) return fail('Директора нет');
+    if (staff !== undefined) d.staff = Boolean(staff);
+    if (renovate !== undefined) d.renovate = Boolean(renovate);
+    if (prices !== undefined) d.prices = Boolean(prices);
+    if (priceRatio !== undefined) {
+      if (!(priceRatio >= 0.7 && priceRatio <= 1.5)) return fail('Цены: от 70% до 150% нормы');
+      d.priceRatio = Math.round(priceRatio * 100) / 100;
+    }
+    return OK;
+  },
+
+  // ---------- исследования и лоббирование ----------
+  startResearch(state, { techId }, companyId) {
+    if (!TECHS[techId]) return fail('Нет такой технологии');
+    const co = state.companies[companyId];
+    if (co.research) return fail(`Уже идёт исследование «${TECHS[co.research.id].name}»`);
+    const why = techLocked(state, companyId, techId);
+    if (why) return fail(why);
+    startResearch(state, companyId, techId);
+    addNews(state, 'info', `${TECHS[techId].icon} Начато исследование «${TECHS[techId].name}»: ${fmt(techCost(state, companyId, techId))} за ${TECHS[techId].months} мес.`, null, companyId);
+    return OK;
+  },
+
+  cancelResearch(state, _cmd, companyId) {
+    const co = state.companies[companyId];
+    if (!co.research) return fail('Исследований нет');
+    co.research = null;
+    return OK;
+  },
+
+  lobby(state, { country, goal }, companyId) {
+    if (!COUNTRIES[country] || !LOBBY_GOALS[goal]) return fail('Неизвестная цель');
+    const co = state.companies[companyId];
+    if (co.lobbied?.[country] && state.day - co.lobbied[country] < LOBBY_COOLDOWN) return fail('Лоббировать в этой стране можно раз в год');
+    if (!companyUnits(state, companyId).some((u) => placeOf(state, u).country === country)) return fail('У вас нет бизнесов в этой стране — власти вас не знают');
+    const cost = lobbyCost(state, country);
+    if (co.cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
+    pay(state, companyId, cost);
+    return { ok: true, success: lobby(state, companyId, country, goal) };
+  },
+
+  // ---------- сделки с ИИ-корпорациями ----------
+  buyRivalUnit(state, { unitId }, companyId) {
+    const unit = state.units[unitId];
+    if (!unit || !state.companies[unit.companyId]?.ai) return fail('Купить можно только бизнес ИИ-корпорации');
+    const price = rivalUnitPrice(state, unit);
+    if (state.companies[companyId].cash < price) return fail(`Не хватает денег: нужно ${fmt(price)}`);
+    const seller = state.companies[unit.companyId].name;
+    buyRivalUnit(state, companyId, unit);
+    unit.name = `${BUSINESSES[unit.type].name} (бывш. ${seller})`;
+    addNews(state, 'good', `Куплен бизнес у «${seller}» за ${fmt(price)}.`, { unitId }, companyId);
+    return OK;
+  },
+
+  buyTruce(state, { rivalId }, companyId) {
+    const rival = state.companies[rivalId];
+    if (!rival?.ai || rival.bankrupt) return fail('Нет такой корпорации');
+    const co = state.companies[companyId];
+    co.truces ||= {};
+    if (co.truces[rivalId] > state.day) return fail('Перемирие уже действует');
+    const cost = truceCost(state, rival);
+    if (co.cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
+    pay(state, companyId, cost);
+    receive(state, rivalId, cost);
+    co.truces[rivalId] = state.day + TRUCE_MONTHS * 30;
+    addNews(state, 'good', `Перемирие с «${rival.name}» на ${TRUCE_MONTHS} мес.: она не открывается в ваших городах и не трогает ваши помещения и акции.`, null, companyId);
+    return OK;
+  },
+
+  // Массовые действия: renovate, priceNorm, fitStaff, hireManager, close
+  bulk(state, { op, unitIds, ratio }, companyId) {
+    if (!Array.isArray(unitIds) || unitIds.length > 5000) return fail('Нет списка бизнесов');
+    if (ratio !== undefined && !(ratio >= 0.5 && ratio <= 2)) return fail('Цены: от 50% до 200% нормы');
+    return bulk(state, companyId, op, unitIds, { ratio });
+  },
+
   renovate(state, { unitId }, companyId) {
     const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');

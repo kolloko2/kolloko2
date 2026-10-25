@@ -103,5 +103,8 @@ export function monthlyCountryEvents(state) {
     if (e.tax) cs.tax = Math.round(Math.min(0.45, Math.max(0, cs.tax + e.tax)) * 100) / 100;
     if (e.tariff) cs.tariff = Math.round(Math.min(0.35, Math.max(0, cs.tariff + e.tariff)) * 100) / 100;
     addNews(state, e.kind, `🌍 ${e.text(COUNTRIES[c].name, cs)}`);
+    const present = {};
+    for (const u of Object.values(state.units)) if (state.world.places[u.placeId].country === c) present[u.companyId] = (present[u.companyId] || 0) + 1;
+    for (const [cid, n] of Object.entries(present)) addNews(state, e.kind === 'good' ? 'good' : 'warn', `У вас в стране ${COUNTRIES[c].name} ${n} бизнесов — это вас касается.`, null, cid);
   }
 }

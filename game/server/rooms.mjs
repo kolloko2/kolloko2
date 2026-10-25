@@ -57,8 +57,9 @@ export class Room {
       const id = randomBytes(9).toString('base64url');
       name = cleanName(name, `Игрок ${this.players.size + 1}`);
       let companyId;
-      if (this.mode === 'coop' && Object.keys(this.state.companies).length) {
-        companyId = Object.keys(this.state.companies)[0];
+      const human = Object.values(this.state.companies).find((c) => !c.ai);
+      if (this.mode === 'coop' && human) {
+        companyId = human.id;
       } else {
         companyId = addCompany(this.state, cleanName(companyName, `Компания ${name}`));
       }

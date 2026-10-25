@@ -452,3 +452,8 @@ label.row.check { cursor: pointer; font-weight: normal; }
 /* ---------- биржа ---------- */
 .trade-btns { white-space: nowrap; }
 .trade-btns .mini { display: block; width: 100%; margin: 2px 0; }
+
+/* ---------- управление ---------- */
+.filters { display: flex; gap: 8px; margin: 4px 0 8px; }
+.filters select { flex: 1; }
+.btn-row .price-ctl input { width: 56px; }

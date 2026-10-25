@@ -16,8 +16,10 @@ export const GOODS = {
   groceries:      { name: 'Товары для магазина', icon: '📦', unit: 'ед', base: 1.35,  depth: 1000000, spoil: 0.003, weight: 0.5, local: true },
   cheese:         { name: 'Сыр',                 icon: '🧀', unit: 'кг', base: 10.0, depth: 60000,  spoil: 0.004,  weight: 1 },
   cattle:         { name: 'Скот (живой вес)',    icon: '🐂', unit: 'кг', base: 1.6,  depth: 500000, spoil: 0.002,  weight: 1 },
-  plastic:        { name: 'Пластик (гранулы)',   icon: '🧴', unit: 'кг', base: 1.1,  depth: 800000, spoil: 0,      weight: 1 },
+  plastic:        { name: 'Пластик (гранулы)',   icon: '🧴', unit: 'кг', base: 1.0,  depth: 800000, spoil: 0,      weight: 1 },
   fuel:           { name: 'Топливо',             icon: '⛽', unit: 'л',  base: 0.50, depth: 5000000, spoil: 0,     weight: 0.85, freight: 0.5 },
+  chips:          { name: 'Микросхемы',          icon: '🔌', unit: 'шт', base: 22.0, depth: 300000, spoil: 0,      weight: 0.05 },
+  electronics:    { name: 'Электроника',         icon: '📱', unit: 'шт', base: 110,  depth: 40000,  spoil: 0.0005, weight: 3 },
   oil:            { name: 'Нефть',               icon: '🛢️', unit: 'л',  base: 0.27, depth: 8000000, spoil: 0,     weight: 0.86, freight: 0.2 },
 };
 

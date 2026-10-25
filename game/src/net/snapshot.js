@@ -4,7 +4,7 @@ import { createGame } from '../sim/index.js';
 import { syncCpi } from '../sim/countries.js';
 
 // Изменяемые поля верхнего уровня
-const DYNAMIC = ['day', 'rng', 'mode', 'victory', 'winner', 'companies', 'nextCompanyId', 'units', 'nextUnitId', 'market', 'mapVersion', 'newsSeq',
+const DYNAMIC = ['day', 'rng', 'mode', 'victory', 'winner', 'companies', 'nextCompanyId', 'nextRivalId', 'units', 'nextUnitId', 'market', 'mapVersion', 'newsSeq',
   'shipments', 'nextShipmentId', 'contracts', 'nextContractId', 'brands', 'nextBrandId', 'countries', 'stocks'];
 
 // opts.lots — включить владельцев/аренду участков и ИИ-конкурентов в районах (меняются редко)

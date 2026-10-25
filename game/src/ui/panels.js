@@ -10,11 +10,11 @@ import {
   countryState, regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
-  condition, renovateCost, seasonFactor,
+  condition, renovateCost, seasonFactor, rivalUnitPrice, ARCHETYPES,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
-const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка', restaurant: '🍽️ Рестораны', fuel: '⛽ АЗС' };
+const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка', restaurant: '🍽️ Рестораны', fuel: '⛽ АЗС', electronics: '📱 Техника' };
 const SUPPLY_LABEL = { internal: '🔗 своё', warehouse: '🏗️ склад', contract: '📝 контракт', market: '💹 рынок', nocash: '⛔ нет денег' };
 
 function row(label, value, cls = '') {
@@ -136,7 +136,7 @@ function renderLot(app, lot) {
   for (const f of forecasts) {
     const def = BUSINESSES[f.type];
     const cost = f.capex + f.extra;
-    const afford = app.company.cash >= cost;
+    const afford = app.company.cash >= cost && !f.locked;
     let activity;
     if (def.retail) activity = `${num(f.customers)} клиентов/день${f.competitors ? ` · конкурентов: ${f.competitors}` : ''}`;
     else if (def.production) activity = `${num(f.produced)} ${GOODS[f.output].unit}/день ${goodIcon(f.output, 'inline')}`;
@@ -155,12 +155,13 @@ function renderLot(app, lot) {
       </div>
       ${f.entryFee ? `<div class="note warn">🌍 Новая страна: выход на рынок ${money(f.entryFee)} (разово)${f.foreign ? `, без местной команды зарплаты и содержание +10% (пока меньше ${LOCAL_TEAM_UNITS} точек)` : ''}.</div>` : f.foreign ? `<div class="note warn">Пока у вас меньше ${LOCAL_TEAM_UNITS} точек в этой стране — зарплаты и содержание +10%.</div>` : ''}
       ${f.efficiency && f.efficiency < 1 ? `<div class="note warn">👔 Вам не хватает внимания на все точки: без управляющего эта будет работать на ${pct(f.efficiency / 1.06)}.</div>` : ''}
+      ${f.locked ? `<div class="note warn">🔬 Нужна технология «${esc(f.locked)}» — <a href="#" data-action="openTab" data-tab="research">исследования</a>.</div>` : ''}
       ${f.license ? `<div class="note">📜 Нужна ${esc(f.license.name.toLowerCase())}: ${money(f.license.cost)} (разово, на всю страну).</div>` : ''}
       ${f.brandId ? `<div class="note">🏷️ В сети «${esc(state.brands[f.brandId].name)}»: узнаваемость бренда здесь ~${pct(f.brandAwareness)}, цены сети.</div>` : ''}
       <div class="btn-row">
       <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="${f.brandId ?? ''}" data-profit="${def.storage ? 0 : f.profit}" data-capex="${cost}"
         data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>
-        ${afford ? `Открыть${f.brandId ? ' в сети' : ''} за ${moneyShort(cost)}` : `Не хватает ${moneyShort(cost - app.company.cash)}`}</button>
+        ${f.locked ? 'Нужна технология' : afford ? `Открыть${f.brandId ? ' в сети' : ''} за ${moneyShort(cost)}` : `Не хватает ${moneyShort(cost - app.company.cash)}`}</button>
       ${f.brandId && afford ? `<button class="btn ghost" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="none" data-profit="${f.profit}" data-capex="${cost}" data-costs="${f.revenue - f.profit}">Отдельно</button>` : ''}
       </div>
     </div>`;
@@ -232,7 +233,7 @@ function renderRivalUnit(app, u) {
   const d = state.world.districts[lot.districtId];
   const place = state.world.places[u.placeId];
   let html = `<h2 class="with-icon">${bizIcon(u.type, 'title')} ${esc(u.name)}</h2>
-    <div class="sub"><span class="swatch" style="background:${co.color}"></span>Соперник: <b>${esc(co.name)}</b> ·
+    <div class="sub"><span class="swatch" style="background:${co.color}"></span>${co.ai ? `Корпорация (${ARCHETYPES[co.ai.archetype].name.toLowerCase()})` : 'Соперник'}: <b>${esc(co.name)}</b> ·
     <a href="#" data-action="selectDistrict" data-id="${d.id}">${districtTitle(state, d)}</a></div><div class="card">`;
   html += row('Уровень', `${u.level}`);
   if (def.retail) {
@@ -240,6 +241,11 @@ function renderRivalUnit(app, u) {
     for (const p of def.retail.products) html += row(`Цена: ${p.name}`, `${money(u.prices[p.id], { cents: true })} <small class="muted">(норма ${money(refPrice(place, p), { cents: true })})</small>`);
   }
   html += row('Помещение', ownerText(app, lot)) + '</div>';
+  if (co.ai) {
+    const price = rivalUnitPrice(state, u);
+    html += `<button class="btn" data-action="buyRivalUnit" data-id="${u.id}" ${app.company.cash < price ? 'disabled' : ''}>🤝 Предложить выкуп · ${moneyShort(price)}</button>
+      <div class="muted small">Корпорация продаст бизнес за стоимость оборудования +10% и полтора года его прибыли. Помещение, если оно её, — в придачу.</div>`;
+  }
   html += lotOwnershipButtons(app, lot);
   return html;
 }

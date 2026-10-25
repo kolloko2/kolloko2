@@ -1,10 +1,10 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
-import { createGame, formatDate, netWorth, newsFor, isOver, attention, SAVE_VERSION, VICTORY_OPTIONS } from './sim/index.js';
+import { createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, SAVE_VERSION, VICTORY_OPTIONS } from './sim/index.js';
 import { renderTutorial, restartTutorial, skipTutorial } from './ui/tutorial.js';
 import { LocalSession, RemoteSession, SPEEDS } from './net/session.js';
 import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot } from './ui/map.js';
 import { renderPanel } from './ui/panels.js';
-import { renderDrawer, TABS } from './ui/tabs.js';
+import { renderDrawer, TABS, filteredUnits } from './ui/tabs.js';
 import { money, moneyShort, signClass, esc } from './ui/format.js';
 
 const SAVE_KEY = 'magnat-save-v3';
@@ -115,6 +115,8 @@ function renderHud() {
   const unread = newsFor(state, app.companyId).filter((n) => n.day >= state.day - 7 && (n.kind === 'bad' || n.kind === 'warn')).length;
   document.querySelector('#nav button[data-tab="news"] .nav-badge').textContent = unread || '';
   document.querySelector('#nav button[data-tab="room"]').hidden = !session.multiplayer;
+  const tasks = companyAlerts(state, app.companyId).filter((a) => a.kind !== 'contract').length;
+  document.querySelector('#nav button[data-tab="tasks"] .nav-badge').textContent = tasks || '';
 }
 
 function render() {
@@ -401,6 +403,42 @@ async function handleAction(el) {
     case 'upgrade':
       app.dispatch({ type: 'upgrade', unitId: id });
       break;
+    case 'bulk': {
+      const op = el.dataset.op;
+      const unitIds = el.dataset.ids ? el.dataset.ids.split(',') : filteredUnits(app).map((u) => u.id);
+      const ratio = op === 'priceNorm' ? Number(document.getElementById('bulk-ratio')?.value || 100) / 100 : undefined;
+      if (op === 'close' && !confirm(`Закрыть бизнесов: ${unitIds.length}? Оборудование продаётся за 30% стоимости.`)) break;
+      const r = await app.dispatch({ type: 'bulk', op, unitIds, ratio });
+      if (r.ok) toast(r.done ? `Готово: ${r.done}${r.spent > 0 ? `, потрачено ${money(r.spent)}` : ''}` : 'Нечего менять', r.done ? 'good' : 'info');
+      break;
+    }
+    case 'hireDirector':
+      app.dispatch({ type: 'hireDirector', country: el.dataset.country });
+      break;
+    case 'fireDirector':
+      if (confirm('Уволить регионального директора?')) app.dispatch({ type: 'fireDirector', country: el.dataset.country });
+      break;
+    case 'startResearch':
+      app.dispatch({ type: 'startResearch', techId: id });
+      break;
+    case 'cancelResearch':
+      if (confirm('Остановить исследование? Потраченные деньги не вернутся.')) app.dispatch({ type: 'cancelResearch' });
+      break;
+    case 'lobby': {
+      if (!confirm('Потратить деньги на лоббирование? Успех не гарантирован.')) break;
+      const r = await app.dispatch({ type: 'lobby', country: el.dataset.country, goal: el.dataset.goal });
+      if (r.ok) toast(r.success ? 'Закон принят!' : 'Лоббирование не удалось', r.success ? 'good' : 'bad');
+      break;
+    }
+    case 'buyRivalUnit':
+      if (confirm('Выкупить этот бизнес у корпорации?')) {
+        const r = await app.dispatch({ type: 'buyRivalUnit', unitId: id });
+        if (r.ok) toast('Бизнес куплен', 'good');
+      }
+      break;
+    case 'buyTruce':
+      if (confirm('Заплатить корпорации за перемирие?')) app.dispatch({ type: 'buyTruce', rivalId: id });
+      break;
     case 'renovate':
       app.dispatch({ type: 'renovate', unitId: id });
       break;
@@ -554,6 +592,16 @@ function handleChange(el) {
       break;
     case 'brandNational':
       app.dispatch({ type: 'setBrandNational', brandId: id, country: el.dataset.country, budget: Number(el.value) });
+      break;
+    case 'unitFilter':
+      app.unitFilter = { ...app.unitFilter, [el.dataset.key]: el.value || undefined };
+      renderDrawer(app);
+      break;
+    case 'director':
+      app.dispatch({ type: 'setDirector', country: el.dataset.country, [el.dataset.key]: el.checked });
+      break;
+    case 'directorRatio':
+      app.dispatch({ type: 'setDirector', country: el.dataset.country, priceRatio: Number(el.value) / 100 });
       break;
     case 'setAutoRenew':
       app.dispatch({ type: 'setAutoRenew', brandId: id, on: el.checked });

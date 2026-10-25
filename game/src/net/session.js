@@ -29,7 +29,7 @@ export class LocalSession extends Emitter {
   constructor(state) {
     super();
     this.state = state;
-    this.companyId = Object.keys(state.companies)[0];
+    this.companyId = Object.values(state.companies).find((c) => !c.ai).id;
     this.mode = 'solo';
     this.multiplayer = false;
     this.speed = 0;

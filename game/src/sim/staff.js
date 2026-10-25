@@ -20,7 +20,11 @@ function dayData(state) {
   c = { day: state.day, version: state.mapVersion, unmanaged: {}, hired: {} };
   for (const u of Object.values(state.units)) {
     // точка в сети требует вдвое меньше внимания: единые стандарты, закупки и отчётность
-    if (!u.manager) c.unmanaged[u.companyId] = (c.unmanaged[u.companyId] || 0) + (u.brandId ? 0.5 : 1);
+    if (!u.manager) {
+      // под присмотром регионального директора точка требует ещё меньше внимания
+      const director = state.companies[u.companyId]?.directors?.[state.world.places[u.placeId].country];
+      c.unmanaged[u.companyId] = (c.unmanaged[u.companyId] || 0) + (u.brandId ? 0.5 : 1) * (director ? 0.3 : 1);
+    }
     c.hired[u.placeId] = (c.hired[u.placeId] || 0) + u.staff;
   }
   cache.set(state, c);
@@ -29,7 +33,7 @@ function dayData(state) {
 
 export function attention(state, companyId) {
   const used = dayData(state).unmanaged[companyId] || 0;
-  return { used, limit: BASE_ATTENTION, excess: Math.max(0, Math.ceil(used - BASE_ATTENTION)) };
+  return { used: Math.round(used * 10) / 10, limit: BASE_ATTENTION, excess: Math.max(0, Math.ceil(used - BASE_ATTENTION - 1e-9)) };
 }
 
 // Рынок труда: если игроки наняли заметную долю работников города, зарплаты растут для всех
@@ -64,7 +68,7 @@ function moraleTarget(unit) {
 }
 
 // Подогнать штат под спрос (раз в неделю, если включено у управляющего)
-function autoStaff(state, unit, perStaffEff) {
+export function autoStaff(state, unit, perStaffEff) {
   const def = BUSINESSES[unit.type];
   const s = def.staff;
   let want = unit.staff;

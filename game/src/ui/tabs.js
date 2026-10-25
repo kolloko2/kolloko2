@@ -4,7 +4,11 @@ import { GOODS } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
 import { LICENSES } from '../data/laws.js';
+import { TECHS } from '../data/tech.js';
 import {
+  ARCHETYPES, truceCost, TRUCE_MONTHS, techLevel, techCost, techLocked, researchSpeed, lobbyCost, lobbyChance, employees, taxBreak,
+  LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER, loanRate,
+  companyAlerts, ALERT_KINDS, directorCost, condition,
   overhead, countryState, franchiseCount, franchiseAppeal, packageCost, ROYALTIES, FRANCHISE_MIN_UNITS,
   listingOf, controllerOf, stakeOf, ipoCheck, absorbCost, portfolioValue, fairCompanyPrice,
   IPO_MIN_WORTH, IPO_MIN_MONTHS, ABSORB_SHARE, CONTROL_SHARE, TRADE_FEE,
@@ -16,25 +20,46 @@ import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars, li
 
 export const TABS = [
   { id: 'units', icon: '🏢', img: 'city', name: 'Бизнесы' },
+  { id: 'tasks', icon: '⚠️', img: 'tasks', name: 'Задачи' },
   { id: 'market', icon: '💹', img: 'market', name: 'Рынок' },
   { id: 'finance', icon: '🏦', img: 'finance', name: 'Финансы' },
   { id: 'news', icon: '📰', img: 'news', name: 'Новости' },
   { id: 'brands', icon: '🏷️', img: 'franchise', name: 'Сети' },
   { id: 'countries', icon: '🌍', img: 'globe', name: 'Страны' },
   { id: 'stocks', icon: '📈', img: 'stocks', name: 'Биржа' },
+  { id: 'rivals', icon: '🦈', img: 'rivals', name: 'Соперники' },
+  { id: 'research', icon: '🔬', img: 'research', name: 'Исследования' },
   { id: 'goals', icon: '🏆', img: 'capital', name: 'Цели' },
   { id: 'room', icon: '👥', img: 'loan', name: 'Игроки' },
   { id: 'help', icon: '❓', img: 'help', name: 'Как играть' },
 ];
 
+// Фильтр списка бизнесов (страна, тип) — к нему применяются массовые действия
+export function filteredUnits(app) {
+  const f = app.unitFilter || {};
+  return companyUnits(app.state, app.companyId).filter((u) => (!f.country || app.state.world.places[u.placeId].country === f.country) && (!f.type || u.type === f.type));
+}
+
 function renderUnits(app) {
   const { state } = app;
-  const units = companyUnits(state, app.companyId);
-  if (!units.length) {
+  const all = companyUnits(state, app.companyId);
+  if (!all.length) {
     return '<h2>🏢 Бизнесы</h2><p class="muted">Пока ничего нет. Выберите город на карте, приблизьтесь к району и нажмите на свободный участок 🏬.</p>';
   }
+  const f = app.unitFilter || {};
+  const countries = [...new Set(all.map((u) => state.world.places[u.placeId].country))];
+  const types = [...new Set(all.map((u) => u.type))];
+  const units = filteredUnits(app);
+  let html = `<h2>🏢 Бизнесы</h2><div class="filters">
+    <select data-change="unitFilter" data-key="country"><option value="">Все страны</option>${countries.map((c) => `<option value="${c}" ${f.country === c ? 'selected' : ''}>${COUNTRIES[c].name}</option>`).join('')}</select>
+    <select data-change="unitFilter" data-key="type"><option value="">Все типы</option>${types.map((t) => `<option value="${t}" ${f.type === t ? 'selected' : ''}>${BUSINESSES[t].name}</option>`).join('')}</select></div>
+    <div class="card"><div class="muted small">Массовые действия для ${units.length} бизнесов в списке:</div><div class="btn-row">
+    <button class="mini wide" data-action="bulk" data-op="renovate">🛠 Обновить изношенные</button>
+    <span class="price-ctl"><input id="bulk-ratio" type="number" min="50" max="200" step="5" value="100">%</span><button class="mini wide" data-action="bulk" data-op="priceNorm">🏷️ Цены → % нормы</button>
+    <button class="mini wide" data-action="bulk" data-op="fitStaff">👥 Штат под спрос</button>
+    <button class="mini wide" data-action="bulk" data-op="hireManager">👔 Управляющих всем</button></div></div>`;
   let total = 0;
-  let html = '<h2>🏢 Бизнесы</h2><table class="tbl hover"><tr><th></th><th>Название</th><th>Сегодня</th><th>Рейтинг</th><th>Прошлый мес.</th></tr>';
+  html += '<table class="tbl hover"><tr><th></th><th>Название</th><th>Сегодня</th><th>Сост.</th><th>Прошлый мес.</th></tr>';
   for (const u of units) {
     const def = BUSINESSES[u.type];
     const place = state.world.places[u.placeId];
@@ -43,14 +68,63 @@ function renderUnits(app) {
     if (profit !== null) total += profit;
     const warn = (u.broken > 0 || t.stockout || t.inputShort ? ' ⚠️' : '') + ((u.morale ?? 65) < 35 ? ' 😠' : '') + (u.manager ? ' 👔' : '');
     let today = 'склад';
-    if (def.retail) today = `${num(t.customers ?? 0)} кл.`;
+    if (def.retail) today = `${num(t.customers ?? 0)} кл.<br><small class="stars">${stars(u.quality)}</small>`;
     else if (def.production) today = `${num(t.produced ?? 0)} ${GOODS[def.production.recipe.output].unit}`;
     else if (def.service) today = moneyShort(t.revenue ?? 0);
+    const cond = condition(u);
     html += `<tr data-action="selectUnit" data-fly="1" data-id="${u.id}"><td>${bizIcon(u.type, 'row')}</td><td>${esc(u.name)}${warn}<small class="muted"><br>${esc(place.name)}</small></td>
-      <td>${today}</td><td class="stars">${def.retail ? stars(u.quality) : '—'}</td>
+      <td>${today}</td><td class="${cond < 60 ? 'neg' : ''}">${num(cond)}%</td>
       <td class="${signClass(profit ?? 0)}">${profit === null ? '—' : moneyShort(profit)}</td></tr>`;
   }
   html += `<tr class="total"><td></td><td>Итого (${units.length})</td><td></td><td></td><td class="${signClass(total)}">${moneyShort(total)}</td></tr></table>`;
+  return html;
+}
+
+// Задачи: что требует внимания, с исправлением в один клик
+function renderTasks(app) {
+  const { state } = app;
+  const alerts = companyAlerts(state, app.companyId);
+  let html = `<h2>⚠️ Задачи</h2><p class="muted small">Всё, что сейчас теряет вам деньги. Исправляйте по одной или всё сразу.
+    Чтобы задач было меньше, наймите региональных директоров (вкладка 🌍 «Страны») — они сами следят за штатом, ценами и износом.</p>`;
+  if (!alerts.length) return `${html}<div class="card">✓ Всё в порядке.</div>`;
+  for (const [kind, k] of Object.entries(ALERT_KINDS)) {
+    const list = alerts.filter((a) => a.kind === kind);
+    if (!list.length) continue;
+    const cost = list.reduce((s, a) => s + (a.cost || 0), 0);
+    const ids = list.map((a) => a.unitId).join(',');
+    html += `<div class="card"><div class="row"><b>${k.icon} ${k.title}: ${list.length}</b>
+      ${k.fix ? `<button class="mini wide" data-action="bulk" data-op="${k.fix}" data-ids="${ids}">${k.fixName} все${cost ? ` · ${moneyShort(cost)}` : ''}</button>` : ''}</div>
+      <table class="tbl compact">${list.slice(0, 40).map((a) => {
+        const u = state.units[a.unitId];
+        return `<tr><td><a href="#" data-action="selectUnit" data-fly="1" data-id="${a.unitId}">${esc(u?.name ?? '—')}</a><small class="muted"> · ${esc(u ? state.world.places[u.placeId].name : '')}</small></td>
+          <td>${esc(a.text)}</td><td>${k.fix ? `<button class="mini wide" data-action="bulk" data-op="${k.fix}" data-ids="${a.unitId}">${k.fixName}${a.cost ? ` · ${moneyShort(a.cost)}` : ''}</button>` : ''}</td></tr>`;
+      }).join('')}</table>${list.length > 40 ? `<div class="muted small">…и ещё ${list.length - 40}</div>` : ''}</div>`;
+  }
+  return html;
+}
+
+// Региональные директора: автопилот по стране
+function renderDirectors(app) {
+  const { state } = app;
+  const co = app.company;
+  const pres = presenceByCountry(state, app.companyId);
+  const list = Object.keys(pres);
+  if (!list.length) return '';
+  let html = `<h3>👔 Региональные директора</h3><div class="muted small">Директор следит за всеми вашими бизнесами в стране: раз в неделю подгоняет штат под спрос,
+    раз в месяц поднимает цены отдельных точек вслед за инфляцией и обновляет изношенные (если в кассе хватает денег).
+    Точки под его присмотром почти не требуют вашего внимания.</div>`;
+  for (const c of list) {
+    const d = co.directors?.[c];
+    html += `<div class="card"><div class="row"><b>${COUNTRIES[c].name}</b> <small class="muted">${pres[c].any} бизнесов</small>
+      ${d ? `<button class="mini wide" data-action="fireDirector" data-country="${c}">Уволить</button>` : `<button class="mini wide" data-action="hireDirector" data-country="${c}">Нанять · ${moneyShort(directorCost(state, c))}/мес</button>`}</div>`;
+    if (d) {
+      html += `<label class="row check"><span>👥 Штат под спрос</span><input type="checkbox" data-change="director" data-country="${c}" data-key="staff" ${d.staff ? 'checked' : ''}></label>
+        <label class="row check"><span>🛠 Обновлять изношенные точки</span><input type="checkbox" data-change="director" data-country="${c}" data-key="renovate" ${d.renovate ? 'checked' : ''}></label>
+        <label class="row check"><span>🏷️ Держать цены отдельных точек на уровне</span><input type="checkbox" data-change="director" data-country="${c}" data-key="prices" ${d.prices ? 'checked' : ''}></label>
+        <div class="row"><span>…% от местной нормы</span><span class="price-ctl"><input type="number" min="70" max="150" step="5" value="${Math.round(d.priceRatio * 100)}" data-change="directorRatio" data-country="${c}"></span></div>`;
+    }
+    html += '</div>';
+  }
   return html;
 }
 
@@ -92,7 +166,7 @@ function renderFinance(app) {
   let html = `<h2>🏦 Финансы</h2><div class="card">
     ${row('Касса', money(co.cash), signClass(co.cash))}
     ${row('Капитал (активы − долг)', money(netWorth(state, app.companyId)))}
-    ${row('Кредит', `${money(co.loan)} под ${pct(co.loanRate)} годовых`)}
+    ${row('Кредит', `${money(co.loan)} под ${pct(loanRate(state, app.companyId))} годовых`)}
     ${row('Банк готов выдать ещё', money(Math.max(0, limit - co.loan)))}
     ${row('Расходы штаба', `${money(overhead(state, app.companyId))}/мес`)}
     </div>
@@ -293,7 +367,7 @@ function renderCountries(app) {
     const have = (co.licenses || []).filter((x) => x.endsWith(`:${id}`)).map((x) => COUNTRIES[x.split(':')[0]].name);
     html += `<tr><td>${l.name}</td><td>${moneyShort(l.cost)}</td><td>${have.length ? have.join(', ') : '—'}</td></tr>`;
   }
-  return `${html}</table><div class="muted small">Лицензия покупается один раз на страну при открытии первого такого бизнеса. Цена × уровень цен × бюрократия страны.</div>`;
+  return `${html}</table><div class="muted small">Лицензия покупается один раз на страну при открытии первого такого бизнеса. Цена × уровень цен × бюрократия страны.</div>${renderDirectors(app)}${renderLobby(app)}`;
 }
 
 function stockRow(app, l) {
@@ -361,6 +435,76 @@ function renderStocks(app) {
   return `${html}</table>`;
 }
 
+// ИИ-корпорации: кто они, где работают, сделки
+function renderRivals(app) {
+  const { state } = app;
+  const co = app.company;
+  const rivals = Object.values(state.companies).filter((c) => c.ai);
+  let html = `<h2>🦈 Соперники</h2><p class="muted small">В мире работают ИИ-корпорации со своим характером. Они открывают точки рядом с вашими, выкупают помещения и акции.
+    С ними можно договориться: выкупить их бизнес (нажмите на их точку на карте), заплатить за перемирие или купить их акции на бирже и поглотить.</p>`;
+  if (!rivals.length) return `${html}<p class="muted">В этой игре корпораций нет.</p>`;
+  for (const r of rivals) {
+    const arch = ARCHETYPES[r.ai.archetype];
+    const units = companyUnits(state, r.id);
+    const countries = [...new Set(units.map((u) => COUNTRIES[state.world.places[u.placeId].country].name))];
+    const near = units.filter((u) => companyUnits(state, app.companyId).some((m) => m.placeId === u.placeId)).length;
+    const l = listingOf(state, r.id);
+    const truce = co.truces?.[r.id] > state.day;
+    html += `<div class="card"><div class="row"><span><span class="swatch" style="background:${r.color}"></span><b>${esc(r.name)}</b> <small class="muted">${arch.name}</small></span>
+      <b>${r.bankrupt ? (r.absorbedBy ? 'поглощена' : '💀 банкрот') : moneyShort(netWorth(state, r.id))}</b></div>
+      <div class="muted small">${arch.desc}</div>
+      ${r.bankrupt ? '' : `${row('Бизнесов', `${units.length}${near ? ` · ${near} в ваших городах` : ''}`)}
+      ${countries.length ? row('Страны', countries.slice(0, 6).join(', ') + (countries.length > 6 ? '…' : '')) : ''}
+      ${l ? row('Акции', `${money(l.price, { cents: true })} · у вас ${pct(stakeOf(l, app.companyId), 1)}`) : row('Акции', 'ещё не на бирже')}
+      <div class="row"><span>${truce ? `🕊 Перемирие до ${formatDate(co.truces[r.id])}` : `Перемирие на ${TRUCE_MONTHS} мес.: не открывается в ваших городах, не трогает помещения и акции`}</span>
+      ${truce ? '' : `<button class="mini wide" data-action="buyTruce" data-id="${r.id}">🕊 ${moneyShort(truceCost(state, r))}</button>`}</div>`}</div>`;
+  }
+  return html;
+}
+
+// Исследования: дерево технологий
+function renderResearch(app) {
+  const { state } = app;
+  const co = app.company;
+  const r = co.research;
+  let html = `<h2>🔬 Исследования</h2><p class="muted small">Технологии дают постоянные бонусы всей компании и открывают тир IV: банки, электронику, облачные сервисы.
+    Деньги списываются каждый день, пока идёт работа. IT-студии с 3+ программистами ускоряют исследования (+25% каждая, до +50%; сейчас ×${researchSpeed(state, app.companyId).toFixed(2)}).</p>`;
+  if (r) {
+    const t = TECHS[r.id];
+    const p = Math.min(1, r.progress / r.days);
+    html += `<div class="card"><div class="row"><b>${t.icon} ${t.name}, уровень ${techLevel(state, app.companyId, r.id) + 1}</b><button class="mini wide" data-action="cancelResearch">Остановить</button></div>
+      <div class="progress"><span style="width:${(p * 100).toFixed(0)}%"></span></div>
+      <div class="muted small">Готово ${pct(p)} · осталось ~${Math.ceil((r.days - r.progress) / researchSpeed(state, app.companyId) / 30)} мес. · бюджет ${moneyShort(r.cost)}</div></div>`;
+  }
+  html += '<div class="goals">';
+  for (const [id, t] of Object.entries(TECHS)) {
+    const lvl = techLevel(state, app.companyId, id);
+    const why = techLocked(state, app.companyId, id);
+    html += `<div class="goal ${lvl >= t.max ? 'done' : ''}"><span class="goal-icon">${t.icon}</span><div class="goal-main"><b>${t.name}</b> <small class="muted">${lvl}/${t.max}</small>
+      <small>${t.desc}</small>
+      ${lvl >= t.max ? '<small class="pos">✓ изучено</small>' : why ? `<small class="muted">${esc(why)}</small>`
+        : `<button class="mini wide" data-action="startResearch" data-id="${id}" ${r ? 'disabled' : ''}>Изучать · ${moneyShort(techCost(state, app.companyId, id))} · ${t.months} мес.</button>`}</div></div>`;
+  }
+  return `${html}</div>`;
+}
+
+// Лоббирование и льготы в странах, где работает компания
+function renderLobby(app) {
+  const { state } = app;
+  const co = app.company;
+  const pres = presenceByCountry(state, app.companyId);
+  const list = Object.keys(pres);
+  if (!list.length) return '';
+  let html = `<h3>🏛️ Лоббирование и льготы</h3><div class="muted small">Чем больше у вас работников в стране, тем охотнее власти принимают нужные вам законы (снижение налога или пошлин — для всех).
+    Раз в год на страну. Крупный работодатель (${BIG_EMPLOYER}+ сотрудников) платит налог на 5 п.п. меньше.</div><table class="tbl compact"><tr><th>Страна</th><th>Работников</th><th>Льгота</th><th>Шанс</th><th></th></tr>`;
+  for (const c of list) {
+    const wait = co.lobbied?.[c] && state.day - co.lobbied[c] < LOBBY_COOLDOWN;
+    html += `<tr><td>${COUNTRIES[c].name}</td><td>${num(employees(state, app.companyId, c))}</td><td>${taxBreak(state, app.companyId, c) ? '−5 п.п.' : '—'}</td>
+      <td>${pct(lobbyChance(state, app.companyId, c))}</td><td>${wait ? '<small class="muted">через год</small>' : Object.entries(LOBBY_GOALS).map(([g, x]) => `<button class="mini wide" data-action="lobby" data-country="${c}" data-goal="${g}" title="${x.name}">${g === 'tax' ? '↓ налог' : '↓ пошлины'} · ${moneyShort(lobbyCost(state, c))}</button>`).join(' ')}</td></tr>`;
+  }
+  return `${html}</table>`;
+}
+
 function renderGoals(app) {
   const { state } = app;
   const co = app.company;
@@ -402,6 +546,10 @@ function renderHelp() {
     <li><b>Без управления бизнес хиреет.</b> Цены и зарплаты каждый год растут на инфляцию, оборудование изнашивается 🛠, конкуренты со временем становятся сильнее,
       спрос меняется по сезонам, а на прибыльные места приходят новые конкуренты. Поднимайте цены, обновляйте точки, подстраивайте штат, нанимайте управляющих.
       Сети делают часть рутины сами: пересчитывают цены по инфляции и (по галочке) обновляют изношенные точки.</li>
+    <li><b>Управление большой компанией:</b> вкладка ⚠️ «Задачи» показывает всё, что теряет деньги, и чинит в один клик; во вкладке 🏢 «Бизнесы» — фильтры и массовые действия;
+      региональные директора (🌍 «Страны») сами держат штат, цены и обновления по стране.</li>
+    <li><b>Соперники</b> 🦈: ИИ-корпорации со своим характером (дискаунтер, премиум, сырьевик, агрессор) открываются рядом, выкупают помещения и акции. Их точки можно выкупить, с ними — заключить перемирие, их акции — скупить и поглотить.</li>
+    <li><b>Исследования</b> 🔬 дают бонусы всей компании и открывают тир IV: банк (дешёвые кредиты), электроника, облачный сервис. <b>Лоббирование</b> снижает налоги и пошлины; крупный работодатель получает налоговую льготу.</li>
     <li><b>Расходы штаба</b> растут быстрее числа бизнесов: тысяча мелких киосков — не империя. Растите в крупные и прибыльные активы, цепочки, франшизу.</li>
     <li>Не хватает денег — возьмите <b>кредит</b> во вкладке 🏦. Касса в минусе 45 дней — банкротство.</li>
     <li>Время: ⏸ пауза, ▶ ⏩ ⏭ — скорость. Игра сохраняется автоматически каждый месяц.</li>
@@ -422,8 +570,8 @@ export function renderDrawer(app) {
   const chatDraft = active?.closest('#chat-form') ? active.value : null;
   if (active?.tagName === 'INPUT' && chatDraft === null) return; // не мешаем вводу суммы кредита и т.п.
   const render = {
-    units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands,
-    countries: renderCountries, stocks: renderStocks, goals: renderGoals, room: renderRoom, help: renderHelp,
+    units: renderUnits, tasks: renderTasks, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands,
+    countries: renderCountries, stocks: renderStocks, rivals: renderRivals, research: renderResearch, goals: renderGoals, room: renderRoom, help: renderHelp,
   }[app.tab];
   const scroll = el.scrollTop;
   el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${render(app)}`;

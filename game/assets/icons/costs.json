@@ -222,5 +222,41 @@
   "ui/franchise": {
     "model": "meta/muse-image",
     "cost": 0.01
+  },
+  "business/bank": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/saas": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/electronics_plant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/electronics_store": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/chips": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/electronics": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/tasks": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/rivals": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/research": {
+    "model": "meta/muse-image",
+    "cost": 0.01
   }
 }

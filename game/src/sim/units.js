@@ -5,6 +5,7 @@ import { refPrice } from './demand.js';
 import { itCapacityBoost } from './bonuses.js';
 import { efficiency, laborFactor, wageLevel } from './staff.js';
 import { foreignFactor } from './expansion.js';
+import { techLevel } from './research.js';
 
 export function emptyMonth() {
   return {
@@ -41,7 +42,8 @@ export function monthlyWage(state, unit) {
 export function monthlyUpkeep(state, unit) {
   const u = BUSINESSES[unit.type].upkeep;
   const place = placeOf(state, unit);
-  return (u.base + u.perArea * lotOf(state, unit).area) * costIndex(place) * foreignFactor(state, unit) * (unit.tierUpkeep ?? 1) * wearUpkeep(unit);
+  return (u.base + u.perArea * lotOf(state, unit).area) * costIndex(place) * foreignFactor(state, unit) * (unit.tierUpkeep ?? 1) * wearUpkeep(unit)
+    * (1 - 0.08 * techLevel(state, unit.companyId, 'energy'));
 }
 
 // Аренда: не платим, если помещение принадлежит своей компании.
@@ -80,14 +82,16 @@ export function renovateCost(state, unit) {
 export function retailCapacity(state, unit) {
   const r = BUSINESSES[unit.type].retail;
   if (!r || unit.broken > 0) return 0;
-  return Math.min(unit.staff * r.perStaff * efficiency(state, unit), r.cap[unit.level - 1]) * itCapacityBoost(state, unit.companyId);
+  const pos = 1 + 0.08 * techLevel(state, unit.companyId, 'pos');
+  return Math.min(unit.staff * r.perStaff * efficiency(state, unit) * pos, r.cap[unit.level - 1]) * itCapacityBoost(state, unit.companyId);
 }
 
 export function productionCapacity(state, unit) {
   const p = BUSINESSES[unit.type].production;
   if (!p || unit.broken > 0) return 0;
   const place = placeOf(state, unit);
-  const byStaff = unit.staff * p.perStaff * (place.productivity ?? 1) * efficiency(state, unit) * wearEfficiency(unit);
+  const byStaff = unit.staff * p.perStaff * (place.productivity ?? 1) * efficiency(state, unit) * wearEfficiency(unit)
+    * (1 + 0.12 * techLevel(state, unit.companyId, 'automation'));
   const cap = p.cap ? p.cap[unit.level - 1] : p.capPerArea * lotOf(state, unit).area * (1 + 0.5 * (unit.level - 1));
   return Math.min(byStaff, cap);
 }
@@ -164,8 +168,9 @@ export function defaultPrices(state, lot, type) {
   return prices;
 }
 
-export function baseQuality(unit) {
-  return (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1) + (unit.tierQuality ?? 0) - wearQuality(unit);
+export function baseQuality(unit, state = null) {
+  const tech = state && BUSINESSES[unit.type].retail ? 0.15 * techLevel(state, unit.companyId, 'quality') : 0;
+  return (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1) + (unit.tierQuality ?? 0) - wearQuality(unit) + tech;
 }
 
 // Деньги: все движения кассы проходят через эти функции (для учёта и тестов).

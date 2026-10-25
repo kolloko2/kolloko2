@@ -10,6 +10,7 @@ import { capexFor, dailyNeed } from './units.js';
 import { serviceRevenuePerStaff } from './services.js';
 import { licenseNeeded } from './countries.js';
 import { attention } from './staff.js';
+import { techLevel, missingTech } from './research.js';
 
 const FORECAST_AWARENESS = 0.35; // узнаваемость через пару месяцев при стандартной рекламе
 
@@ -44,6 +45,7 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
   r.brandId = brand?.id ?? null;
   r.entryFee = companyId ? entryFee(state, companyId, place, type) : 0;
   r.license = licenseNeeded(state, companyId, place, type);
+  r.locked = missingTech(state, companyId, type); // нужна технология
   r.extra = r.entryFee + (r.license?.cost ?? 0); // разовые платежи сверх вложений
   // без местной команды (меньше 3 точек в чужой стране) зарплаты и содержание дороже
   const co = companyId ? state.companies[companyId] : null;
@@ -58,6 +60,8 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     const excess = Math.max(0, Math.ceil(att.used + (brand ? 0.5 : 1) - att.limit));
     eff *= Math.max(0.6, 1 - 0.04 * excess);
     r.efficiency = eff;
+    if (def.retail) eff *= 1 + 0.08 * techLevel(state, companyId, 'pos');
+    if (def.production) eff *= 1 + 0.12 * techLevel(state, companyId, 'automation');
   }
   let served = 0;
   let produced = 0;
@@ -86,7 +90,8 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
       awareness = 1 - (1 - FORECAST_AWARENESS) * (1 - b);
       r.brandAwareness = b;
     }
-    const u = utility(ratio, 3 + (tier?.quality ?? 0), awareness, lot.visibility, districtBeta(district));
+    const techQ = companyId ? 0.15 * techLevel(state, companyId, 'quality') : 0;
+    const u = utility(ratio, (def.baseQuality ?? 3) + (tier?.quality ?? 0) + techQ, awareness, lot.visibility, districtBeta(district));
     const sh = districtShares(state, district, def.category, { id: '__new', u });
     const potential = sh.byUnit.__new / seasonFactor(state, def.category, place); // прогноз — в среднем за год, без сезона
     const staff = Math.min(def.staff.max, Math.max(def.staff.min, Math.ceil(potential / (def.retail.perStaff * eff))));
@@ -125,7 +130,7 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     inputs: Math.round(inputsDay * 30),
     wages: Math.round(r.staff * def.staff.wage * place.wage * (brand?.wageLevel ?? 1) * foreign),
     rent: companyId && lot.ownerId === companyId ? 0 : lot.rent,
-    upkeep: Math.round((def.upkeep.base + def.upkeep.perArea * lot.area) * idx * foreign * (tier?.upkeep ?? 1)),
+    upkeep: Math.round((def.upkeep.base + def.upkeep.perArea * lot.area) * idx * foreign * (tier?.upkeep ?? 1) * (1 - 0.08 * (companyId ? techLevel(state, companyId, 'energy') : 0))),
     marketing: Math.round((brand?.marketing ?? def.marketing) * idx),
     overhead: companyId ? Math.round(marginalOverhead(state, companyId, Boolean(brand))) : 0, // рост расходов штаба
   };

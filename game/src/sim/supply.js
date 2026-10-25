@@ -6,6 +6,7 @@ import { leadDays, transportCost, deliver, inTransit } from './logistics.js';
 import { freightFactor } from './bonuses.js';
 import { purchasingDiscount } from './expansion.js';
 import { tariffRate } from './countries.js';
+import { techLevel } from './research.js';
 import {
   inputGoods, outputGood, invQty, takeInv, coverDays, lotOf, placeOf, spend, earn, pay,
 } from './units.js';
@@ -104,7 +105,8 @@ function supplyInternally(state, unit, good) {
     s.month.revInternal += qty * price;
     s.month.cogs += cost;
     s.month.shippedInternal = (s.month.shippedInternal || 0) + qty;
-    const transport = transportCost(good, qty, km, { bulk: toWarehouse }) * freightFactor(state, unit.companyId, placeOf(state, unit));
+    const transport = transportCost(good, qty, km, { bulk: toWarehouse }) * freightFactor(state, unit.companyId, placeOf(state, unit))
+      * (1 - 0.12 * techLevel(state, unit.companyId, 'logistics'));
     spend(state, unit, 'transport', transport);
     if (duty) spend(state, unit, 'duty', qty * price * duty);
     // доставка и пошлина уже записаны в отчёт отдельными строками — в себестоимость запаса их не включаем

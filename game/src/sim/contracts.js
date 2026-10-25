@@ -67,6 +67,9 @@ export function runContracts(state) {
       addNews(state, 'info', `Контракт «${GOODS[c.good].name}» для «${unit.name}» завершён.`, { unitId: unit.id }, c.companyId);
       continue;
     }
+    if (c.end - state.day === 15) {
+      addNews(state, 'warn', `Через 15 дней кончается контракт «${GOODS[c.good].name}» для «${unit.name}» — продлите или найдите поставки.`, { unitId: unit.id }, c.companyId);
+    }
     if (c.side === 'buy') {
       pay(state, c.companyId, c.qtyPerDay * c.price);
       deliver(state, unit, c.good, c.qtyPerDay, c.price, 1);

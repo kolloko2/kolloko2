@@ -7,7 +7,7 @@ import { costIndex } from './world.js';
 export const BRAND_TIERS = {
   eco: { name: 'Эконом', price: 0.85, quality: -0.2, upkeep: 0.9 },
   std: { name: 'Стандарт', price: 1.0, quality: 0, upkeep: 1 },
-  premium: { name: 'Премиум', price: 1.35, quality: 0.5, upkeep: 1.25 },
+  premium: { name: 'Премиум', price: 1.3, quality: 0.5, upkeep: 1.45 },
 };
 
 export function brandOf(state, unit) {

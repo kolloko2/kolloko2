@@ -1,5 +1,6 @@
 import { GOODS, TRANSPORT_PER_KG_KM, TRANSPORT_HANDLING_PER_KG } from '../data/goods.js';
 import { addInv } from './units.js';
+import { techLevel } from './research.js';
 
 // Доставка товаров. Закупка у местного оптовика приходит на следующий день; поставки между своими
 // бизнесами идут столько, сколько ехать: ~700 км в день, межконтинентальные — ещё +3 дня в портах.
@@ -62,7 +63,8 @@ export function receiveDeliveries(state) {
     }
     const unit = state.units[s.to];
     if (!unit) continue; // получатель закрыт — груз пропал
-    const left = s.qty * (1 - GOODS[s.good].spoil) ** (s.arrive - s.sent);
+    const spoil = GOODS[s.good].spoil * (1 - 0.15 * techLevel(state, s.companyId, 'logistics'));
+    const left = s.qty * (1 - spoil) ** (s.arrive - s.sent);
     unit.month.spoilage += (s.qty - left) * s.unitCost;
     addInv(unit, s.good, left, s.unitCost);
   }

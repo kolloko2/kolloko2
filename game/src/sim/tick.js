@@ -15,6 +15,10 @@ import { costIndex } from './world.js';
 import { countryTax, monthlyCountryEvents, monthlyInflation } from './countries.js';
 import { applyBrand } from './brands.js';
 import { overhead } from './expansion.js';
+import { runDirectors } from './management.js';
+import { monthlyRivals } from './rivals.js';
+import { runResearch, techLevel, taxBreak } from './research.js';
+import { loanRate } from './state.js';
 import { monthlyFranchise } from './franchise.js';
 import { updateStocks, monthlyStocks, delistCompany } from './stocks.js';
 import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
@@ -113,7 +117,7 @@ function dailyCosts(state) {
     unit.month.days++;
   }
   for (const co of activeCompanies(state)) {
-    if (co.loan > 0) spendCompany(state, co.id, 'interest', (co.loan * co.loanRate) / 365);
+    if (co.loan > 0) spendCompany(state, co.id, 'interest', (co.loan * loanRate(state, co.id)) / 365);
   }
 }
 
@@ -124,7 +128,8 @@ function wearAll(state) {
     let load = 0.5;
     if (t.cap) load = (t.customers || 0) / t.cap;
     else if (t.prodCap) load = (t.produced || 0) / t.prodCap;
-    unit.condition = Math.max(0, condition(unit) - WEAR_PER_DAY * (0.6 + 0.6 * Math.min(1, load)));
+    const durable = 1 - 0.2 * techLevel(state, unit.companyId, 'durability');
+    unit.condition = Math.max(0, condition(unit) - WEAR_PER_DAY * (0.6 + 0.6 * Math.min(1, load)) * durable);
   }
 }
 
@@ -148,13 +153,13 @@ function updateBrand(state) {
     if (!BUSINESSES[unit.type].retail) continue;
     const lot = lotOf(state, unit);
     const idx = costIndex(placeOf(state, unit));
-    const budgetDay = (unit.marketing / 30 / idx) * marketingBoost(state, unit.companyId, placeOf(state, unit));
+    const budgetDay = (unit.marketing / 30 / idx) * marketingBoost(state, unit.companyId, placeOf(state, unit)) * (1 + 0.15 * techLevel(state, unit.companyId, 'marketing'));
     const gain = 1 - Math.exp(-0.00037 * budgetDay);
     const wordOfMouth = (unit.today.customers || 0) * 0.000004 * (unit.quality - 2.5);
     const floor = 0.05 + 0.15 * lot.visibility;
     unit.awareness += (1 - unit.awareness) * gain - 0.006 * unit.awareness + wordOfMouth;
     unit.awareness = Math.min(0.95, Math.max(floor, unit.awareness));
-    const q = baseQuality(unit) - unit.queue - (unit.today.stockout ? 0.4 : 0) - (morale(unit) < 40 ? 0.3 : 0);
+    const q = baseQuality(unit, state) - unit.queue - (unit.today.stockout ? 0.4 : 0) - (morale(unit) < 40 ? 0.3 : 0);
     unit.quality = Math.min(5, Math.max(1, unit.quality * 0.97 + q * 0.03));
   }
 }
@@ -206,10 +211,10 @@ function closeCompanyMonth(state, co, units) {
   const franchise = (m.royalty || 0) + (m.franchiseFees || 0);
   if (franchise && co.homeCountry) byCountry[co.homeCountry] = (byCountry[co.homeCountry] || 0) + franchise;
   for (const [c, p] of Object.entries(byCountry)) {
-    if (p > 0) spendCompany(state, co.id, 'tax', p * countryTax(state, c));
+    if (p > 0) spendCompany(state, co.id, 'tax', p * Math.max(0, countryTax(state, c) - taxBreak(state, co.id, c)));
   }
   // дивиденды полученные — доход; выплаченные — распределение прибыли, а не расход
-  profit += franchise + (m.dividendsIn || 0) + (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0) - (m.brandAds || 0) - (m.overhead || 0);
+  profit += franchise + (m.dividendsIn || 0) + (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0) - (m.brandAds || 0) - (m.overhead || 0) - (m.directors || 0) - (m.research || 0);
   co.history.push({
     label: monthLabel(state.day),
     revenue: Math.round(revenue),
@@ -219,6 +224,8 @@ function closeCompanyMonth(state, co, units) {
     rentIncome: Math.round(m.rentIncome || 0),
     brandAds: Math.round(m.brandAds || 0),
     overhead: Math.round(m.overhead || 0),
+    directors: Math.round(m.directors || 0),
+    research: Math.round(m.research || 0),
     royalty: Math.round(franchise),
     dividendsIn: Math.round(m.dividendsIn || 0),
     cash: Math.round(co.cash),
@@ -244,6 +251,7 @@ function monthEnd(state) {
   monthlyFranchise(state);
   for (const co of activeCompanies(state)) closeCompanyMonth(state, co, companyUnits(state, co.id));
   monthlyStocks(state);
+  monthlyRivals(state);
   monthlyAI(state);
   monthlyCountryEvents(state);
   monthlyEvents(state);
@@ -253,7 +261,7 @@ function monthEnd(state) {
 
 // Игра идёт, пока жива хотя бы одна компания и никто не победил
 export function isOver(state) {
-  return Boolean(state.winner) || activeCompanies(state).length === 0;
+  return Boolean(state.winner) || !activeCompanies(state).some((c) => !c.ai);
 }
 
 export function stepDay(state) {
@@ -275,6 +283,8 @@ export function stepDay(state) {
   updateBrand(state);
   updateStaff(state);
   updateBrands(state, spendCompany);
+  runDirectors(state, dateOf(state.day).getUTCDate() === 1);
+  runResearch(state);
   dailyEvents(state);
   checkSolvency(state);
   checkGoals(state);

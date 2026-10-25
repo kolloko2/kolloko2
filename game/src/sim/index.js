@@ -1,5 +1,5 @@
 export {
-  createGame, addCompany, companyUnits, activeCompanies, formatDate, monthLabel, dateOf, netWorth, coreWorth, loanLimit,
+  createGame, addCompany, companyUnits, activeCompanies, playerCompanies, formatDate, monthLabel, dateOf, netWorth, coreWorth, loanLimit, loanRate,
   addNews, newsFor, SAVE_VERSION, MODES, COMPANY_COLORS,
 } from './state.js';
 export { stepDay, stepDays, isOver } from './tick.js';
@@ -30,3 +30,13 @@ export {
   listingOf, portfolioValue, controllerOf, stakeOf, fairCompanyPrice, ipoCheck, absorbCost,
   IPO_MIN_WORTH, IPO_MIN_MONTHS, CONTROL_SHARE, ABSORB_SHARE, TRADE_FEE, COMPANY_SHARES,
 } from './stocks.js';
+export {
+  companyAlerts, ALERT_KINDS, directorCost, DIRECTOR_WAGE, WORN,
+} from './management.js';
+export {
+  ARCHETYPES, rivalUnitPrice, truceCost, isAi, TRUCE_MONTHS,
+} from './rivals.js';
+export {
+  techLevel, techCost, techLocked, researchSpeed, missingTech, lobbyCost, lobbyChance, employees, taxBreak,
+  LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER,
+} from './research.js';
