@@ -4,9 +4,9 @@ import { GOODS } from '../data/goods.js';
 import { esc } from './format.js';
 import { bizIcon, uiIcon } from './icons.js';
 import { initBasemap } from './basemap.js';
+import { initCityMap, refreshCityMap, bindHud, flyToCity, ZOOM_CITY } from './citymap.js';
 
-// Уровни карты: мир (города и регионы) → районы → участки
-const ZOOM_OPEN_PLAN = 9; // ближе — открывается план города
+// Уровни карты: мир (города и регионы) → город с кварталами и участками (citymap.js)
 
 let map;
 let placesLayer;
@@ -54,7 +54,7 @@ function rivalsIn(state, companyId, placeId) {
 const ZONING_ICON = { commercial: '🏬', industrial: '🏭', farmland: '🟫' };
 
 export function initMap(app) {
-  map = L.map('map', { worldCopyJump: true, minZoom: 2, maxZoom: 10, zoomControl: false, attributionControl: false }).setView([35, 15], 3);
+  map = L.map('map', { worldCopyJump: true, minZoom: 2, maxZoom: 17, zoomControl: false, attributionControl: false }).setView([35, 15], 3);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.control.attribution({ prefix: false }).addAttribution('Карта: <a href="https://www.naturalearthdata.com/">Natural Earth</a>').addTo(map);
   // Своя стилизованная подложка вместо тайлов: берега, страны, реки, кварталы
@@ -63,6 +63,8 @@ export function initMap(app) {
   placesLayer = L.layerGroup().addTo(map);
   detailLayer = L.layerGroup().addTo(map);
   routesLayer = L.layerGroup().addTo(map);
+  initCityMap(map, app);
+  bindHud();
   // Кнопка «Цепочки»: линии от поставщиков к получателям своей компании
   const RoutesControl = L.Control.extend({
     onAdd() {
@@ -98,38 +100,14 @@ export function initMap(app) {
   const markZoom = () => {
     map.getContainer().classList.toggle('zoom-low', map.getZoom() < 5);
     map.getContainer().classList.toggle('zoom-mid', map.getZoom() < 12);
+    map.getContainer().classList.toggle('zoom-city', map.getZoom() >= ZOOM_CITY);
   };
   map.on('zoomend', markZoom);
   map.on('zoomend moveend', () => refreshMap(app, true));
-  // приблизились к городу — открываем его план (карта мира отъезжает назад, чтобы потом не открывать снова)
-  // приближают колёсиком «к курсору», поэтому город ищем у курсора (без мыши — у центра карты)
-  let pointer = null; // экранная точка курсора: после зума под ней уже другие координаты
-  map.on('mousemove', (e) => (pointer = e.containerPoint));
-  map.on('mouseout', () => (pointer = null));
-  map.on('zoomend', () => {
-    if (map.getZoom() < ZOOM_OPEN_PLAN || app.city || !app.started) return;
-    const c = pointer ? map.containerPointToLatLng(pointer) : map.getCenter();
-    let best = null;
-    let bd = Infinity;
-    for (const p of Object.values(app.state.world.places)) {
-      const d = map.distance(c, [p.lat, p.lng]);
-      if (d < bd) {
-        bd = d;
-        best = p;
-      }
-    }
-    if (best && bd < (best.kind === 'city' ? 60000 : 80000)) {
-      app.openCity(best.id);
-      zoomOutFrom(best);
-    }
-  });
   markZoom();
   refreshMap(app, true);
 }
 
-export function zoomOutFrom(place) {
-  map.setView([place.lat, place.lng], Math.min(map.getZoom(), ZOOM_OPEN_PLAN - 2), { animate: false });
-}
 
 // Счётчики показывают только бизнесы своей компании
 function unitsByPlace(state, companyId) {
@@ -163,18 +141,19 @@ function buildPlaces(app) {
     // крупные города поверх мелких и поверх сельских регионов
     const z = place.kind === 'city' ? Math.round(place.pop * 10) : -500;
     const m = L.marker([place.lat, place.lng], { icon: placeIcon(app, place, counts[place.id]), riseOnHover: true, zIndexOffset: z });
-    // клик по городу открывает его план (как в Capitalism Lab), по региону — план полей
-    m.on('click', () => {
-      app.select(null);
-      app.openCity(place.id);
-    });
+    // клик по городу — приближаемся к нему: видны кварталы, участки и конкуренты
+    m.on('click', () => flyToCity(place));
     placesLayer.addLayer(m);
   }
 }
 
 // Районы и участки живут на плане города (экран города), на карте мира — только города и регионы
+// Вблизи города метки городов убираем — там свои кварталы и подписи районов
 function buildDetail() {
   detailLayer.clearLayers();
+  const near = map.getZoom() >= ZOOM_CITY;
+  if (near && map.hasLayer(placesLayer)) map.removeLayer(placesLayer);
+  if (!near && !map.hasLayer(placesLayer)) placesLayer.addTo(map);
 }
 
 // Ореолы слоя вокруг городов (перерисовываем, только когда меняются значения)
@@ -259,7 +238,11 @@ export function refreshMap(app, force = false) {
   if (force) buildDetail();
   refreshRoutes(app);
   refreshOverlay(app);
+  refreshCityMap(force);
 }
+
+export { flyToCity };
+export { flyToLatLng } from './citymap.js';
 
 // Раз в игровой день: предупреждения на значках своих бизнесов
 export function refreshWarnings(app) {

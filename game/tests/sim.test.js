@@ -750,28 +750,22 @@ test('недвижимость стабильна, застройщик раст
   assert.ok(s.growth.nyc > 1, 'город растёт');
 });
 
-test('миграция: старое сохранение без новых систем загружается и играется', async () => {
-  const { migrate, SAVE_VERSION } = await import('../src/sim/index.js');
-  const s = createGame({ seed: 33, rivals: 0 });
+test('сохранение: сид + снимок, мир строится заново и игра продолжается', async () => {
+  const { packSave, unpackSave } = await import('../src/net/snapshot.js');
+  const s = createGame({ seed: 33 });
   s.companies.c1.cash = 1e6;
   const u = open(s, 'ber', 'coffee_shop');
   stepDays(s, 60);
-  const old = JSON.parse(JSON.stringify(s));
-  // как в версии 4: нет моды, событий, предложений, роста городов, новых товаров, туризма и износа
-  for (const k of ['trends', 'districtEvents', 'offers', 'nextOfferId', 'growth', 'nextRivalId']) delete old[k];
-  delete old.market.goods.cars;
-  delete old.market.goods.medicine;
-  for (const p of Object.values(old.world.places)) delete p.tourism;
-  for (const d of Object.values(old.world.districts)) delete d.ai.hotel;
-  delete old.units[u.id].condition;
-  old.version = 4;
-  const m = migrate(old);
-  assert.ok(m && m.version === SAVE_VERSION);
-  assert.ok(m.market.goods.cars && m.world.places.par.tourism > 0);
-  assert.equal(Object.values(m.companies).filter((c) => c.ai).length, 4, 'в старый мир пришли корпорации');
-  stepDays(m, 120);
-  assert.ok(m.units[u.id].condition < 100);
-  assert.equal(migrate({ version: 99 }), null);
+  const text = JSON.stringify(packSave(s));
+  assert.ok(text.length < 1.5e6, `сохранение маленькое: ${text.length}`);
+  const m = unpackSave(JSON.parse(text));
+  assert.equal(m.day, s.day);
+  assert.equal(m.world.lots[u.lotId].unitId, u.id);
+  assert.equal(Math.round(m.companies.c1.cash), Math.round(s.companies.c1.cash));
+  stepDays(m, 30);
+  stepDays(s, 30);
+  assert.equal(Math.round(m.companies.c1.cash), Math.round(s.companies.c1.cash), 'после загрузки игра идёт так же');
+  assert.equal(unpackSave({ format: 'snap', version: 1 }), null);
 });
 
 test('недра и заводы с выбором продукции: шахты → металлургия, перенастройка', async () => {
@@ -872,32 +866,28 @@ test('класс товара: оборудование и люди произв
   assert.ok(a.quality > b.quality + 0.8, `рейтинг ${a.quality} против ${b.quality}`);
 });
 
-test('план города: строить можно в любой клетке суши, завод — хоть в центре', async () => {
-  const { cellInfo, cellBuildable, lotAtCell, gridOf } = await import('../src/sim/index.js');
+test('город: участки в кварталах, конкуренты — здания со своими ценами', async () => {
+  const { shopsIn, districtShares, canBuildHere } = await import('../src/sim/index.js');
   const { makeSnapshot, stateFromSnapshot } = await import('../src/net/snapshot.js');
   const s = createGame({ seed: 49, rivals: 0 });
   s.companies.c1.cash = 2e7;
-  const msk = s.world.places.msk;
-  const { n } = gridOf(msk);
-  // найти свободную клетку суши у центра
-  let cell = null;
-  for (let r = 0; r < n / 2 && !cell; r++) {
-    for (let dx = -r; dx <= r && !cell; dx++) {
-      const x = Math.floor(n / 2) + dx;
-      const y = Math.floor(n / 2) + r;
-      if (cellInfo(s, msk, x, y).land && !lotAtCell(s, msk, x, y)) cell = [x, y];
-    }
+  const d = s.world.districts['ber:1'];
+  assert.ok(d.lotIds.length >= 8, 'в районе много участков');
+  const shops = shopsIn(s, d);
+  const ai = Object.values(d.ai).reduce((a, b) => a + b, 0);
+  assert.equal(shops.length, ai, 'у каждого фонового конкурента — здание');
+  assert.equal(new Set(shops.map((x) => `${x.lat}|${x.lng}`)).size, shops.length, 'здания не стоят друг на друге');
+  for (const lotId of d.lotIds) {
+    const l = s.world.lots[lotId];
+    assert.ok(!shops.some((x) => Math.abs(x.lat - l.lat) < 1e-6 && Math.abs(x.lng - l.lng) < 1e-6), 'конкурент не на участке игрока');
   }
-  assert.ok(cell, 'нашлась клетка');
-  assert.equal(cellBuildable(s, msk, ...cell, 'coffee_plantation'), 'Фермы, шахты и плантации — только в сельских регионах');
-  const r = applyCommand(s, { type: 'openBusiness', placeId: 'msk', cell, businessType: 'packaging_plant' }, 'c1');
-  assert.ok(r.ok, r.error);
-  const lot = lotAtCell(s, msk, ...cell);
-  assert.equal(lot.unitId, r.unitId);
-  assert.ok(lot.area >= 300 && lot.rent > 0);
-  assert.ok(!applyCommand(s, { type: 'openBusiness', placeId: 'msk', cell, businessType: 'coffee_shop' }, 'c1').ok, 'клетка занята');
-  // клиент мультиплеера получает новый участок из снимка
+  const sh = districtShares(s, d, 'coffee');
+  assert.equal(Object.keys(sh.byShop).length, d.ai.coffee || 0);
+  // завод в маленькое помещение не встанет, а в большое — можно даже в центре
+  const small = d.lotIds.map((id) => s.world.lots[id]).find((l) => l.area < 300);
+  assert.ok(!canBuildHere(s, small, 'packaging_plant'));
+  const u = open(s, 'ber', 'coffee_shop');
   const client = stateFromSnapshot(s.seed, makeSnapshot(s, { lots: true }));
-  assert.equal(client.world.lots[lot.id].unitId, r.unitId);
+  assert.equal(client.world.lots[u.lotId].unitId, u.id, 'клиент видит занятый участок');
   stepDays(s, 10);
 });

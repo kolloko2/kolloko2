@@ -20,7 +20,7 @@ export {
   attention, efficiency, morale, wageLevel, managerCost, laborFactor, trainingCost, WAGE_LEVELS, BASE_ATTENTION, MAX_TRAINING,
 } from './staff.js';
 export { districtShares, districtPotential, refPrice, seasonFactor, aiUtility } from './demand.js';
-export { distanceKm, costIndex, priceIndex } from './world.js';
+export { distanceKm, costIndex, priceIndex, offsetLatLng } from './world.js';
 export * from './units.js';
 export {
   countryState, countryTax, countryDemand, tariffRate, sameBloc, licenseNeeded,
@@ -48,5 +48,5 @@ export { advice } from './advisor.js';
 export { serviceMood, realEstateRent } from './services.js';
 export { DELIVERY, DELIVERY_CATEGORIES } from './tick.js';
 export { ownBillboards, ownCourier, energyFactor, hasPort, mallDiscount } from './bonuses.js';
-export { migrate, OLDEST_SUPPORTED } from './migrate.js';
-export * from './grid.js';
+export * from './shops.js';
+export * from './layout.js';

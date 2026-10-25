@@ -1,5 +1,5 @@
 import { bizIcon, districtIcon, goodIcon } from './icons.js';
-import { BUILD_GROUPS, cellFacts } from './city.js';
+import { BUILD_GROUPS, CATEGORY_NAMES } from './citymap.js';
 import { BUSINESSES, RISK, RISK_NAMES, EQUIPMENT, STAFF_CLASSES } from '../data/businesses.js';
 import { DISTRICTS, ZONING_NAMES } from '../data/districts.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
@@ -13,7 +13,7 @@ import {
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
   condition, renovateCost, seasonFactor, trainingCost, MAX_TRAINING, serviceMood, DELIVERY_CATEGORIES, ownCourier, rivalUnitPrice, ARCHETYPES, bidForUnit, rivalWants, truceCost, TRUCE_MONTHS, offerText, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
-  recipeOf, allowedRecipes, cellBuildable, makeCellLot, canBuildHere, capexFor, missingTech,
+  recipeOf, allowedRecipes, canBuildHere, capexFor, missingTech, shopsIn, distanceKm,
   invK, gradeK, productK, outputK, equipmentCost, hiringFee, qualityPrice,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
@@ -42,7 +42,7 @@ function renderPlace(app, place) {
   const econ = cs.demand < 1 ? `<span class="tag bad">спад ${pct(cs.demand - 1)}</span>` : cs.demand > 1 ? `<span class="tag good">подъём +${pct(cs.demand - 1)}</span>` : '';
   let html = `<h2>${place.kind === 'city' ? '🏙️' : bizIcon(place.kinds[0], 'inline')} ${esc(place.name)}</h2>
     <div class="sub">${country.name} · налог на прибыль ${pct(cs.tax)} · пошлина ${pct(cs.tariff)}${country.bloc ? ` (${BLOCS[country.bloc]} — без пошлин)` : ''} ${econ}</div>
-    <button class="btn wide" data-action="openCity" data-id="${place.id}">🏙 Открыть план ${place.kind === 'city' ? 'города' : 'региона'}</button><div class="card">`;
+    <button class="btn wide" data-action="openCity" data-id="${place.id}">🔍 Приблизить ${place.kind === 'city' ? 'город' : 'регион'}</button><div class="card">`;
   if (place.kind === 'city') {
     html += row('Население', `${num(place.pop, 1)} млн`) + row('Доходы жителей', pct(place.income)) +
       row('Уровень аренды', pct(place.rent)) + row('Уровень зарплат', pct(place.wage));
@@ -130,52 +130,115 @@ function renderLot(app, lot) {
   let html = `<h2>📍 Участок</h2>
     <div class="sub"><a href="#" data-action="selectDistrict" data-id="${d.id}">${districtTitle(state, d)}</a></div><div class="card">`;
   html += row('Площадь', areaText(lot));
-  if (lot.zoning !== 'farmland') html += row('Прохожих', `${num(lot.traffic)}/день`) + row('Видимость', pct(lot.visibility));
-  html += row('Аренда', ownerText(app, lot)) + row('Цена покупки', money(lot.price));
+  if (lot.zoning !== 'farmland') {
+    html += row('Прохожих', `${num(lot.traffic)}/день`) + row('Видимость с улицы', pct(lot.visibility))
+      + row('Аренда', `${money(lot.rent)}/мес <small class="muted">(${money(lot.rent / lot.area, { cents: true })}/м²)</small>`);
+  } else html += row('Аренда земли', `${money(lot.rent)}/мес`);
+  html += row('Цена покупки', money(lot.price)) + row('Владелец', lot.ownerId ? esc(state.companies[lot.ownerId].name) : 'город (аренда)');
   html += '</div>';
   html += lotOwnershipButtons(app, lot);
+  if (lot.zoning !== 'farmland') html += nearby(app, lot);
   if (lot.ownerId && lot.ownerId !== app.companyId) return `${html}<p class="muted">Помещение принадлежит другой компании.</p>`;
-  html += `<button class="btn ghost wide" data-action="openCity" data-id="${place.id}">🏙 План города</button>`;
-  return html + buildList(app, place, buildableTypes(state, lot), { lot });
+  return html + buildList(app, place, buildableTypes(state, lot), lot);
 }
 
-// Клетка на плане города: факты о месте и что тут можно поставить
-function renderCell(app, sel) {
+// Что рядом с участком (в радиусе ~400 м): конкуренты по категориям и свои точки
+function nearby(app, lot) {
   const { state } = app;
-  const place = state.world.places[sel.placeId];
-  const f = cellFacts(app, place, sel.x, sel.y);
-  if (f.lot?.unitId) return renderUnit(app, state.units[f.lot.unitId]);
-  let html = `<h2>📍 ${esc(f.title)}</h2><div class="sub">${esc(place.name)}</div><div class="card">${f.rows.map(([k, v]) => row(k, v)).join('')}</div>`;
-  if (!f.rows.length) return html;
-  if (f.lot) html += lotOwnershipButtons(app, f.lot);
-  if (f.lot?.ownerId && f.lot.ownerId !== app.companyId) return `${html}<p class="muted">Помещение принадлежит другой компании.</p>`;
-  const types = Object.keys(BUSINESSES).filter((t) => !cellBuildable(state, place, sel.x, sel.y, t) && (!f.lot || canBuildHere(state, f.lot, t)));
-  return html + buildList(app, place, types, { cell: [sel.x, sel.y] });
+  const d = state.world.districts[lot.districtId];
+  const counts = {};
+  for (const sh of shopsIn(state, d)) if (distanceKm(lot, sh) < 0.4) counts[sh.cat] = (counts[sh.cat] || 0) + 1;
+  for (const id of d.lotIds) {
+    const u = state.units[state.world.lots[id].unitId];
+    if (u && BUSINESSES[u.type].retail && distanceKm(lot, state.world.lots[id]) < 0.4) {
+      const c = BUSINESSES[u.type].category;
+      counts[c] = (counts[c] || 0) + 1;
+    }
+  }
+  const list = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (!list.length) return '<div class="card small muted">Рядом (400 м) никого нет.</div>';
+  return `<div class="card small"><b>Рядом (400 м):</b> ${list.map(([c, n]) => `${CATEGORY_NAMES[c] ?? c} ×${n}`).join(' · ')}</div>`;
 }
 
 // Что можно поставить: по группам, только цена входа и штат — прибыль игрок оценивает сам
-function buildList(app, place, types, where) {
+function buildList(app, place, types, lot) {
   const { state } = app;
-  let html = '<h3>Построить</h3>';
+  let html = '<h3>Построить здесь</h3>';
   for (const [icon, name, test] of BUILD_GROUPS) {
     const list = types.filter((t) => test(BUSINESSES[t]));
     if (!list.length) continue;
     html += `<details class="build-group"><summary>${icon} ${name} <small class="muted">${list.length}</small></summary><div class="list">`;
     for (const t of list) {
       const def = BUSINESSES[t];
-      const lot = where.lot || makeCellLot(state, place, where.cell[0], where.cell[1], t);
       const locked = missingTech(state, app.companyId, t);
       const variants = def.production?.recipes ? allowedRecipes(place, t) : [];
-      const at = where.lot ? `data-lot="${where.lot.id}"` : `data-place="${place.id}" data-x="${where.cell[0]}" data-y="${where.cell[1]}"`;
-      const btn = (recipe, label) => `<button class="mini" data-action="open" ${at} data-type="${t}" ${recipe ? `data-recipe="${recipe}"` : ''} ${locked ? 'disabled' : ''}>${label}</button>`;
+      const btn = (recipe, label) => `<button class="mini" data-action="open" data-lot="${lot.id}" data-type="${t}" ${recipe ? `data-recipe="${recipe}"` : ''} ${locked ? 'disabled' : ''}>${label}</button>`;
       html += `<div class="list-item static"><span class="li-icon">${bizIcon(t)}</span><span class="li-main">${def.name}
-        <small>${locked ? `🔒 ${esc(locked)}` : `${moneyShort(capexFor(state, lot, t))} · аренда ${moneyShort(lot.rent)}/мес · ${def.staff.def} чел.`}</small>
+        <small>${locked ? `🔒 ${esc(locked)}` : `${moneyShort(capexFor(state, lot, t))} · ${def.staff.def} чел.`}</small>
         ${variants.length > 1 ? `<span class="chips tight">${variants.map((g) => btn(g, `${GOODS[g].icon} ${GOODS[g].name}`)).join('')}</span>` : ''}</span>
         ${variants.length > 1 ? '' : btn(variants[0], 'Построить')}</div>`;
     }
     html += '</div></details>';
   }
   return html;
+}
+
+// Здание фонового конкурента: что продаёт, по какой цене и какого качества, сколько у него покупателей
+function renderShop(app, sel) {
+  const { state } = app;
+  const d = state.world.districts[sel.districtId];
+  const sh = shopsIn(state, d).find((x) => x.id === sel.id);
+  if (!sh) return '';
+  const share = districtShares(state, d, sh.cat).byShop[sh.id] ?? 0;
+  return `<h2>🏪 ${esc(sh.name)}</h2><div class="sub">Конкурент · ${CATEGORY_NAMES[sh.cat] ?? sh.cat} · <a href="#" data-action="selectDistrict" data-id="${d.id}">${districtTitle(state, d)}</a></div>
+    <div class="card">${row('Цены', `${pct(sh.p)} от обычных`)}${row('Рейтинг', `<span class="stars">${stars(sh.q)}</span> ${num(sh.q, 1)}`)}
+    ${row('Известность', pct(sh.a))}${row('Покупателей', `~${num(share)}/день`)}</div>
+    <div class="muted small">Фоновые магазины открываются там, где покупателей много, и закрываются, когда их не хватает.</div>`;
+}
+
+// Рынок города: по каждой категории — покупатели, продавцы, цены и качество конкурентов, ваша доля
+function renderMarket(app, sel) {
+  const { state } = app;
+  const place = state.world.places[sel.placeId];
+  const cats = [...new Set(place.districtIds.flatMap((id) => Object.keys(DISTRICTS[state.world.districts[id].type].demand)))];
+  let html = `<h2>📊 Рынок · ${esc(place.name)}</h2><div class="sub">Покупатели в день, продавцы, средние цены и рейтинг конкурентов. Нажмите на строку — по районам.</div>
+    <table class="tbl compact hover"><tr><th>Товары</th><th>Покупат./день</th><th>Продавцов</th><th>Цены</th><th>Рейтинг</th><th>Ваша доля</th></tr>`;
+  for (const c of cats) {
+    let pot = 0;
+    let served = 0;
+    let mine = 0;
+    let sellers = 0;
+    let pSum = 0;
+    let qSum = 0;
+    let n = 0;
+    for (const id of place.districtIds) {
+      const d = state.world.districts[id];
+      const sh = districtShares(state, d, c);
+      pot += sh.potential;
+      served += sh.potential * (1 - sh.outsideShare);
+      sellers += sh.ai + Object.keys(sh.byUnit).length;
+      for (const x of shopsIn(state, d, c)) {
+        pSum += x.p;
+        qSum += x.q;
+        n++;
+      }
+      for (const [uid, v] of Object.entries(sh.byUnit)) if (state.units[uid].companyId === app.companyId) mine += v;
+    }
+    if (pot < 1) continue;
+    const open = sel.cat === c;
+    html += `<tr data-action="marketCat" data-id="${place.id}" data-cat="${c}" class="${open ? 'active' : ''}"><td>${CATEGORY_NAMES[c] ?? c}</td><td>${num(pot)}<br><small class="muted">купят ${num(served)}</small></td>
+      <td>${sellers}</td><td>${n ? pct(pSum / n) : '—'}</td><td>${n ? `${num(qSum / n, 1)}★` : '—'}</td><td>${served ? pct(mine / served) : '—'}</td></tr>`;
+    if (open) {
+      for (const id of place.districtIds) {
+        const d = state.world.districts[id];
+        const sh = districtShares(state, d, c);
+        if (sh.potential < 1) continue;
+        html += `<tr class="sub-row"><td colspan="6">${DISTRICTS[d.type].icon} ${DISTRICTS[d.type].name}: ${num(sh.potential)} покупат./день · продавцов ${sh.ai + Object.keys(sh.byUnit).length}
+          · на одного ~${num(sh.potential * (1 - sh.outsideShare) / Math.max(1, sh.ai + Object.keys(sh.byUnit).length))}</td></tr>`;
+      }
+    }
+  }
+  return `${html}</table><div class="muted small">«Цены» — средние цены конкурентов к обычным для города; «купят» — сколько покупателей вообще что-то купит при нынешних ценах и качестве.</div>`;
 }
 
 function templatesFor(app, type) {
@@ -582,7 +645,8 @@ export function renderPanel(app) {
     const lot = state.world.lots[sel.id];
     html = lot.unitId ? renderUnit(app, state.units[lot.unitId]) : renderLot(app, lot);
   } else if (sel?.kind === 'unit' && state.units[sel.id]) html = renderUnit(app, state.units[sel.id]);
-  else if (sel?.kind === 'cell' && state.world.places[sel.placeId]) html = renderCell(app, sel);
+  else if (sel?.kind === 'shop' && state.world.districts[sel.districtId]) html = renderShop(app, sel);
+  else if (sel?.kind === 'market' && state.world.places[sel.placeId]) html = renderMarket(app, sel);
   if (!html) {
     el.classList.remove('open');
     el.innerHTML = '';

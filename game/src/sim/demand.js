@@ -5,6 +5,7 @@ import { effectiveAwareness } from './brands.js';
 import { countryDemand } from './countries.js';
 import { dateOf } from './state.js';
 import { trendOf, districtEventOf } from './luck.js';
+import { shopsIn } from './shops.js';
 
 // Логит-модель выбора покупателя:
 //   U = −βp·ln(цена/норма) + βq·(качество − 3) + βa·узнаваемость + βv·(видимость − 0.5)
@@ -71,8 +72,7 @@ export function districtPotential(state, district, category) {
   if (!rate) return 0;
   const place = state.world.places[district.placeId];
   const incomeFactor = 0.5 + 0.5 * Math.min(place.income ?? 0.5, 1.2);
-  let traffic = 0;
-  for (const lotId of district.lotIds) traffic += state.world.lots[lotId].traffic;
+  const traffic = district.footfall ?? 0;
   const event = districtEventOf(state, district.id)?.mult ?? 1;
   const econ = countryDemand(state, place.country);
   // отелям нужны туристы; дорогие покупки (машины) сильнее страдают в кризис
@@ -127,11 +127,23 @@ export function districtShares(state, district, category, extra = null) {
     sellers.push({ id: unit.id, u: unitUtility(state, unit) });
   }
   if (extra) sellers.push(extra);
-  const ai = district.ai[category] || 0;
-  const eAi = Math.exp(aiUtility(state));
-  let total = Math.exp(U_OUTSIDE) + ai * eAi;
+  // фоновые конкуренты — настоящие здания со своей ценой, качеством и известностью
+  const beta = districtBeta(district);
+  const shops = shopsIn(state, district, category);
+  let shopTotal = 0;
+  const shopU = shops.map((sh) => {
+    const e = Math.exp(utility(sh.p, sh.q, sh.a, 0.5, beta));
+    shopTotal += e;
+    return e;
+  });
+  let total = Math.exp(U_OUTSIDE) + shopTotal;
   for (const s of sellers) total += Math.exp(s.u);
-  const result = { potential, ai, aiCustomersEach: (potential * eAi) / total, outsideShare: Math.exp(U_OUTSIDE) / total, byUnit: {} };
+  const ai = shops.length;
+  const result = {
+    potential, ai, aiCustomersEach: ai ? (potential * shopTotal) / ai / total : 0, outsideShare: Math.exp(U_OUTSIDE) / total,
+    byUnit: {}, byShop: {},
+  };
+  shops.forEach((sh, i) => (result.byShop[sh.id] = (potential * shopU[i]) / total));
   for (const s of sellers) result.byUnit[s.id] = (potential * Math.exp(s.u)) / total;
   return result;
 }

@@ -7,7 +7,7 @@ import { initStocks, portfolioValue } from './stocks.js';
 import { addRivals } from './rivals.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
-export const SAVE_VERSION = 7; // 7: туризм, отели, аптеки, автосалоны, недвижимость
+export const SAVE_VERSION = 8; // 8: участки в кварталах, компактные сохранения (сид + снимок)
 export const START_CASH = 100000;
 const START_DATE = Date.UTC(2000, 0, 1);
 

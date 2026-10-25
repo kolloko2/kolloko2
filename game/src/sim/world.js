@@ -2,6 +2,10 @@ import { CITIES, REGIONS } from '../data/cities.js';
 import { DISTRICTS } from '../data/districts.js';
 import { randInt, randRange, rand } from './rng.js';
 import { LAND_MASK } from '../data/landmask.js';
+import { districtSlots } from './layout.js';
+
+// Поток людей района в «участках»: спрос района = средний поток участка × это число
+const DISTRICT_FOOTFALL = 5;
 
 const M_PER_DEG = 111320;
 
@@ -136,9 +140,37 @@ export function generateWorld(rng) {
       traffic,
       visibility,
       rent: Math.round(rent),
+      rent0: Math.round(rent),
       price: Math.round(rent * 110),
       ownerId: null, // компания-владелец помещения (иначе — аренда у города)
       unitId: null,
+    };
+    lots[id] = lot;
+    district.lotIds.push(id);
+  };
+
+  // Участок в квартале: помещение в здании (м²) или цех в промзоне; big — крупное помещение (для ТЦ, супермаркета)
+  const addSlotLot = (district, place, type, slot, big) => {
+    const def = DISTRICTS[type];
+    const id = `${district.id}-${district.lotIds.length + 1}`;
+    const dist = Math.hypot(slot.x, slot.y);
+    const crowd = Math.max(0.35, 1.15 - (dist / district.radius) * 0.75); // у центра района людно
+    const visibility = Math.round(randRange(rng, 0.25, 1) * 100) / 100;
+    const trafficMult = 0.7 + Math.min(place.pop, 25) / 40;
+    const traffic = Math.round(randRange(rng, def.traffic[0], def.traffic[1]) * trafficMult * crowd);
+    let area;
+    let rent;
+    if (def.zoning === 'industrial') {
+      area = randInt(rng, 8, big ? 120 : 60) * 50; // 400–6000 м²
+      rent = area * def.rent * place.rent;
+    } else {
+      area = big ? randInt(rng, 30, 70) * 5 : randInt(rng, 6, 40) * 5; // 30–350 м²
+      rent = area * def.rent * place.rent * (0.8 + 0.4 * visibility) * (0.45 + 0.55 * crowd);
+    }
+    const lot = {
+      id, districtId: district.id, placeId: place.id, lat: slot.lat, lng: slot.lng, zoning: def.zoning, area, traffic, visibility,
+      rent: Math.round(rent), rent0: Math.round(rent), price: Math.round(rent * 110), ownerId: null, unitId: null,
+      w: slot.w, h: slot.h, // размер здания на карте, м
     };
     lots[id] = lot;
     district.lotIds.push(id);
@@ -149,7 +181,7 @@ export function generateWorld(rng) {
     const place = { ...r, kind: 'region', districtIds: /** @type {string[]} */ ([]) };
     places[r.id] = place;
     const id = `${r.id}:1`;
-    const district = { id, placeId: r.id, type: 'rural', lat: r.lat, lng: r.lng, radius: 20000, lotIds: [], ai: {} };
+    const district = { id, placeId: r.id, type: 'rural', lat: r.lat, lng: r.lng, radius: 20000, lotIds: /** @type {string[]} */ ([]), ai: {}, footfall: 0 };
     districts[id] = district;
     place.districtIds.push(id);
     const n = randInt(rng, DISTRICTS.rural.lots[0], DISTRICTS.rural.lots[1]);
@@ -197,11 +229,24 @@ export function generateWorld(rng) {
         const jitter = LEGACY_AI.has(cat) ? randInt(rng, -1, 1) : (hashStr(`${id}|${cat}`) % 3) - 1;
         ai[cat] = Math.max(0, Math.round(n * aiScale(c.pop)) + jitter);
       }
-      const district = { id, placeId: c.id, type, lat: center.lat, lng: center.lng, radius: 800, lotIds: [], ai };
+      const district = { id, placeId: c.id, type, lat: center.lat, lng: center.lng, radius: 800, lotIds: /** @type {string[]} */ ([]), ai, footfall: 0 };
       districts[id] = district;
       place.districtIds.push(id);
-      const n = randInt(rng, def.lots[0], def.lots[1]);
-      for (let k = 0; k < n; k++) addLot(district, place, type, [80, 650]);
+      // поток людей района (для спроса) не зависит от числа участков
+      const trafficMult = 0.7 + Math.min(place.pop, 25) / 40;
+      district.footfall = Math.round(((def.traffic[0] + def.traffic[1]) / 2) * trafficMult * DISTRICT_FOOTFALL);
+      // места в кварталах: часть — участки для игроков, остальное — здания фоновых конкурентов
+      const slots = districtSlots(district).map((sl) => ({ ...sl, ...offsetLatLng(center.lat, center.lng, sl.x, sl.y) }))
+        .filter((sl) => isLand(place, sl.lat, sl.lng));
+      const n = Math.min(randInt(rng, def.lots[0], def.lots[1]), Math.floor(slots.length * 0.4));
+      const near = slots.slice(0, Math.max(n, Math.floor(slots.length * 0.6)));
+      const taken = new Set();
+      for (let k = 0; k < n; k++) {
+        let idx = randInt(rng, 0, near.length - 1);
+        while (taken.has(idx)) idx = (idx + 1) % near.length;
+        taken.add(idx);
+        addSlotLot(district, place, type, near[idx], k < 2);
+      }
     });
   }
 

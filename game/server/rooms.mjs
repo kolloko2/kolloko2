@@ -4,8 +4,8 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createGame, addCompany, stepDay, applyCommand, isOver, addNews, dateOf, VICTORY_OPTIONS, migrate } from '../src/sim/index.js';
-import { makeSnapshot } from '../src/net/snapshot.js';
+import { createGame, addCompany, stepDay, applyCommand, isOver, addNews, dateOf, VICTORY_OPTIONS } from '../src/sim/index.js';
+import { makeSnapshot, packSave, unpackSave } from '../src/net/snapshot.js';
 
 export const SPEED_MS = [Infinity, 1500, 500, 120];
 const BROADCAST_MS = 250;
@@ -194,7 +194,7 @@ export class Room {
       code: this.code,
       mode: this.mode,
       players: [...this.players.values()].map(({ id, name, companyId }) => ({ id, name, companyId })),
-      state: this.state,
+      save: packSave(this.state),
     };
     await mkdir(this.dataDir, { recursive: true });
     await writeFile(join(this.dataDir, `${this.code}.json`), JSON.stringify(data));
@@ -204,7 +204,7 @@ export class Room {
     if (!/^[A-Z0-9]{5}$/.test(code)) return null;
     try {
       const data = JSON.parse(await readFile(join(dataDir, `${code}.json`), 'utf8'));
-      const state = migrate(data.state); // старая комната дополняется новыми полями
+      const state = unpackSave(data.save); // комнаты другой версии игры не открываются
       if (!state) return null;
       return new Room({ ...data, state, dataDir });
     } catch {

@@ -2,7 +2,6 @@ import { BUSINESSES, MAX_LEVEL, UPGRADE_COST_FACTOR, EQUIPMENT } from '../data/b
 import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { canBuildHere, forecast } from './forecast.js';
-import { cellBuildable, lotAtCell, makeCellLot, registerLot } from './grid.js';
 import { addNews, loanLimit, companyUnits } from './state.js';
 import {
   emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, pay, receive, placeOf, renovateCost, condition,
@@ -57,24 +56,9 @@ function ownUnit(state, id, companyId) {
 /** @type {Record<string, (state: State, cmd: any, companyId: string) => any>} */
 const handlers = {
   // brandId — открыть сразу в составе сети (undefined — в первой сети этого типа, null — отдельно)
-  // Где строить: lotId (готовый участок) или placeId + cell [x, y] (клетка на плане города)
-  openBusiness(state, { lotId, placeId, cell, businessType, brandId, templateId, recipe }, companyId) {
+  openBusiness(state, { lotId, businessType, brandId, templateId, recipe }, companyId) {
     const def = BUSINESSES[businessType];
-    let lot = lotId ? state.world.lots[lotId] : null;
-    let draft = false;
-    if (!lot && placeId && cell && def) {
-      const pl = state.world.places[placeId];
-      if (!pl) return fail('Нет такого города');
-      const [x, y] = cell;
-      const why = cellBuildable(state, pl, x, y, businessType);
-      if (why) return fail(why);
-      lot = lotAtCell(state, pl, x, y);
-      if (!lot) {
-        lot = makeCellLot(state, pl, x, y, businessType);
-        draft = true;
-      }
-      lotId = lot.id;
-    }
+    const lot = state.world.lots[lotId];
     const co = state.companies[companyId];
     if (!lot || !def) return fail('Неизвестный участок или тип бизнеса');
     if (lot.unitId) return fail('Участок уже занят');
@@ -101,7 +85,6 @@ const handlers = {
     const variants = allowedRecipes(place, businessType);
     if (recipe && !variants.includes(recipe)) return fail('Здесь нельзя выпускать этот товар');
     if (def.production?.recipes) recipe ||= variants[0]; // по умолчанию — основной товар завода
-    if (draft) registerLot(state, lot); // новый участок в клетке — теперь он часть мира
     const fc = forecast(state, lotId, businessType, companyId, undefined, recipe);
     pay(state, companyId, capex + extra);
     if (!co.homeCountry) co.homeCountry = place.country;

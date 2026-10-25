@@ -2,21 +2,23 @@
 // поэтому по сети передаём только то, что меняется во время игры.
 import { createGame } from '../sim/index.js';
 import { syncCpi } from '../sim/countries.js';
-import { registerLot } from '../sim/grid.js';
+import { SAVE_VERSION } from '../sim/state.js';
 
 // Изменяемые поля верхнего уровня
 const DYNAMIC = ['day', 'rng', 'mode', 'victory', 'winner', 'companies', 'nextCompanyId', 'nextRivalId', 'units', 'nextUnitId', 'market', 'mapVersion', 'newsSeq',
   'shipments', 'nextShipmentId', 'contracts', 'nextContractId', 'brands', 'nextBrandId', 'countries', 'stocks', 'trends', 'districtEvents', 'offers', 'nextOfferId', 'growth'];
 
-// opts.lots — включить владельцев/аренду участков и ИИ-конкурентов в районах (меняются редко)
-// opts.newsAfter — номер последней новости, которую клиент уже видел; opts.companyId — чьи новости слать
-export function makeSnapshot(state, { lots = false, newsAfter = 0, companyId = null } = {}) {
+// Участок отличается от сгенерированного (занят, куплен, подорожал) — только такие шлём по сети
+const lotChanged = (l) => l.ownerId || l.unitId || l.rent !== l.rent0 || l.price !== Math.round(l.rent0 * 110);
+
+// opts.lots — включить изменённые участки и ИИ-конкурентов в районах (меняются редко)
+// opts.newsAfter — номер последней новости, которую клиент уже видел; opts.companyId — чьи новости слать (allNews — все)
+export function makeSnapshot(state, { lots = false, newsAfter = 0, companyId = null, allNews = false } = {}) {
   const snap = {};
   for (const k of DYNAMIC) snap[k] = state[k];
-  snap.news = state.news.filter((n) => n.seq > newsAfter && (n.companyId === null || n.companyId === companyId));
+  snap.news = state.news.filter((n) => n.seq > newsAfter && (allNews || n.companyId === null || n.companyId === companyId));
   if (lots) {
-    // участки в клетках плана города создаются в игре — их шлём целиком
-    snap.lots = Object.values(state.world.lots).map((l) => [l.id, l.ownerId, l.unitId, l.rent, l.price, l.id.includes('@') ? l : null]);
+    snap.lots = Object.values(state.world.lots).filter(lotChanged).map((l) => [l.id, l.ownerId, l.unitId, l.rent, l.price]);
     snap.ai = Object.fromEntries(Object.values(state.world.districts).map((d) => [d.id, d.ai]));
   }
   return snap;
@@ -30,8 +32,15 @@ export function applySnapshot(state, snap) {
     state.news = [...fresh, ...state.news].sort((a, b) => b.seq - a.seq).slice(0, 300);
   }
   if (snap.lots) {
-    for (const [id, ownerId, unitId, rent, price, full] of snap.lots) {
-      if (!state.world.lots[id] && full) registerLot(state, { ...full });
+    // всё, чего нет в списке, — как при генерации мира
+    for (const l of Object.values(state.world.lots)) {
+      if (!lotChanged(l)) continue;
+      l.ownerId = null;
+      l.unitId = null;
+      l.rent = l.rent0;
+      l.price = Math.round(l.rent0 * 110);
+    }
+    for (const [id, ownerId, unitId, rent, price] of snap.lots) {
       const lot = state.world.lots[id];
       if (!lot) continue;
       lot.ownerId = ownerId;
@@ -49,5 +58,18 @@ export function stateFromSnapshot(seed, snap) {
   const state = createGame({ seed, mode: snap.mode, companyNames: [] });
   state.news = [];
   applySnapshot(state, snap);
+  return state;
+}
+
+// Сохранение партии: сид + всё изменяемое. Мир при загрузке строится заново по сиду — файл маленький.
+export function packSave(state) {
+  return { format: 'snap', version: SAVE_VERSION, seed: state.seed, mode: state.mode, snap: makeSnapshot(state, { lots: true, allNews: true }) };
+}
+
+// Загрузка сохранения; null — файл от другой версии игры
+export function unpackSave(data) {
+  if (!data || data.format !== 'snap' || data.version !== SAVE_VERSION) return null;
+  const state = stateFromSnapshot(data.seed, data.snap);
+  state.mode = data.mode;
   return state;
 }
