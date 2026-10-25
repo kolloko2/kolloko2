@@ -163,9 +163,10 @@ function buildPlaces(app) {
     // крупные города поверх мелких и поверх сельских регионов
     const z = place.kind === 'city' ? Math.round(place.pop * 10) : -500;
     const m = L.marker([place.lat, place.lng], { icon: placeIcon(app, place, counts[place.id]), riseOnHover: true, zIndexOffset: z });
+    // клик по городу открывает его план (как в Capitalism Lab), по региону — план полей
     m.on('click', () => {
-      app.select({ kind: 'place', id: place.id });
-      flyToPlace(place);
+      app.select(null);
+      app.openCity(place.id);
     });
     placesLayer.addLayer(m);
   }

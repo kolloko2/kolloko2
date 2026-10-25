@@ -1,14 +1,18 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
 import {
-  createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, searchLots, migrate, VICTORY_OPTIONS,
+  createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, migrate, VICTORY_OPTIONS,
   lobbyCost, lobbyChance, offerText, bidForUnit, rivalUnitQuote, truceQuote, TRUCE_MONTHS,
+  lotAtCell, makeCellLot, capexFor, entryFee, licenseNeeded, costIndex, cellBuildable, cellInfo, gridOf, equipmentCost,
 } from './sim/index.js';
 import { renderTutorial, restartTutorial, skipTutorial, advisorAction, hideHint, resetHints } from './ui/tutorial.js';
 import { LocalSession, RemoteSession, SPEEDS, setDayScale } from './net/session.js';
 import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot } from './ui/map.js';
 import { renderPanel } from './ui/panels.js';
 import { renderDrawer, TABS, filteredUnits } from './ui/tabs.js';
-import { money, moneyShort, signClass, esc } from './ui/format.js';
+import { openCity, closeCity, renderCity, startBuild, cancelBuild, cellFacts } from './ui/city.js';
+import { money, moneyShort, signClass, esc, num } from './ui/format.js';
+import { BUSINESSES, EQUIPMENT } from './data/businesses.js';
+import { GOODS } from './data/goods.js';
 import { play, toggleSound, soundOn, setVolume } from './ui/sound.js';
 
 const SAVE_KEY = 'magnat-save-v3';
@@ -56,6 +60,9 @@ const app = {
     render();
     refreshMap(app);
     return r;
+  },
+  openCity(placeId) {
+    openCity(app, placeId);
   },
   sendChat(text) {
     app.session.chat?.(text);
@@ -180,6 +187,7 @@ function render() {
   const editing = panel.contains(document.activeElement) && ['INPUT', 'SELECT'].includes(document.activeElement.tagName);
   if (!editing) renderPanel(app);
   renderDrawer(app);
+  renderCity(app);
 }
 
 // ---------- победа ----------
@@ -571,22 +579,13 @@ async function handleAction(el) {
       renderDrawer(app);
       break;
     case 'open': {
-      // Защита новичка: предупреждаем об убыточном прогнозе и о пустой кассе после покупки
-      const profit = Number(el.dataset.profit);
-      const left = app.company.cash - Number(el.dataset.capex);
-      const warn = [];
-      if (profit < 0) warn.push(`По прогнозу бизнес убыточен (${money(profit)} в месяц).`);
-      if (left < Number(el.dataset.costs)) warn.push(`После открытия в кассе останется ${money(left)} — меньше месячных расходов. Пока точка раскручивается, деньги могут кончиться (через 45 дней в минусе — банкротство).`);
-      if (warn.length && !(await ask({ title: 'Открыть бизнес?', text: `${warn.join('\n')}\nВсё равно открыть?`, ok: 'Открыть' }))) break;
-      const brand = el.dataset.brand;
-      const brandId = brand === 'none' ? null : brand || undefined;
-      const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type, brandId: brandId ?? null, templateId: el.dataset.template, recipe: el.dataset.recipe || undefined });
-      if (r.ok) {
-        play('coin');
-        app.select({ kind: 'unit', id: r.unitId });
-      }
+      const cell = el.dataset.place ? { placeId: el.dataset.place, cell: [Number(el.dataset.x), Number(el.dataset.y)] } : { lotId: el.dataset.lot };
+      await confirmBuild(cell, el.dataset.type, el.dataset.recipe || undefined);
       break;
     }
+    case 'openCity':
+      openCity(app, id);
+      break;
     case 'close':
       if (await ask({ title: `Закрыть «${state.units[id]?.name}»?`, text: 'Запасы будут проданы, оборудование — за 30% стоимости.', ok: 'Закрыть', danger: true })) {
         await app.dispatch({ type: 'closeBusiness', unitId: id });
@@ -604,6 +603,27 @@ async function handleAction(el) {
       break;
     case 'upgrade':
       app.dispatch({ type: 'upgrade', unitId: id });
+      break;
+    case 'buyEquipment': {
+      const u = state.units[id];
+      const level = Number(el.dataset.level);
+      const cost = equipmentCost(state, u, level);
+      if (await ask({ title: `${EQUIPMENT[level - 1].name} оборудование`, text: `«${u.name}»: новое оборудование поднимет мощность и качество. Старое уходит в зачёт.`, parts: [['Стоимость', money(cost)]], ok: `Купить · ${moneyShort(cost)}` })) {
+        app.dispatch({ type: 'buyEquipment', unitId: id, level });
+      }
+      break;
+    }
+    case 'brandGrade': {
+      // класс закупки для всех основных товаров сети
+      const b = state.brands[id];
+      const goods = new Set((BUSINESSES[b.type].retail?.products || []).flatMap((p) => Object.keys(p.recipe)));
+      for (const good of goods) await app.session.dispatch({ type: 'setGrade', brandId: id, good, grade: el.dataset.grade });
+      render();
+      break;
+    }
+    case 'unitTab':
+      app.unitTab = el.dataset.tab;
+      renderPanel(app);
       break;
     case 'bulk': {
       const op = el.dataset.op;
@@ -668,14 +688,6 @@ async function handleAction(el) {
       if (name === null) break;
       const r = await app.dispatch({ type: 'saveTemplate', unitId: id, name });
       if (r.ok) toast('Шаблон сохранён: он появится на карточках участков для этого типа бизнеса', 'good');
-      break;
-    }
-    case 'search': {
-      app.search = { type: $in('search-type').value, country: $in('search-country').value };
-      toast('Ищу лучшие места…');
-      await new Promise((r) => setTimeout(r, 30));
-      app.searchResults = searchLots(state, app.companyId, app.search.type, app.search.country || null, 15);
-      renderDrawer(app);
       break;
     }
     case 'trainStaff':
@@ -834,6 +846,9 @@ function handleChange(el) {
     case 'setRecipe':
       app.dispatch({ type: 'setRecipe', unitId: id, recipe: el.value });
       break;
+    case 'setGrade':
+      app.dispatch({ type: 'setGrade', unitId: id, good: el.dataset.good, grade: el.value });
+      break;
     case 'setSellMode':
       app.dispatch({ type: 'setSellMode', unitId: id, mode: el.value });
       break;
@@ -879,6 +894,115 @@ function handleChange(el) {
       break;
     default:
   }
+}
+
+// Постройка: окно с фактами (вложения, аренда, зарплаты, содержание) — без прогноза прибыли
+async function confirmBuild(where, type, recipe) {
+  const { state } = app;
+  const def = BUSINESSES[type];
+  let lot = where.lotId ? state.world.lots[where.lotId] : null;
+  const place = state.world.places[lot ? lot.placeId : where.placeId];
+  if (!lot) lot = lotAtCell(state, place, ...where.cell) || makeCellLot(state, place, ...where.cell, type);
+  const capex = capexFor(state, lot, type);
+  const fee = entryFee(state, app.companyId, place, type);
+  const lic = licenseNeeded(state, app.companyId, place, type);
+  const wages = def.staff.def * def.staff.wage * place.wage;
+  const upkeep = (def.upkeep.base + def.upkeep.perArea * lot.area) * costIndex(place);
+  const monthly = wages + upkeep + (lot.ownerId === app.companyId ? 0 : lot.rent);
+  const total = capex + fee + (lic?.cost ?? 0);
+  const parts = [['Площадь', `${num(lot.area)} ${lot.zoning === 'farmland' ? 'га' : 'м²'}`], ['Строительство и оборудование', money(capex)]];
+  if (fee) parts.push(['Выход на рынок страны', money(fee)]);
+  if (lic) parts.push([lic.name, money(lic.cost)]);
+  parts.push(['Аренда', `${money(lot.ownerId === app.companyId ? 0 : lot.rent)}/мес`], [`Зарплаты (${def.staff.def} чел.)`, `${money(wages)}/мес`], ['Содержание', `${money(upkeep)}/мес`]);
+  if (recipe) parts.push(['Продукция', `${GOODS[recipe].icon} ${GOODS[recipe].name}`]);
+  const left = app.company.cash - total;
+  const text = `${esc(place.name)}. Всего к оплате: ${money(total)}.${left < monthly ? `\nПосле этого в кассе останется ${money(left)} — меньше месячных расходов (${money(monthly)}).` : ''}`;
+  if (!(await ask({ title: `Построить «${def.name}»?`, text, parts, ok: `Построить · ${moneyShort(total)}` }))) return false;
+  const r = await app.dispatch({ type: 'openBusiness', ...where, businessType: type, recipe });
+  if (r.ok) {
+    play('coin');
+    app.select({ kind: 'unit', id: r.unitId });
+    renderCity(app, true);
+  }
+  return r.ok;
+}
+
+// Экран города: клики по клеткам, подсказки, меню «Построить»
+function bindCity() {
+  const root = document.getElementById('city');
+  const cellAt = (e) => {
+    const r = /** @type {any} */ (closestEl(e, 'rect[data-x]'));
+    if (r) return [Number(r.dataset.x), Number(r.dataset.y)];
+    const svg = /** @type {any} */ (closestEl(e, 'svg'));
+    if (!svg) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = /** @type {MouseEvent} */ (e).clientX;
+    pt.y = /** @type {MouseEvent} */ (e).clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    return [Math.floor(p.x), Math.floor(p.y)];
+  };
+  root.addEventListener('click', async (e) => {
+    const b = closestEl(e, '[data-city]');
+    if (b) {
+      const what = b.dataset.city;
+      if (what === 'close') closeCity(app);
+      else if (what === 'menu') {
+        app.city.menu = !app.city.menu;
+        renderCity(app, true);
+      } else if (what === 'build') {
+        if (!b.classList.contains('locked')) startBuild(app, b.dataset.type);
+      } else if (what === 'cancel') cancelBuild(app);
+      return;
+    }
+    const act = closestEl(e, '[data-action]');
+    if (act) return handleAction(act);
+    if (!closestEl(e, '#city-svg')) return;
+    const place = app.state.world.places[app.city.placeId];
+    const c = cellAt(e);
+    if (!c) return;
+    const [x, y] = c;
+    if (app.city.build) {
+      const why = cellBuildable(app.state, place, x, y, app.city.build);
+      if (why) return toast(why, 'bad');
+      const ok = await confirmBuild({ placeId: place.id, cell: [x, y] }, app.city.build, app.city.recipe || undefined);
+      if (ok) cancelBuild(app);
+      return;
+    }
+    const lot = lotAtCell(app.state, place, x, y);
+    if (lot?.unitId) app.select({ kind: 'unit', id: lot.unitId });
+    else if (cellInfo(app.state, place, x, y).land) app.select({ kind: 'cell', placeId: place.id, x, y });
+    renderCity(app, true);
+  });
+  root.addEventListener('change', (e) => {
+    if (target(e).matches('[data-city-recipe]')) app.city.recipe = target(e).value;
+  });
+  root.addEventListener('mousemove', (e) => {
+    const tip = document.getElementById('city-tip');
+    if (!tip || !app.city) return;
+    const c = closestEl(e, '#city-svg') ? cellAt(e) : null;
+    const place = app.state.world.places[app.city.placeId];
+    const { n } = gridOf(place);
+    if (!c || c[0] < 0 || c[1] < 0 || c[0] >= n || c[1] >= n) {
+      tip.hidden = true;
+      return;
+    }
+    const key = `${c[0]}|${c[1]}|${app.city.build}`;
+    if (tip.dataset.key !== key) {
+      const f = cellFacts(app, place, c[0], c[1], app.city.build);
+      tip.innerHTML = `<b>${esc(f.title)}</b>${f.rows.map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join('')}`;
+      tip.dataset.key = key;
+    }
+    tip.hidden = false;
+    const me = /** @type {MouseEvent} */ (e);
+    const left = Math.min(me.clientX + 16, window.innerWidth - tip.offsetWidth - 8);
+    const top = Math.min(me.clientY + 16, window.innerHeight - tip.offsetHeight - 8);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+  });
+  root.addEventListener('mouseleave', () => {
+    const tip = document.getElementById('city-tip');
+    if (tip) tip.hidden = true;
+  });
 }
 
 // Дерево исследований листается перетаскиванием (клик по узлу без сдвига — начать исследование)
@@ -986,7 +1110,10 @@ function bindUi() {
     } else if (['Digit1', 'Digit2', 'Digit3'].includes(e.code)) {
       setSpeed(Number(e.code.slice(-1)));
     } else if (e.key === 'Escape') {
-      app.select(null);
+      if (dialogDone) return;
+      if (cancelBuild(app)) return; // сначала — выйти из режима стройки
+      if (app.selection) app.select(null);
+      else if (app.city) closeCity(app);
     }
   });
 }
@@ -998,6 +1125,7 @@ async function boot() {
   app.session = new LocalSession(createGame({ seed: 1 }));
   bindUi();
   bindDialog();
+  bindCity();
   bindLobby();
   bindSettings();
   document.getElementById('lobby-import').addEventListener('change', (e) => {

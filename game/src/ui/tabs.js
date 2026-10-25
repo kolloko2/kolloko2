@@ -1,7 +1,7 @@
 import { bizIcon, goodIcon } from './icons.js';
-import { BUSINESSES } from '../data/businesses.js';
+import { BUSINESSES, STAFF_CLASSES } from '../data/businesses.js';
 import { DISTRICTS } from '../data/districts.js';
-import { GOODS } from '../data/goods.js';
+import { GOODS, GRADES } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
 import { LICENSES } from '../data/laws.js';
@@ -25,7 +25,6 @@ import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars, li
 export const TABS = [
   { id: 'units', icon: '🏢', img: 'city', name: 'Бизнесы' },
   { id: 'tasks', icon: '⚠️', img: 'tasks', name: 'Задачи' },
-  { id: 'search', icon: '🔍', img: 'search', name: 'Поиск мест' },
   { id: 'market', icon: '💹', img: 'market', name: 'Рынок' },
   { id: 'finance', icon: '🏦', img: 'finance', name: 'Финансы' },
   { id: 'news', icon: '📰', img: 'news', name: 'Новости' },
@@ -86,36 +85,6 @@ function renderUnits(app) {
 }
 
 // Поиск мест: лучшие участки для выбранного бизнеса (считается по кнопке — это долго)
-// Группы в списке типов бизнеса: так длинный список легче листать
-/** @type {[string, (d: any) => boolean][]} */
-const SEARCH_GROUPS = [
-  ['Магазины и общепит', (d) => Boolean(d.retail)],
-  ['Услуги и недвижимость', (d) => !d.retail && Boolean(d.service)],
-  ['Сырьё: земля и недра', (d) => !d.retail && ['farm', 'mining', 'oil'].includes(d.category)],
-  ['Заводы и фабрики', (d) => !d.retail && !d.service && !['farm', 'mining', 'oil'].includes(d.category)],
-];
-
-function renderSearch(app) {
-  const { state } = app;
-  const q = app.search || { type: 'coffee_shop', country: '' };
-  const types = Object.entries(BUSINESSES).filter(([, d]) => !d.storage);
-  let html = `<h2>🔍 Поиск мест</h2><p class="muted small">Лучшие свободные участки по окупаемости для выбранного бизнеса. Прогноз — примерный: учтены спрос, конкуренты, аренда, сборы и лицензии.</p>
-    <div class="filters"><select id="search-type">${SEARCH_GROUPS.map(([name, test]) => `<optgroup label="${name}">${types.filter(([, d]) => test(d))
-      .map(([id, d]) => `<option value="${id}" ${q.type === id ? 'selected' : ''}>${d.icon} ${d.name}</option>`).join('')}</optgroup>`).join('')}</select>
-    <select id="search-country"><option value="">Весь мир</option>${Object.entries(COUNTRIES).sort((a, z) => a[1].name.localeCompare(z[1].name, 'ru')).map(([c, d]) => `<option value="${c}" ${q.country === c ? 'selected' : ''}>${d.name}</option>`).join('')}</select></div>
-    <button class="btn" data-action="search">Найти</button>`;
-  const res = app.searchResults;
-  if (!res) return html;
-  if (!res.length) return `${html}<p class="muted">Подходящих мест с прибылью не нашлось.</p>`;
-  html += '<table class="tbl hover compact"><tr><th>Где</th><th>Прибыль/мес</th><th>Окупаемость</th><th>Вложения</th></tr>';
-  for (const r of res) {
-    const d = state.world.districts[r.districtId];
-    html += `<tr data-action="selectLot" data-id="${r.lotId}"><td>${esc(state.world.places[r.placeId].name)}<small class="muted"><br>${esc(DISTRICTS[d.type].name)}</small></td>
-      <td class="pos">${moneyShort(r.profit)}</td><td>${r.payback < 1000 ? `${Math.round(r.payback)} мес.` : '—'}</td><td>${moneyShort(r.cost)}${r.locked ? ' 🔬' : ''}</td></tr>`;
-  }
-  return `${html}</table>`;
-}
-
 // Задачи: что требует внимания, с исправлением в один клик
 function renderTasks(app) {
   const { state } = app;
@@ -359,7 +328,8 @@ function renderBrands(app) {
     html += `<div class="muted small">Реклама на каждую точку, $/мес при уровне цен 1 (в дорогих городах больше):</div>
       ${Object.entries(AD_CHANNELS).map(([ch, c]) => `<div class="row"><span title="${esc(c.desc)}">${c.icon} ${c.name}</span><span class="price-ctl"><input type="number" min="0" step="50" value="${b.ads?.[ch] || 0}" data-change="brandAds" data-id="${b.id}" data-channel="${ch}"></span></div>`).join('')}
       <label class="row check"><span>🛠 Автообновление: сеть сама ремонтирует точки при износе 35% (если в кассе есть деньги)</span><input type="checkbox" data-change="setAutoRenew" data-id="${b.id}" ${b.autoRenew ? 'checked' : ''}></label>
-      <div class="row"><span>Зарплаты</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${b.wageLevel === l ? 'active' : ''}" data-action="brandWage" data-id="${b.id}" data-level="${l}">${Math.round(l * 100)}%</button>`).join('')}</span></div>`;
+      <div class="row"><span>Персонал</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${b.wageLevel === l ? 'active' : ''}" data-action="brandWage" data-id="${b.id}" data-level="${l}" title="зарплата ${Math.round(l * 100)}%">${STAFF_CLASSES[l].name}</button>`).join('')}</span></div>
+      <div class="row"><span>Закупки</span><span class="chips tight">${Object.entries(GRADES).map(([g, gr]) => `<button class="chip ${(b.grades?.[BUSINESSES[b.type].retail?.products[0] ? Object.keys(BUSINESSES[b.type].retail.products[0].recipe)[0] : ''] ?? 'std') === g ? 'active' : ''}" data-action="brandGrade" data-id="${b.id}" data-grade="${g}">${gr.name}</button>`).join('')}</span></div>`;
     if (cities.length) {
       html += '<table class="tbl compact"><tr><th>Город</th><th>Точек</th><th>Узнаваемость бренда</th></tr>';
       for (const pid of cities) {
@@ -654,9 +624,9 @@ function renderGoals(app) {
 function renderHelp() {
   return `<h2>❓ Как играть</h2>
   <ol class="help">
-    <li><b>Выберите город</b> на карте (🏙️) и приблизьтесь. Цветные круги — районы: деловой центр, спальный, студенческий и т.д.</li>
-    <li><b>Нажмите на район</b>, чтобы увидеть спрос и конкурентов, затем на <b>свободный участок 🏬</b>.</li>
-    <li>В панели участка есть <b>прогноз</b> для каждого подходящего бизнеса: клиенты, выручка, расходы, окупаемость. Откройте лучший.</li>
+    <li><b>Нажмите на город</b> на карте мира — откроется его план клетками. Цвет — район, яркость — людность (и цена аренды).</li>
+    <li><b>«🏗 Построить»</b> → бизнес → клетка. Ставить можно почти что угодно где угодно: кофейню в промзоне никто не запретит, но и покупателей там нет. Прогноза прибыли нет — считайте сами: прохожие, аренда, конкуренты района (нажмите на район в легенде).</li>
+    <li><b>Качество</b>: класс товара (дешёвый → элитный) зависит от сырья, оборудования и персонала. Закупайте на рынке нужный класс, покупайте оборудование классом выше, нанимайте профессионалов — рейтинг растёт, а элитное можно продавать дороже.</li>
     <li>Бизнес сам закупает сырьё (молоко, зерно, стаканы…) на мировом рынке. Следите за <b>ценами</b>, <b>персоналом</b> (иначе очереди) и <b>рекламой</b> (узнаваемость).</li>
     <li><b>Связывайте бизнесы в цепочки:</b> плантация 🌳 → обжарка 🔥 → кофейни; ферма 🌾 → мельница ⚙️ → пекарни и фастфуд; скот 🐂 → мясокомбинат → рестораны; молочная ферма 🐄 → молокозавод 🧀 → супермаркеты. Своё везётся, только если с доставкой дешевле рынка. Линии цепочек видны на карте.</li>
     <li><b>Склад</b> 🏗️ держит запас для точек рядом, закупает оптом и получает дальние партии по оптовому тарифу. <b>Контракты</b> в панели бизнеса фиксируют цену на 3–12 месяцев.</li>
@@ -703,7 +673,7 @@ export function renderDrawer(app, force = false) {
   // не мешаем вводу суммы кредита и выбору в выпадающем списке (перерисовка закрыла бы его)
   if ((active?.tagName === 'INPUT' || active?.tagName === 'SELECT') && chatDraft === null && !force) return;
   const render = {
-    units: renderUnits, tasks: renderTasks, search: renderSearch, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands,
+    units: renderUnits, tasks: renderTasks, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands,
     countries: renderCountries, stocks: renderStocks, rivals: renderRivals, research: renderResearch, goals: renderGoals, room: renderRoom, help: renderHelp,
   }[app.tab];
   const scroll = el.scrollTop;

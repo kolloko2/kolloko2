@@ -871,3 +871,33 @@ test('класс товара: оборудование и люди произв
   stepDays(s2, 90);
   assert.ok(a.quality > b.quality + 0.8, `рейтинг ${a.quality} против ${b.quality}`);
 });
+
+test('план города: строить можно в любой клетке суши, завод — хоть в центре', async () => {
+  const { cellInfo, cellBuildable, lotAtCell, gridOf } = await import('../src/sim/index.js');
+  const { makeSnapshot, stateFromSnapshot } = await import('../src/net/snapshot.js');
+  const s = createGame({ seed: 49, rivals: 0 });
+  s.companies.c1.cash = 2e7;
+  const msk = s.world.places.msk;
+  const { n } = gridOf(msk);
+  // найти свободную клетку суши у центра
+  let cell = null;
+  for (let r = 0; r < n / 2 && !cell; r++) {
+    for (let dx = -r; dx <= r && !cell; dx++) {
+      const x = Math.floor(n / 2) + dx;
+      const y = Math.floor(n / 2) + r;
+      if (cellInfo(s, msk, x, y).land && !lotAtCell(s, msk, x, y)) cell = [x, y];
+    }
+  }
+  assert.ok(cell, 'нашлась клетка');
+  assert.equal(cellBuildable(s, msk, ...cell, 'coffee_plantation'), 'Фермы, шахты и плантации — только в сельских регионах');
+  const r = applyCommand(s, { type: 'openBusiness', placeId: 'msk', cell, businessType: 'packaging_plant' }, 'c1');
+  assert.ok(r.ok, r.error);
+  const lot = lotAtCell(s, msk, ...cell);
+  assert.equal(lot.unitId, r.unitId);
+  assert.ok(lot.area >= 300 && lot.rent > 0);
+  assert.ok(!applyCommand(s, { type: 'openBusiness', placeId: 'msk', cell, businessType: 'coffee_shop' }, 'c1').ok, 'клетка занята');
+  // клиент мультиплеера получает новый участок из снимка
+  const client = stateFromSnapshot(s.seed, makeSnapshot(s, { lots: true }));
+  assert.equal(client.world.lots[lot.id].unitId, r.unitId);
+  stepDays(s, 10);
+});

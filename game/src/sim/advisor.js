@@ -16,7 +16,7 @@ export function advice(state, companyId) {
   const costs = h ? Math.max(0, h.revenue - h.profit) : 0;
 
   if (!units.length) {
-    out.push({ id: 'first', icon: '🚀', text: 'Откройте первый бизнес: выберите город, район и свободный участок с лучшим прогнозом. Фастфуд-киоск — самый дешёвый старт.' });
+    out.push({ id: 'first', icon: '🚀', text: 'Откройте первый бизнес: нажмите на город, затем «🏗 Построить» и выберите клетку. Фастфуд-киоск — самый дешёвый старт.' });
     return out;
   }
   if (co.cash < 0) out.push({ id: 'cash', icon: '🆘', text: 'Касса в минусе! Возьмите кредит или закройте убыточные точки, иначе через 45 дней — банкротство.', tab: 'finance' });

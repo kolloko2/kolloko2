@@ -15,10 +15,15 @@ import { techLevel, missingTech } from './research.js';
 
 const FORECAST_AWARENESS = 0.35; // узнаваемость через пару месяцев при стандартной рекламе
 
+export const INDUSTRIAL_MIN_AREA = 300;
+
 export function canBuildHere(state, lot, type) {
   const def = BUSINESSES[type];
-  if (def.zoning !== lot.zoning) return false;
+  // в городе почти любой бизнес можно поставить где угодно (окупится ли — другой вопрос); земля — только в регионах
+  const city = lot.zoning !== 'farmland';
+  if (city ? def.zoning === 'farmland' : def.zoning !== 'farmland') return false;
   if (def.minArea && lot.area < def.minArea) return false;
+  if (def.zoning === 'industrial' && lot.area < INDUSTRIAL_MIN_AREA) return false; // цеху нужно место
   if (lot.zoning === 'farmland') return state.world.places[lot.placeId].kinds.includes(type) && allowedRecipes(state.world.places[lot.placeId], type).length > 0;
   if (def.onlyPort || def.service?.onlyPort) return Boolean(state.world.places[lot.placeId].port);
   return true;
