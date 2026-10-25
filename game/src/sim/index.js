@@ -34,7 +34,7 @@ export {
   companyAlerts, ALERT_KINDS, directorCost, DIRECTOR_WAGE, WORN,
 } from './management.js';
 export {
-  ARCHETYPES, rivalUnitPrice, truceCost, isAi, TRUCE_MONTHS,
+  ARCHETYPES, rivalUnitPrice, truceCost, isAi, TRUCE_MONTHS, offerText, bidForUnit, rivalWants,
 } from './rivals.js';
 export {
   techLevel, techCost, techLocked, researchSpeed, missingTech, lobbyCost, lobbyChance, employees, taxBreak,
@@ -43,3 +43,4 @@ export {
 export { adsOf, channelFit, adGain } from './ads.js';
 export { ownBillboards } from './bonuses.js';
 export { trendOf, districtEventOf } from './luck.js';
+export { advice } from './advisor.js';

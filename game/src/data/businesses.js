@@ -247,7 +247,7 @@ export const BUSINESSES = {
     upkeep: { base: 1200, perArea: 2 },
     staff: { role: 'Монтажник', wage: 2600, min: 1, max: 15, def: 3 },
     marketing: 0,
-    service: { revenuePerStaff: 230, inputs: {}, bonus: 'Ваши точки в этом городе бесплатно висят на билбордах (как $1500/мес рекламы каждой)' },
+    service: { revenuePerStaff: 110, inputs: {}, bonus: 'Ваши точки в этом городе бесплатно висят на билбордах (как $1500/мес рекламы каждой)' },
   },
   warehouse: {
     name: 'Склад', icon: '🏗️', zoning: 'industrial', category: 'logistics', tier: 2,

@@ -11,7 +11,7 @@ import {
   countryState, regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
-  condition, renovateCost, seasonFactor, rivalUnitPrice, ARCHETYPES, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
+  condition, renovateCost, seasonFactor, rivalUnitPrice, ARCHETYPES, bidForUnit, rivalWants, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
@@ -436,6 +436,13 @@ function renderUnit(app, u) {
   if (!lot.ownerId) html += lotOwnershipButtons(app, lot);
   html += `<button class="btn ghost" data-action="copySettings" data-id="${u.id}" title="Те же цены (относительно местной нормы), реклама и сбыт">📋 Применить настройки ко всем «${def.name}»</button>`;
   html += `<button class="btn danger" data-action="close" data-id="${u.id}">✖ Закрыть бизнес</button></div>`;
+  const buyers = Object.values(state.companies).filter((c) => c.ai && !c.bankrupt && rivalWants(state, c, u));
+  if (buyers.length) {
+    html += `<div class="card"><div class="row"><span>🤝 Продать корпорации · они дадут ~${moneyShort(bidForUnit(state, u))}</span>
+      <span><select id="sell-to-${u.id}">${buyers.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+      <button class="mini wide" data-action="sellToRival" data-id="${u.id}">Продать</button></span></div>
+      <div class="muted small">Цена: оборудование и два года прибыли точки. Выгоднее закрытия, если точка прибыльна.</div></div>`;
+  }
 
   if (def.storage) html += renderWarehouse(app, u);
   const goods = [...new Set([...Object.keys(u.usage), ...Object.keys(u.inv)])];

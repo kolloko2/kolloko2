@@ -7,7 +7,7 @@ import { LICENSES } from '../data/laws.js';
 import { TECHS } from '../data/tech.js';
 import { AD_CHANNELS } from '../data/ads.js';
 import {
-  ARCHETYPES, truceCost, TRUCE_MONTHS, techLevel, techCost, techLocked, researchSpeed, lobbyCost, lobbyChance, employees, taxBreak,
+  ARCHETYPES, truceCost, TRUCE_MONTHS, offerText, techLevel, techCost, techLocked, researchSpeed, lobbyCost, lobbyChance, employees, taxBreak,
   LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER, loanRate,
   companyAlerts, ALERT_KINDS, directorCost, condition,
   overhead, countryState, franchiseCount, franchiseAppeal, packageCost, ROYALTIES, FRANCHISE_MIN_UNITS,
@@ -17,6 +17,7 @@ import {
   regionOf, midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits, GOALS, goalContext, victoryText,
 } from '../sim/index.js';
 import { SPEEDS } from '../net/session.js';
+import { tabHint } from './tutorial.js';
 import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars, lineChart } from './format.js';
 
 export const TABS = [
@@ -445,6 +446,15 @@ function renderRivals(app) {
   let html = `<h2>🦈 Соперники</h2><p class="muted small">В мире работают ИИ-корпорации со своим характером. Они открывают точки рядом с вашими, выкупают помещения и акции.
     С ними можно договориться: выкупить их бизнес (нажмите на их точку на карте), заплатить за перемирие или купить их акции на бирже и поглотить.</p>`;
   if (!rivals.length) return `${html}<p class="muted">В этой игре корпораций нет.</p>`;
+  const offers = (state.offers || []).filter((o) => o.to === app.companyId && o.until > state.day);
+  if (offers.length) {
+    html += '<h3>📨 Предложения</h3>';
+    for (const o of offers) {
+      html += `<div class="card"><div>${esc(offerText(state, o))}</div><div class="row"><small class="muted">действует ещё ${o.until - state.day} дн.</small>
+        <span><button class="mini wide" data-action="answerOffer" data-id="${o.id}" data-accept="1">Принять</button>
+        <button class="mini wide" data-action="answerOffer" data-id="${o.id}" data-accept="0">Отказать</button></span></div></div>`;
+    }
+  }
   for (const r of rivals) {
     const arch = ARCHETYPES[r.ai.archetype];
     const units = companyUnits(state, r.id);
@@ -576,7 +586,7 @@ export function renderDrawer(app) {
     countries: renderCountries, stocks: renderStocks, rivals: renderRivals, research: renderResearch, goals: renderGoals, room: renderRoom, help: renderHelp,
   }[app.tab];
   const scroll = el.scrollTop;
-  el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${render(app)}`;
+  el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${tabHint(app.tab)}${render(app)}`;
   el.scrollTop = scroll;
   if (chatDraft !== null) {
     const input = el.querySelector('#chat-form input');

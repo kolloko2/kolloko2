@@ -13,7 +13,9 @@ import { BRAND_TIERS, newBrand, applyBrand, detachFromBrand, brandUnits } from '
 import { entryFee, LOCAL_TEAM_UNITS } from './expansion.js';
 import { licenseNeeded, grantLicense } from './countries.js';
 import { bulk, closeUnit, newDirector, directorCost } from './management.js';
-import { buyRivalUnit, rivalUnitPrice, truceCost, TRUCE_MONTHS } from './rivals.js';
+import {
+  buyRivalUnit, rivalUnitPrice, truceCost, TRUCE_MONTHS, acceptOffer, offerText, bidForUnit, rivalWants, transferUnit,
+} from './rivals.js';
 import {
   missingTech, techLocked, techCost, startResearch, lobby, lobbyCost, LOBBY_GOALS, LOBBY_COOLDOWN,
 } from './research.js';
@@ -276,6 +278,32 @@ const handlers = {
     unit.name = `${BUSINESSES[unit.type].name} (бывш. ${seller})`;
     addNews(state, 'good', `Куплен бизнес у «${seller}» за ${fmt(price)}.`, { unitId }, companyId);
     return OK;
+  },
+
+  answerOffer(state, { offerId, accept }, companyId) {
+    const o = (state.offers || []).find((x) => x.id === offerId && x.to === companyId && x.until > state.day);
+    if (!o) return fail('Предложение уже не действует');
+    state.offers = state.offers.filter((x) => x !== o);
+    if (!accept) return OK;
+    const err = acceptOffer(state, o);
+    if (err) return fail(err);
+    addNews(state, 'good', `Сделка заключена: ${offerText(state, o)}`, null, companyId);
+    return OK;
+  },
+
+  sellToRival(state, { unitId, rivalId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    const rival = state.companies[rivalId];
+    if (!unit || !rival?.ai || rival.bankrupt) return fail('Нет такой сделки');
+    if (!rivalWants(state, rival, unit)) return fail(`«${rival.name}» такой бизнес не интересен`);
+    const price = bidForUnit(state, unit);
+    if (rival.cash < price * 1.5) return fail(`У «${rival.name}» сейчас нет таких денег`);
+    pay(state, rivalId, price);
+    receive(state, companyId, price);
+    const name = unit.name;
+    transferUnit(state, unit, rivalId);
+    addNews(state, 'good', `«${name}» продан корпорации «${rival.name}» за ${fmt(price)}.`, null, companyId);
+    return { ok: true, price };
   },
 
   buyTruce(state, { rivalId }, companyId) {

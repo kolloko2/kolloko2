@@ -1,6 +1,6 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
 import { createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, SAVE_VERSION, VICTORY_OPTIONS } from './sim/index.js';
-import { renderTutorial, restartTutorial, skipTutorial } from './ui/tutorial.js';
+import { renderTutorial, restartTutorial, skipTutorial, advisorAction, hideHint, resetHints } from './ui/tutorial.js';
 import { LocalSession, RemoteSession, SPEEDS } from './net/session.js';
 import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot } from './ui/map.js';
 import { renderPanel } from './ui/panels.js';
@@ -430,6 +430,22 @@ async function handleAction(el) {
       if (r.ok) toast(r.success ? 'Закон принят!' : 'Лоббирование не удалось', r.success ? 'good' : 'bad');
       break;
     }
+    case 'answerOffer': {
+      const accept = el.dataset.accept === '1';
+      if (accept && !confirm('Принять предложение?')) break;
+      const r = await app.dispatch({ type: 'answerOffer', offerId: Number(id), accept });
+      if (r.ok && accept) toast('Сделка заключена', 'good');
+      break;
+    }
+    case 'sellToRival': {
+      if (!confirm('Продать бизнес корпорации?')) break;
+      const r = await app.dispatch({ type: 'sellToRival', unitId: id, rivalId: document.getElementById(`sell-to-${id}`).value });
+      if (r.ok) {
+        toast(`Продано за ${money(r.price)}`, 'good');
+        app.select(null);
+      }
+      break;
+    }
     case 'buyRivalUnit':
       if (confirm('Выкупить этот бизнес у корпорации?')) {
         const r = await app.dispatch({ type: 'buyRivalUnit', unitId: id });
@@ -559,8 +575,13 @@ async function handleAction(el) {
         if (r.ok) toast('Компания поглощена', 'good');
       }
       break;
+    case 'hintOk':
+      hideHint(el.dataset.tab);
+      renderDrawer(app);
+      break;
     case 'restartTutorial':
       restartTutorial();
+      resetHints();
       app.tab = null;
       renderDrawer(app);
       renderTutorial(app);
@@ -705,6 +726,13 @@ async function boot() {
       skipTutorial();
       renderTutorial(app);
     }
+    const a = e.target.closest('[data-advisor]');
+    if (!a) return;
+    if (a.dataset.advisor === 'open') {
+      app.tab = a.dataset.tab;
+      renderDrawer(app);
+    }
+    advisorAction(app, a.dataset.advisor);
   });
   document.getElementById('winner-close').addEventListener('click', () => document.getElementById('winner').classList.remove('open'));
   initMap(app);

@@ -457,3 +457,10 @@ label.row.check { cursor: pointer; font-weight: normal; }
 .filters { display: flex; gap: 8px; margin: 4px 0 8px; }
 .filters select { flex: 1; }
 .btn-row .price-ctl input { width: 56px; }
+
+/* ---------- советник и подсказки ---------- */
+#tutorial.advisor { background: #fffbea; color: #3d3415; border: 1px solid #f0d77a; left: calc(50% + 20px); transform: translateX(-50%); width: 360px; font-size: 13px; }
+#tutorial.advisor .btn-row { margin-top: 8px; }
+#tutorial.advisor .link { color: #8a6d00; }
+.hint { background: #fffbea; border: 1px solid #f0d77a; border-radius: 10px; padding: 8px 10px; margin: 0 0 10px; font-size: 13px; }
+.hint .link { margin-left: 6px; }

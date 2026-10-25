@@ -3,7 +3,7 @@ import { GOODS } from '../data/goods.js';
 import { buyPrice, sellPrice } from './market.js';
 import { deliver } from './logistics.js';
 import { addNews } from './state.js';
-import { placeOf, productionCapacity, invQty, takeInv, pay, spend, earn, outputGood } from './units.js';
+import { placeOf, productionCapacity, invQty, takeInv, pay, receive, spend, earn, outputGood } from './units.js';
 
 // Контракты с ИИ-контрагентами: фиксированная цена и объём в день на 3–12 месяцев.
 //   buy  — поставщик каждый день привозит товар (take-or-pay: платите, даже если товар не нужен);
@@ -50,6 +50,7 @@ export function endContract(state, c, { penalty = false } = {}) {
     const unit = state.units[c.unitId];
     if (unit) spend(state, unit, 'other', fine);
     else pay(state, c.companyId, fine);
+    if (c.counterparty && state.companies[c.counterparty]) receive(state, c.counterparty, fine);
     return fine;
   }
   return 0;
@@ -72,6 +73,8 @@ export function runContracts(state) {
     }
     if (c.side === 'buy') {
       pay(state, c.companyId, c.qtyPerDay * c.price);
+      // поставщик — корпорация: деньги уходят ей
+      if (c.counterparty && state.companies[c.counterparty] && !state.companies[c.counterparty].bankrupt) receive(state, c.counterparty, c.qtyPerDay * c.price);
       deliver(state, unit, c.good, c.qtyPerDay, c.price, 1);
       unit.supplied[c.good] = 'contract';
     } else {

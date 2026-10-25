@@ -653,3 +653,29 @@ test('удача: вирусные ролики, мода и события в �
   assert.ok(Object.keys(a.districtEvents).length + Object.keys(b.districtEvents).length > 0, 'бывают события в районах');
   assert.notEqual(Math.round(a.companies.c1.cash), Math.round(b.companies.c1.cash));
 });
+
+test('советник и предложения корпораций', async () => {
+  const { advice } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 26 });
+  assert.equal(advice(s, 'c1')[0].id, 'first');
+  s.companies.c1.cash = 3e7;
+  for (let i = 0; i < 6; i++) open(s, ['nyc', 'chi'][i % 2], 'fastfood');
+  stepDays(s, 365 * 3);
+  const tips = advice(s, 'c1');
+  assert.ok(tips.length >= 1 && tips.every((t) => t.text));
+  assert.ok(s.news.some((n) => n.companyId === 'c1' && n.text.startsWith('📨')), 'корпорации присылают предложения');
+  // принять любое действующее предложение
+  const o = s.offers.find((x) => x.to === 'c1' && x.until > s.day && x.kind !== 'buyBrand');
+  if (o) {
+    const r = applyCommand(s, { type: 'answerOffer', offerId: o.id, accept: true }, 'c1');
+    assert.ok(r.ok || r.error, 'ответ обработан');
+  }
+  const u = Object.values(s.units).find((x) => x.companyId === 'c1');
+  const raider = Object.values(s.companies).find((c) => c.ai?.archetype === 'raider');
+  raider.cash = 1e8;
+  const before = s.companies.c1.cash;
+  const r = applyCommand(s, { type: 'sellToRival', unitId: u.id, rivalId: raider.id }, 'c1');
+  assert.ok(r.ok, r.error);
+  assert.equal(u.companyId, raider.id);
+  assert.ok(s.companies.c1.cash > before);
+});
