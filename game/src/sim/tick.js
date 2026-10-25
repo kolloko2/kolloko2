@@ -246,7 +246,7 @@ function monthEnd(state) {
     unit.history.push(Math.round(monthProfit(unit.month)));
     if (unit.history.length > 24) unit.history.shift();
     unit.month = emptyMonth();
-    unit.bookValue *= 0.99;
+    unit.bookValue *= 0.995; // амортизация ~6% в год
   }
   monthlyFranchise(state);
   for (const co of activeCompanies(state)) closeCompanyMonth(state, co, companyUnits(state, co.id));

@@ -56,8 +56,8 @@ export function monthlyRent(state, unit) {
 // ---------- износ ----------
 // Оборудование и интерьер стареют: ~1% в месяц (быстрее при полной загрузке). Изношенная точка
 // хуже выглядит (рейтинг), чаще ломается, медленнее производит и дороже в обслуживании. Лечится обновлением.
-export const WEAR_PER_DAY = 0.035;
-export const RENOVATE_SHARE = 0.4; // полное обновление стоит 40% вложений
+export const WEAR_PER_DAY = 0.028;
+export const RENOVATE_SHARE = 0.25; // полное обновление стоит 25% вложений
 
 export const condition = (unit) => unit.condition ?? 100;
 

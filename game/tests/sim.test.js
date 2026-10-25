@@ -554,7 +554,7 @@ test('задачи и массовые действия', async () => {
   s.companies.c1.cash = 3e6;
   const a = open(s, 'ber', 'coffee_shop');
   const b = open(s, 'ber', 'coffee_shop');
-  stepDays(s, 365 * 3);
+  stepDays(s, 365 * 5);
   const alerts = companyAlerts(s, 'c1');
   assert.ok(alerts.some((x) => x.kind === 'worn'), 'износ заметен');
   assert.ok(alerts.some((x) => x.kind === 'cheap'), 'цены отстали от инфляции');
