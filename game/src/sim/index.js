@@ -36,7 +36,7 @@ export {
   companyAlerts, ALERT_KINDS, directorCost, DIRECTOR_WAGE, WORN, companyReport, defaultRules,
 } from './management.js';
 export {
-  ARCHETYPES, rivalUnitPrice, truceCost, isAi, TRUCE_MONTHS, offerText, bidForUnit, rivalWants,
+  ARCHETYPES, rivalUnitPrice, rivalUnitQuote, truceQuote, dealMood, truceCost, isAi, TRUCE_MONTHS, offerText, bidForUnit, rivalWants,
 } from './rivals.js';
 export {
   techLevel, hasTech, techCost, techLocked, researchSpeed, missingTech, lobbyCost, lobbyChance, employees, taxBreak,

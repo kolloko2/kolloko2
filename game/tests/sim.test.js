@@ -821,3 +821,23 @@ test('города: по 3–6 в крупных странах, узнавае�
   assert.ok((brand.awareness.kzn?.p ?? 0) > 0.05, 'в Казани о сети уже слышали');
   assert.ok(!brand.awareness.ber, 'а в Берлине — нет');
 });
+
+test('сделки с корпорациями: цена перемирия живая и растёт с каждым разом', async () => {
+  const { truceQuote, rivalUnitQuote, dealMood } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 45 });
+  s.companies.c1.cash = 1e8;
+  open(s, 'nyc', 'coffee_shop');
+  stepDays(s, 120);
+  const rival = Object.values(s.companies).find((c) => c.ai && !c.bankrupt);
+  const q1 = truceQuote(s, rival, 'c1');
+  assert.ok(q1.price > 0 && q1.parts.length >= 2, 'цена с объяснением');
+  // настроение рынка меняется по неделям
+  const moods = new Set([0, 7, 14, 21, 28].map((d) => dealMood({ ...s, day: s.day + d }, 'x').toFixed(3)));
+  assert.ok(moods.size > 1);
+  assert.ok(applyCommand(s, { type: 'buyTruce', rivalId: rival.id }, 'c1').ok);
+  s.companies.c1.truces[rival.id] = 0; // перемирие кончилось
+  const q2 = truceQuote(s, rival, 'c1');
+  assert.ok(q2.price > q1.price * 1.3, `повторное перемирие дороже: ${q1.price} → ${q2.price}`);
+  const unit = Object.values(s.units).find((u) => s.companies[u.companyId].ai);
+  if (unit) assert.ok(rivalUnitQuote(s, unit).price > 0);
+});

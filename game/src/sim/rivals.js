@@ -1,7 +1,8 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { CITIES, COUNTRIES } from '../data/cities.js';
 import { rand, randPick, chance } from './rng.js';
-import { addNews, companyUnits } from './state.js';
+import { addNews, companyUnits, netWorth } from './state.js';
+import { countryDemand } from './countries.js';
 import { canBuildHere, forecast } from './forecast.js';
 import { applyCommand } from './commands.js';
 import { monthProfit, pay, receive, condition, placeOf } from './units.js';
@@ -197,10 +198,41 @@ export function monthlyRivals(state) {
 
 // ---------- сделки с корпорациями ----------
 // Цена, за которую корпорация продаст точку: оборудование + 18 месяцев прибыли
+// ---------- цены сделок: живые, с объяснением ----------
+// Каждая цена — база × множители; parts — строки для окна сделки: [что влияет, множитель или сумма].
+
+// Настроение рынка сделок: меняется раз в неделю, одинаково для всех игроков (детерминированно)
+export function dealMood(state, key) {
+  let h = 2166136261;
+  const str = `${key}|${Math.floor(state.day / 7)}|${state.seed}`;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return ((h >>> 0) % 2001) / 1000 - 1; // −1..1
+}
+
+// Корпорация в беде (убытки или пустая касса) — уступчивее
+function trouble(state, rival) {
+  const h = rival.history.slice(-3);
+  const profit = h.length ? h.reduce((s, m) => s + m.profit, 0) / h.length : 0;
+  return rival.cash < 0 || profit < 0 ? 0.75 : 1;
+}
+
+// Сколько корпорация просит за свою точку
+export function rivalUnitQuote(state, unit) {
+  const rival = state.companies[unit.companyId];
+  const avg = avgProfit(unit);
+  const base = unit.bookValue * 1.1 + 18 * Math.max(0, avg);
+  const econ = countryDemand(state, placeOf(state, unit).country);
+  const t = trouble(state, rival);
+  const mood = 1 + 0.08 * dealMood(state, unit.id);
+  const parts = [['Оборудование +10% и полтора года прибыли точки', `$${Math.round(base).toLocaleString('ru-RU')}`]];
+  if (Math.abs(econ - 1) > 0.01) parts.push([econ > 1 ? 'Подъём экономики в стране' : 'Спад в стране', `×${econ.toFixed(2)}`]);
+  if (t < 1) parts.push(['Корпорация в убытках — уступает', `×${t}`]);
+  parts.push(['Настроение рынка на этой неделе', `×${mood.toFixed(2)}`]);
+  return { price: Math.round(base * econ * t * mood), parts };
+}
+
 export function rivalUnitPrice(state, unit) {
-  const h = unit.history.slice(-3);
-  const avg = h.length ? h.reduce((a, b) => a + b, 0) / h.length : 0;
-  return Math.round(unit.bookValue * 1.1 + 18 * Math.max(0, avg));
+  return rivalUnitQuote(state, unit).price;
 }
 
 export function buyRivalUnit(state, buyerId, unit) {
@@ -212,10 +244,40 @@ export function buyRivalUnit(state, buyerId, unit) {
 }
 
 // Перемирие: корпорация 2 года не открывается в ваших городах, не выкупает ваши помещения и акции
-export function truceCost(state, rival) {
+const TRUCE_TEMPER = { raider: 1.5, premium: 1.1, discount: 1, raw: 0.7 };
+
+/** @param {any} state @param {any} rival @param {string|null} companyId */
+export function truceQuote(state, rival, companyId) {
   const h = rival.history.slice(-3);
   const avg = h.length ? h.reduce((s, m) => s + m.profit, 0) / h.length : 0;
-  return Math.round(Math.max(50000, 6 * Math.max(0, avg)) * (state.countries?.US?.cpi ?? 1));
+  const base = Math.max(50000, 6 * Math.max(0, avg)) * (state.countries?.US?.cpi ?? 1);
+  const parts = [['База: полгода прибыли корпорации', `$${Math.round(base).toLocaleString('ru-RU')}`]];
+  let k = 1;
+  const add = (name, m) => {
+    if (Math.abs(m - 1) < 0.005) return;
+    k *= m;
+    parts.push([name, `×${m.toFixed(2)}`]);
+  };
+  // чем больше её точек в ваших городах, тем дороже ей уходить
+  const mine = new Set(companyId ? companyUnits(state, companyId).map((u) => u.placeId) : []);
+  const near = companyUnits(state, rival.id).filter((u) => mine.has(u.placeId)).length;
+  add(`Её точек в ваших городах: ${near}`, 1 + 0.12 * near);
+  add(`Характер: ${ARCHETYPES[rival.ai?.archetype]?.name ?? '—'}`, TRUCE_TEMPER[rival.ai?.archetype] ?? 1);
+  const times = companyId ? state.companies[companyId].truceCount?.[rival.id] ?? 0 : 0;
+  add(`Перемирий с ней уже было: ${times}`, 1 + 0.5 * times);
+  add('Корпорация в убытках — уступает', trouble(state, rival));
+  // большой компании мир нужнее — и корпорация это знает
+  if (companyId) {
+    const ratio = Math.min(2, netWorth(state, companyId) / Math.max(1, netWorth(state, rival.id)));
+    add('Ваш размер относительно неё', 0.8 + 0.2 * ratio);
+  }
+  add('Настроение рынка на этой неделе', 1 + 0.1 * dealMood(state, `${rival.id}|truce`));
+  return { price: Math.round(base * k), parts };
+}
+
+/** @param {any} state @param {any} rival @param {string|null} [companyId] */
+export function truceCost(state, rival, companyId = null) {
+  return truceQuote(state, rival, companyId).price;
 }
 
 // ---------- предложения корпораций ----------
@@ -232,7 +294,8 @@ function avgProfit(unit, n = 3) {
 
 // Сколько корпорация готова заплатить за вашу точку
 export function bidForUnit(state, unit) {
-  return Math.round(unit.bookValue + 24 * Math.max(0, avgProfit(unit)));
+  const econ = countryDemand(state, placeOf(state, unit).country);
+  return Math.round((unit.bookValue + 24 * Math.max(0, avgProfit(unit))) * econ * (1 + 0.06 * dealMood(state, `${unit.id}|bid`)));
 }
 
 function addOffer(state, offer) {

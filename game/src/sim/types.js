@@ -101,6 +101,7 @@
  * @property {{ id: string, cost: number, days: number, progress: number }|null} [research]
  * @property {Record<string, number>} [lobbied]
  * @property {Record<string, number>} [truces]
+ * @property {Record<string, number>} [truceCount] сколько раз покупали перемирие у корпорации
  * @property {{ archetype: string, home: string }} [ai] есть у ИИ-корпораций
  * @property {string} [absorbedBy]
  * @property {Record<string, any>} [templates] шаблоны точек

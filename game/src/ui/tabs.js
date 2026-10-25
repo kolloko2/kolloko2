@@ -87,6 +87,7 @@ function renderUnits(app) {
 
 // Поиск мест: лучшие участки для выбранного бизнеса (считается по кнопке — это долго)
 // Группы в списке типов бизнеса: так длинный список легче листать
+/** @type {[string, (d: any) => boolean][]} */
 const SEARCH_GROUPS = [
   ['Магазины и общепит', (d) => Boolean(d.retail)],
   ['Услуги и недвижимость', (d) => !d.retail && Boolean(d.service)],
@@ -534,7 +535,7 @@ function renderRivals(app) {
       ${countries.length ? row('Страны', countries.slice(0, 6).join(', ') + (countries.length > 6 ? '…' : '')) : ''}
       ${l ? row('Акции', `${money(l.price, { cents: true })} · у вас ${pct(stakeOf(l, app.companyId), 1)}`) : row('Акции', 'ещё не на бирже')}
       <div class="row"><span>${truce ? `🕊 Перемирие до ${formatDate(co.truces[r.id])}` : `Перемирие на ${TRUCE_MONTHS} мес.: не открывается в ваших городах, не трогает помещения и акции`}</span>
-      ${truce ? '' : `<button class="mini wide" data-action="buyTruce" data-id="${r.id}">🕊 ${moneyShort(truceCost(state, r))}</button>`}</div>`}</div>`;
+      ${truce ? '' : `<button class="mini wide" data-action="buyTruce" data-id="${r.id}">🕊 ${moneyShort(truceCost(state, r, app.companyId))}</button>`}</div>`}</div>`;
   }
   return html;
 }

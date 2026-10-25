@@ -1,6 +1,7 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
 import {
   createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, searchLots, migrate, VICTORY_OPTIONS,
+  lobbyCost, lobbyChance, offerText, bidForUnit, rivalUnitQuote, truceQuote, TRUCE_MONTHS,
 } from './sim/index.js';
 import { renderTutorial, restartTutorial, skipTutorial, advisorAction, hideHint, resetHints } from './ui/tutorial.js';
 import { LocalSession, RemoteSession, SPEEDS, setDayScale } from './net/session.js';
@@ -118,7 +119,7 @@ async function importSave(file) {
     const s = migrate(JSON.parse(await file.text()));
     if (!s) throw new Error('Файл от слишком старой или неизвестной версии игры');
     slot = freeSlot() ?? 1;
-    if (loadSolo(slot) && !confirm(`Все слоты заняты. Записать поверх слота ${slot}?`)) return;
+    if (loadSolo(slot) && !(await ask({ title: 'Все слоты заняты', text: `Записать поверх слота ${slot}?`, ok: 'Записать', danger: true }))) return;
     localStorage.setItem(slotKey(slot), JSON.stringify(s));
     hideLobby();
     resumeSolo(s);
@@ -266,6 +267,48 @@ function tween(id, value, format) {
     if (k < 1 && shown[id] === value) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
+}
+
+// ---------- окна подтверждения (вместо системных confirm/prompt браузера) ----------
+// ask({ title, text, parts, ok, danger }) → true/false; parts — строки «что влияет на цену»
+let dialogDone = null;
+function openDialog({ title, text = '', parts = null, ok = 'Да', cancel = 'Отмена', danger = false, input = null }) {
+  const box = document.getElementById('dialog');
+  document.getElementById('dialog-title').textContent = title;
+  document.getElementById('dialog-body').innerHTML = `${text ? `<p>${text.split('\n').filter(Boolean).map(esc).join('</p><p>')}</p>` : ''}${parts?.length
+    ? `<div class="dialog-parts">${parts.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${esc(String(v))}</b></div>`).join('')}</div>` : ''}`;
+  const inp = $in('dialog-input');
+  inp.hidden = input === null;
+  inp.value = input ?? '';
+  const okBtn = document.getElementById('dialog-ok');
+  okBtn.textContent = ok;
+  okBtn.className = `btn ${danger ? 'danger' : ''}`;
+  document.getElementById('dialog-cancel').textContent = cancel;
+  box.classList.add('open');
+  setTimeout(() => (input !== null ? inp : okBtn).focus(), 30);
+  return new Promise((resolve) => {
+    dialogDone = (v) => {
+      box.classList.remove('open');
+      dialogDone = null;
+      resolve(v);
+    };
+  });
+}
+const ask = (opts) => openDialog(opts).then((v) => v !== null);
+const askText = (title, value) => openDialog({ title, input: value, ok: 'Сохранить' });
+
+function bindDialog() {
+  document.getElementById('dialog-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    dialogDone?.($in('dialog-input').hidden ? '' : $in('dialog-input').value);
+  });
+  document.getElementById('dialog-cancel').addEventListener('click', () => dialogDone?.(null));
+  document.getElementById('dialog').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) dialogDone?.(null);
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && dialogDone) dialogDone(null);
+  });
 }
 
 // ---------- уведомления ----------
@@ -444,7 +487,7 @@ function bindLobby() {
   document.getElementById('lobby-resume').addEventListener('click', async (e) => {
     const del = closestEl(e, '[data-delete-slot]');
     if (del) {
-      if (confirm('Удалить это сохранение навсегда?')) {
+      if (await ask({ title: 'Удалить сохранение?', text: 'Сохранение удалится навсегда.', ok: 'Удалить', danger: true })) {
         localStorage.removeItem(slotKey(Number(del.dataset.deleteSlot)));
         renderLobby();
       }
@@ -474,7 +517,7 @@ function bindLobby() {
     const errorEl = document.getElementById('lobby-error');
     errorEl.textContent = '';
     if (lobbyMode === 'solo') {
-      if (!freeSlot() && !confirm('Все три слота заняты. Начать новую игру поверх слота 1?')) return;
+      if (!freeSlot() && !(await ask({ title: 'Все три слота заняты', text: 'Начать новую игру поверх слота 1?', ok: 'Начать', danger: true }))) return;
       hideLobby();
       startSolo(companyName);
       return;
@@ -534,7 +577,7 @@ async function handleAction(el) {
       const warn = [];
       if (profit < 0) warn.push(`По прогнозу бизнес убыточен (${money(profit)} в месяц).`);
       if (left < Number(el.dataset.costs)) warn.push(`После открытия в кассе останется ${money(left)} — меньше месячных расходов. Пока точка раскручивается, деньги могут кончиться (через 45 дней в минусе — банкротство).`);
-      if (warn.length && !confirm(`${warn.join('\n\n')}\n\nВсё равно открыть?`)) break;
+      if (warn.length && !(await ask({ title: 'Открыть бизнес?', text: `${warn.join('\n')}\nВсё равно открыть?`, ok: 'Открыть' }))) break;
       const brand = el.dataset.brand;
       const brandId = brand === 'none' ? null : brand || undefined;
       const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type, brandId: brandId ?? null, templateId: el.dataset.template, recipe: el.dataset.recipe || undefined });
@@ -545,7 +588,7 @@ async function handleAction(el) {
       break;
     }
     case 'close':
-      if (confirm('Закрыть бизнес? Запасы будут проданы, оборудование — за 30% стоимости.')) {
+      if (await ask({ title: `Закрыть «${state.units[id]?.name}»?`, text: 'Запасы будут проданы, оборудование — за 30% стоимости.', ok: 'Закрыть', danger: true })) {
         await app.dispatch({ type: 'closeBusiness', unitId: id });
         app.select(null);
       }
@@ -566,7 +609,7 @@ async function handleAction(el) {
       const op = el.dataset.op;
       const unitIds = el.dataset.ids ? el.dataset.ids.split(',') : filteredUnits(app).map((u) => u.id);
       const ratio = op === 'priceNorm' ? Number($in('bulk-ratio')?.value || 100) / 100 : undefined;
-      if (op === 'close' && !confirm(`Закрыть бизнесов: ${unitIds.length}? Оборудование продаётся за 30% стоимости.`)) break;
+      if (op === 'close' && !(await ask({ title: `Закрыть бизнесов: ${unitIds.length}?`, text: 'Оборудование продаётся за 30% стоимости.', ok: 'Закрыть', danger: true }))) break;
       const r = await app.dispatch({ type: 'bulk', op, unitIds, ratio });
       if (r.ok) toast(r.done ? `Готово: ${r.done}${r.spent > 0 ? `, потрачено ${money(r.spent)}` : ''}` : 'Нечего менять', r.done ? 'good' : 'info');
       break;
@@ -575,29 +618,30 @@ async function handleAction(el) {
       app.dispatch({ type: 'hireDirector', country: el.dataset.country });
       break;
     case 'fireDirector':
-      if (confirm('Уволить регионального директора?')) app.dispatch({ type: 'fireDirector', country: el.dataset.country });
+      if (await ask({ title: 'Уволить регионального директора?', ok: 'Уволить', danger: true })) app.dispatch({ type: 'fireDirector', country: el.dataset.country });
       break;
     case 'startResearch':
       app.dispatch({ type: 'startResearch', techId: id });
       break;
     case 'cancelResearch':
-      if (confirm('Остановить исследование? Потраченные деньги не вернутся.')) app.dispatch({ type: 'cancelResearch' });
+      if (await ask({ title: 'Остановить исследование?', text: 'Потраченные деньги не вернутся.', ok: 'Остановить', danger: true })) app.dispatch({ type: 'cancelResearch' });
       break;
     case 'lobby': {
-      if (!confirm('Потратить деньги на лоббирование? Успех не гарантирован.')) break;
+      if (!(await ask({ title: 'Лоббирование', text: `Стоимость: ${money(lobbyCost(state, el.dataset.country))}. Шанс успеха: ${Math.round(lobbyChance(state, app.companyId, el.dataset.country) * 100)}%. Деньги не вернутся, даже если закон не пройдёт.`, ok: 'Лоббировать' }))) break;
       const r = await app.dispatch({ type: 'lobby', country: el.dataset.country, goal: el.dataset.goal });
       if (r.ok) toast(r.success ? 'Закон принят!' : 'Лоббирование не удалось', r.success ? 'good' : 'bad');
       break;
     }
     case 'answerOffer': {
       const accept = el.dataset.accept === '1';
-      if (accept && !confirm('Принять предложение?')) break;
+      const offer = (state.offers || []).find((o) => o.id === Number(id));
+      if (accept && !(await ask({ title: 'Принять предложение?', text: offer ? offerText(state, offer) : '', ok: 'Принять' }))) break;
       const r = await app.dispatch({ type: 'answerOffer', offerId: Number(id), accept });
       if (r.ok && accept) toast('Сделка заключена', 'good');
       break;
     }
     case 'sellToRival': {
-      if (!confirm('Продать бизнес корпорации?')) break;
+      if (!(await ask({ title: `Продать «${state.units[id]?.name}»?`, text: `Корпорация «${state.companies[$in(`sell-to-${id}`).value]?.name}» заплатит около ${money(bidForUnit(state, state.units[id]))}: оборудование и два года прибыли точки, с поправкой на экономику страны и настроение рынка.`, ok: 'Продать' }))) break;
       const r = await app.dispatch({ type: 'sellToRival', unitId: id, rivalId: $in(`sell-to-${id}`).value });
       if (r.ok) {
         toast(`Продано за ${money(r.price)}`, 'good');
@@ -605,17 +649,22 @@ async function handleAction(el) {
       }
       break;
     }
-    case 'buyRivalUnit':
-      if (confirm('Выкупить этот бизнес у корпорации?')) {
+    case 'buyRivalUnit': {
+      const q = rivalUnitQuote(state, state.units[id]);
+      if (await ask({ title: `Выкупить «${state.units[id]?.name}»?`, text: `Цена сделки: ${money(q.price)}. Из чего она складывается:`, parts: q.parts, ok: `Выкупить за ${moneyShort(q.price)}` })) {
         const r = await app.dispatch({ type: 'buyRivalUnit', unitId: id });
         if (r.ok) toast('Бизнес куплен', 'good');
       }
       break;
-    case 'buyTruce':
-      if (confirm('Заплатить корпорации за перемирие?')) app.dispatch({ type: 'buyTruce', rivalId: id });
+    }
+    case 'buyTruce': {
+      const rival = state.companies[id];
+      const q = truceQuote(state, rival, app.companyId);
+      if (await ask({ title: `Перемирие с «${rival.name}»`, text: `${TRUCE_MONTHS} месяцев корпорация не открывается в ваших городах, не выкупает ваши помещения и акции.\nЦена: ${money(q.price)}. Из чего она складывается:`, parts: q.parts, ok: `Заплатить ${moneyShort(q.price)}` })) app.dispatch({ type: 'buyTruce', rivalId: id });
       break;
+    }
     case 'saveTemplate': {
-      const name = prompt('Название шаблона', `Как «${state.units[id].name}»`);
+      const name = await askText('Название шаблона', `Как «${state.units[id].name}»`);
       if (name === null) break;
       const r = await app.dispatch({ type: 'saveTemplate', unitId: id, name });
       if (r.ok) toast('Шаблон сохранён: он появится на карточках участков для этого типа бизнеса', 'good');
@@ -633,7 +682,7 @@ async function handleAction(el) {
       app.dispatch({ type: 'trainStaff', unitId: id });
       break;
     case 'releaseStar':
-      if (confirm('Отпустить звёздного сотрудника?')) app.dispatch({ type: 'releaseStar', unitId: id });
+      if (await ask({ title: 'Отпустить звёздного сотрудника?', ok: 'Отпустить', danger: true })) app.dispatch({ type: 'releaseStar', unitId: id });
       break;
     case 'renovate':
       app.dispatch({ type: 'renovate', unitId: id });
@@ -647,7 +696,7 @@ async function handleAction(el) {
       app.dispatch({ type: 'buyLot', lotId: id });
       break;
     case 'sellLot':
-      if (confirm('Продать помещение? Придётся снова платить аренду.')) app.dispatch({ type: 'sellLot', lotId: id });
+      if (await ask({ title: 'Продать помещение?', text: 'Придётся снова платить аренду.', ok: 'Продать' })) app.dispatch({ type: 'sellLot', lotId: id });
       break;
     case 'takeLoan':
     case 'repayLoan': {
@@ -663,7 +712,7 @@ async function handleAction(el) {
       app.dispatch({ type: 'hireManager', unitId: id });
       break;
     case 'fireManager':
-      if (confirm('Уволить управляющего? Мораль сотрудников упадёт.')) app.dispatch({ type: 'fireManager', unitId: id });
+      if (await ask({ title: 'Уволить управляющего?', text: 'Мораль сотрудников упадёт.', ok: 'Уволить', danger: true })) app.dispatch({ type: 'fireManager', unitId: id });
       break;
     case 'signContract': {
       const r = await app.dispatch({ type: 'signContract', unitId: id, good: el.dataset.good, side: el.dataset.side, months: Number(el.dataset.months) });
@@ -671,7 +720,7 @@ async function handleAction(el) {
       break;
     }
     case 'cancelContract':
-      if (confirm(`Расторгнуть контракт досрочно? ${el.title}`)) app.dispatch({ type: 'cancelContract', contractId: Number(id) });
+      if (await ask({ title: 'Расторгнуть контракт досрочно?', text: el.title, ok: 'Расторгнуть', danger: true })) app.dispatch({ type: 'cancelContract', contractId: Number(id) });
       break;
     case 'marketRegion':
       app.marketRegion = el.dataset.region;
@@ -711,7 +760,7 @@ async function handleAction(el) {
       break;
     }
     case 'deleteBrand':
-      if (confirm('Распустить сеть? Точки станут отдельными (настройки сохранятся).')) app.dispatch({ type: 'deleteBrand', brandId: id });
+      if (await ask({ title: 'Распустить сеть?', text: 'Точки станут отдельными (настройки сохранятся).', ok: 'Распустить', danger: true })) app.dispatch({ type: 'deleteBrand', brandId: id });
       break;
     case 'setRoyalty':
       app.dispatch({ type: 'setRoyalty', brandId: id, royalty: Number(el.dataset.royalty) });
@@ -723,11 +772,11 @@ async function handleAction(el) {
       break;
     }
     case 'closeFranchise':
-      if (confirm('Перестать продавать франшизу в этой стране? Франчайзи там закроются.')) app.dispatch({ type: 'closeFranchise', brandId: id, country: el.dataset.country });
+      if (await ask({ title: 'Закрыть франшизу в стране?', text: 'Франчайзи там закроются.', ok: 'Закрыть', danger: true })) app.dispatch({ type: 'closeFranchise', brandId: id, country: el.dataset.country });
       break;
     case 'ipo': {
       const share = Number($in('ipo-share').value);
-      if (!confirm(`Продать публике ${Math.round(share * 100)}% акций компании? Вернуть их можно только выкупом по рыночной цене.`)) break;
+      if (!(await ask({ title: `IPO: продать ${Math.round(share * 100)}% акций?`, text: 'Вернуть их можно только выкупом по рыночной цене.', ok: 'Выйти на биржу' }))) break;
       const r = await app.dispatch({ type: 'ipo', share });
       if (r.ok) toast(`IPO состоялось: привлечено ${money(r.cash)}`, 'good');
       break;
@@ -750,7 +799,7 @@ async function handleAction(el) {
       app.dispatch({ type: 'setPayout', listingId: id, payout: Number(el.dataset.payout) });
       break;
     case 'absorb':
-      if (confirm('Поглотить компанию? Вы выкупите акции остальных акционеров по рынку, а все её бизнесы, долги и деньги перейдут вам.')) {
+      if (await ask({ title: 'Поглотить компанию?', text: 'Вы выкупите акции остальных акционеров по рынку, а все её бизнесы, долги и деньги перейдут вам.', ok: 'Поглотить' })) {
         const r = await app.dispatch({ type: 'absorbCompany', targetId: id });
         if (r.ok) toast('Компания поглощена', 'good');
       }
@@ -912,9 +961,9 @@ function bindUi() {
   const soundBtn = document.getElementById('btn-sound');
   soundBtn.textContent = soundOn() ? '🔊' : '🔇';
   soundBtn.addEventListener('click', () => (soundBtn.textContent = toggleSound() ? '🔊' : '🔇'));
-  document.getElementById('btn-new').addEventListener('click', () => {
-    const msg = app.session.multiplayer ? 'Выйти из комнаты? Вернуться можно по коду.' : 'Выйти в меню? Игра сохранится.';
-    if (!confirm(msg)) return;
+  document.getElementById('btn-new').addEventListener('click', async () => {
+    const msg = app.session.multiplayer ? 'Вернуться можно по коду комнаты.' : 'Игра сохранится.';
+    if (!(await ask({ title: app.session.multiplayer ? 'Выйти из комнаты?' : 'Выйти в меню?', text: msg, ok: 'Выйти' }))) return;
     save(true);
     showLobby();
   });
@@ -922,8 +971,8 @@ function bindUi() {
     app.tab = 'room';
     renderDrawer(app);
   });
-  document.getElementById('hud-company').addEventListener('click', () => {
-    const name = prompt('Название компании', app.company.name);
+  document.getElementById('hud-company').addEventListener('click', async () => {
+    const name = await askText('Название компании', app.company.name);
     if (name) app.dispatch({ type: 'renameCompany', name });
   });
 
@@ -948,6 +997,7 @@ async function boot() {
   // Пока открыто лобби, под ним показываем демо-мир (не сохраняется)
   app.session = new LocalSession(createGame({ seed: 1 }));
   bindUi();
+  bindDialog();
   bindLobby();
   bindSettings();
   document.getElementById('lobby-import').addEventListener('change', (e) => {

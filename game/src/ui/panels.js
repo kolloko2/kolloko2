@@ -11,7 +11,7 @@ import {
   countryState, regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
-  condition, renovateCost, seasonFactor, trainingCost, MAX_TRAINING, serviceMood, DELIVERY_CATEGORIES, ownCourier, rivalUnitPrice, ARCHETYPES, bidForUnit, rivalWants, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
+  condition, renovateCost, seasonFactor, trainingCost, MAX_TRAINING, serviceMood, DELIVERY_CATEGORIES, ownCourier, rivalUnitPrice, ARCHETYPES, bidForUnit, rivalWants, truceCost, TRUCE_MONTHS, offerText, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
   recipeOf, allowedRecipes,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
@@ -259,10 +259,43 @@ function renderRivalUnit(app, u) {
   html += row('Помещение', ownerText(app, lot)) + '</div>';
   if (co.ai) {
     const price = rivalUnitPrice(state, u);
-    html += `<button class="btn" data-action="buyRivalUnit" data-id="${u.id}" ${app.company.cash < price ? 'disabled' : ''}>🤝 Предложить выкуп · ${moneyShort(price)}</button>
-      <div class="muted small">Корпорация продаст бизнес за стоимость оборудования +10% и полтора года его прибыли. Помещение, если оно её, — в придачу.</div>`;
+    html += `<div class="card"><b>🤝 Сделки с «${esc(co.name)}»</b>
+      <div class="row"><span>Выкупить эту точку<br><small class="muted">оборудование +10%, полтора года прибыли; цена меняется с экономикой и рынком</small></span>
+      <button class="mini wide" data-action="buyRivalUnit" data-id="${u.id}" ${app.company.cash < price ? 'disabled' : ''}>${moneyShort(price)}</button></div>
+      ${truceRow(app, co)}</div>`;
   }
   html += lotOwnershipButtons(app, lot);
+  return html;
+}
+
+// Строка «перемирие с корпорацией»: статус или кнопка с текущей ценой
+function truceRow(app, rival) {
+  const { state } = app;
+  const until = app.company.truces?.[rival.id];
+  if (until > state.day) return `<div class="row"><span>🕊 Перемирие действует</span><b>до ${formatDate(until)}</b></div>`;
+  const cost = truceCost(state, rival, app.companyId);
+  return `<div class="row"><span>🕊 Перемирие на ${TRUCE_MONTHS} мес.<br><small class="muted">не открывается в ваших городах, не трогает помещения и акции</small></span>
+    <button class="mini wide" data-action="buyTruce" data-id="${rival.id}" ${app.company.cash < cost ? 'disabled' : ''}>${moneyShort(cost)}</button></div>`;
+}
+
+// Корпорации, которые работают в городе вашей точки, и их предложения по ней
+function rivalsNear(app, u) {
+  const { state } = app;
+  const offers = (state.offers || []).filter((o) => o.to === app.companyId && o.until > state.day && o.unitId === u.id);
+  const near = Object.values(state.companies).filter((c) => c.ai && !c.bankrupt)
+    .map((c) => ({ c, n: Object.values(state.units).filter((x) => x.companyId === c.id && x.placeId === u.placeId).length }))
+    .filter((x) => x.n > 0);
+  if (!offers.length && !near.length) return '';
+  let html = '<h3>🦈 Корпорации рядом</h3>';
+  for (const o of offers) {
+    html += `<div class="card offer-card"><div>📨 ${esc(offerText(state, o))}</div><div class="row"><small class="muted">ещё ${o.until - state.day} дн.</small>
+      <span><button class="mini wide" data-action="answerOffer" data-id="${o.id}" data-accept="1">Принять</button>
+      <button class="mini wide" data-action="answerOffer" data-id="${o.id}" data-accept="0">Отказать</button></span></div></div>`;
+  }
+  for (const { c, n } of near) {
+    html += `<div class="card"><div class="row"><span><span class="swatch" style="background:${c.color}"></span><b>${esc(c.name)}</b> <small class="muted">${ARCHETYPES[c.ai.archetype].name}</small></span>
+      <small>${n} точ. в городе</small></div>${truceRow(app, c)}</div>`;
+  }
   return html;
 }
 
@@ -470,6 +503,7 @@ function renderUnit(app, u) {
   html += `<button class="btn ghost" data-action="copySettings" data-id="${u.id}" title="Те же цены (относительно местной нормы), реклама и сбыт">📋 Применить настройки ко всем «${def.name}»</button>`;
   html += `<button class="btn ghost" data-action="saveTemplate" data-id="${u.id}" title="Цены в % нормы, реклама, зарплаты, сеть, доставка, управляющий — для новых точек">💾 Сохранить как шаблон</button>`;
   html += `<button class="btn danger" data-action="close" data-id="${u.id}">✖ Закрыть бизнес</button></div>`;
+  html += rivalsNear(app, u);
   const buyers = Object.values(state.companies).filter((c) => c.ai && !c.bankrupt && rivalWants(state, c, u));
   if (buyers.length) {
     html += `<div class="card"><div class="row"><span>🤝 Продать корпорации · они дадут ~${moneyShort(bidForUnit(state, u))}</span>

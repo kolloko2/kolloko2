@@ -354,11 +354,12 @@ const handlers = {
     const co = state.companies[companyId];
     co.truces ||= {};
     if (co.truces[rivalId] > state.day) return fail('Перемирие уже действует');
-    const cost = truceCost(state, rival);
+    const cost = truceCost(state, rival, companyId);
     if (co.cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
     pay(state, companyId, cost);
     receive(state, rivalId, cost);
     co.truces[rivalId] = state.day + TRUCE_MONTHS * 30;
+    (co.truceCount ||= {})[rivalId] = (co.truceCount[rivalId] || 0) + 1; // следующее перемирие будет дороже
     addNews(state, 'good', `Перемирие с «${rival.name}» на ${TRUCE_MONTHS} мес.: она не открывается в ваших городах и не трогает ваши помещения и акции.`, null, companyId);
     return OK;
   },

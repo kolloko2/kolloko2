@@ -553,3 +553,13 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after { animation:
 .tnode.locked { opacity: .55; filter: grayscale(.6); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(241,196,15,.25); } }
 @media (max-width: 700px) { #drawer.wide { width: calc(100vw - 76px); } .tech-tree { max-height: calc(100vh - 220px); } }
+
+/* ---------- окно подтверждения ---------- */
+#dialog { z-index: 3500; }
+.dialog-box h2 { margin: 0 0 10px; font-size: 19px; }
+.dialog-box p { margin: 6px 0; line-height: 1.4; }
+.dialog-box input { width: 100%; box-sizing: border-box; margin: 8px 0; font-size: 15px; }
+.dialog-parts { margin: 10px 0; padding: 8px 12px; background: #f4f6fa; border-radius: 10px; font-size: 13px; }
+.dialog-parts .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.dialog-parts .row:last-child { border-bottom: 0; }
+.dialog-buttons { justify-content: flex-end; margin-top: 14px; }
