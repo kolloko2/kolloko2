@@ -50,6 +50,7 @@ export function efficiency(state, unit) {
   let e = 0.8 + 0.4 * (m / 100); // мораль 0 → 80%, 50 → 100%, 100 → 120%
   if (unit.manager) e *= 1.05;
   else e *= Math.max(0.6, 1 - 0.04 * attention(state, unit.companyId).excess);
+  e *= 1 + 0.05 * (unit.training || 0); // обученный персонал работает быстрее
   return e;
 }
 
@@ -95,14 +96,34 @@ export function updateStaff(state) {
     // недовольные увольняются
     if (unit.morale < 35 && unit.staff > min && chance(rng, 0.03)) {
       unit.staff--;
+      unit.training = Math.max(0, (unit.training || 0) - 0.5); // уходят обученные люди
       addNews(state, 'warn', `Из «${unit.name}» уволился сотрудник: низкая мораль. Поднимите зарплату или наймите управляющего.`, { unitId: unit.id }, unit.companyId);
     }
     if (unit.manager && unit.autoStaff && state.day % 7 === 0) autoStaff(state, unit, efficiency(state, unit));
   }
 }
 
+// Обучение: +5% к скорости и +0.1★ за уровень (до 3). Стоит ~60% месячного фонда зарплат точки.
+export const MAX_TRAINING = 3;
+export const STAR_WAGE = 3; // звезда стоит как три обычных сотрудника
+
+export function trainingCost(state, unit, monthlyWage) {
+  return Math.round(unit.staff * monthlyWage * 0.6 * (1 + (unit.training || 0)));
+}
+
 export function monthlyStaffEvents(state) {
   for (const unit of Object.values(state.units)) {
+    // при зарплате ниже рынка обученные уходят к конкурентам
+    if ((unit.training || 0) > 0 && wageLevel(unit) < 1) unit.training = Math.max(0, unit.training - 0.15);
+    // звёздный сотрудник: шеф-повар, бариста-чемпион, стилист — сам приходит в сильные точки
+    const def = BUSINESSES[unit.type];
+    if (def.retail && !unit.star && unit.quality >= 3.3 && !state.companies[unit.companyId]?.ai && chance(state.rng, 0.004)) {
+      unit.star = true;
+      addNews(state, 'good', `⭐ В «${unit.name}» пришёл звёздный сотрудник: +0.4★ к рейтингу, но и зарплата как у троих. Отпустить можно в панели точки.`, { unitId: unit.id }, unit.companyId);
+    } else if (unit.star && morale(unit) < 45 && chance(state.rng, 0.2)) {
+      unit.star = false;
+      addNews(state, 'warn', `⭐ Звёздный сотрудник ушёл из «${unit.name}»: не понравилась атмосфера.`, { unitId: unit.id }, unit.companyId);
+    }
     if (morale(unit) < 25 && unit.broken === 0 && chance(state.rng, 0.3)) {
       unit.broken = 3;
       unit.morale = morale(unit) + 10;

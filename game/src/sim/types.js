@@ -64,6 +64,10 @@
  * @property {number} [tierQuality]
  * @property {number} [tierUpkeep]
  * @property {number} [coverDays]
+ * @property {number} [mood] настроение спроса на услугу (риск)
+ * @property {number} [training] обучение персонала 0–3
+ * @property {boolean} [star] звёздный сотрудник
+ * @property {'none'|'aggregator'|'own'} [delivery] доставка еды
  */
 
 /**
@@ -145,6 +149,7 @@
  * @property {Record<string, { kind: string, mult: number, until: number }>} districtEvents
  * @property {any[]} offers
  * @property {number} nextOfferId
+ * @property {Record<string, number>} [growth] рост городов от застройщиков
  * @property {any[]} news
  * @property {number} newsSeq
  * @property {number} mapVersion

@@ -7,7 +7,10 @@ const cache = new WeakMap();
 function bonusData(state) {
   let c = cache.get(state);
   if (c && c.day === state.day && c.version === state.mapVersion) return c;
-  c = { day: state.day, version: state.mapVersion, it: new Set(), trucking: new Set(), ads: new Set(), billboards: new Set() };
+  c = {
+    day: state.day, version: state.mapVersion, it: new Set(), trucking: new Set(), ads: new Set(), billboards: new Set(),
+    energy: new Set(), port: new Set(), mall: new Set(), courier: new Set(),
+  };
   for (const u of Object.values(state.units)) {
     if (u.broken > 0) continue;
     const place = state.world.places[u.placeId];
@@ -15,6 +18,10 @@ function bonusData(state) {
     if (u.type === 'trucking') c.trucking.add(`${u.companyId}|${regionOf(place)}`);
     if (u.type === 'ad_agency') c.ads.add(`${u.companyId}|${place.country}`);
     if (u.type === 'billboards') c.billboards.add(`${u.companyId}|${place.id}`);
+    if (u.type === 'power_plant') c.energy.add(`${u.companyId}|${regionOf(place)}`);
+    if (u.type === 'port') c.port.add(`${u.companyId}|${regionOf(place)}`);
+    if (u.type === 'shopping_mall') c.mall.add(`${u.companyId}|${state.world.lots[u.lotId].districtId}`);
+    if (u.type === 'courier' && u.staff >= 3) c.courier.add(`${u.companyId}|${place.id}`);
   }
   cache.set(state, c);
   return c;
@@ -38,4 +45,24 @@ export function marketingBoost(state, companyId, place) {
 // Свои рекламные щиты в городе — бесплатные билборды для ваших точек там
 export function ownBillboards(state, companyId, placeId) {
   return bonusData(state).billboards.has(`${companyId}|${placeId}`);
+}
+
+// Своя электростанция в регионе — коммунальные дешевле
+export function energyFactor(state, companyId, place) {
+  return bonusData(state).energy.has(`${companyId}|${regionOf(place)}`) ? 0.85 : 1;
+}
+
+// Свой порт в регионе отправления — без задержки в портах и дешевле
+export function hasPort(state, companyId, place) {
+  return bonusData(state).port.has(`${companyId}|${regionOf(place)}`);
+}
+
+// Свой ТЦ в районе — точки там платят меньше аренды
+export function mallDiscount(state, companyId, districtId) {
+  return bonusData(state).mall.has(`${companyId}|${districtId}`) ? 0.7 : 1;
+}
+
+// Своя служба доставки в городе
+export function ownCourier(state, companyId, placeId) {
+  return bonusData(state).courier.has(`${companyId}|${placeId}`);
 }

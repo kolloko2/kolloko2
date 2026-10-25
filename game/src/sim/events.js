@@ -42,6 +42,12 @@ export function monthlyEvents(state) {
         addNews(state, 'info', `Санинспекция в «${unit.name}» прошла без замечаний.`, { unitId: unit.id }, unit.companyId);
       }
     }
+    // фарма: редкий, но дорогой отзыв партии
+    if (unit.type === 'pharma_plant' && chance(rng, 0.015)) {
+      const cost = Math.round(Math.max(200000, 2 * (unit.last?.revenue ?? 0)));
+      spend(state, unit, 'other', cost);
+      addNews(state, 'bad', `💊 Отзыв партии лекарств с «${unit.name}»: проверки и компенсации — $${cost.toLocaleString('ru-RU')}.`, { unitId: unit.id }, unit.companyId);
+    }
     if (!lot.ownerId && chance(rng, 0.02)) {
       lot.rent = Math.round(lot.rent * 1.12);
       addNews(state, 'warn', `Арендодатель поднял аренду для «${unit.name}» до $${lot.rent}/мес. Можно выкупить помещение.`, { unitId: unit.id }, unit.companyId);

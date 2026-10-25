@@ -7,7 +7,7 @@ import { initStocks, portfolioValue } from './stocks.js';
 import { addRivals } from './rivals.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
-export const SAVE_VERSION = 6; // 6: магазины техники в районах, ИИ-корпорации
+export const SAVE_VERSION = 7; // 7: туризм, отели, аптеки, автосалоны, недвижимость
 export const START_CASH = 100000;
 const START_DATE = Date.UTC(2000, 0, 1);
 
@@ -71,6 +71,7 @@ export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Мо�
     trends: {}, // мода на категории по странам (см. luck.js)
     districtEvents: {}, // фестивали, ремонты, метро
     offers: [], // предложения ИИ-корпораций игрокам
+    growth: {}, // рост населения городов от застройщиков
     nextOfferId: 1,
     stocks: initStocks(rng), // биржа: ИИ-корпорации и компании игроков после IPO
     news: [],

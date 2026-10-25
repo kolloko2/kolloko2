@@ -5,7 +5,7 @@ import { syncCpi } from '../sim/countries.js';
 
 // Изменяемые поля верхнего уровня
 const DYNAMIC = ['day', 'rng', 'mode', 'victory', 'winner', 'companies', 'nextCompanyId', 'nextRivalId', 'units', 'nextUnitId', 'market', 'mapVersion', 'newsSeq',
-  'shipments', 'nextShipmentId', 'contracts', 'nextContractId', 'brands', 'nextBrandId', 'countries', 'stocks', 'trends', 'districtEvents', 'offers', 'nextOfferId'];
+  'shipments', 'nextShipmentId', 'contracts', 'nextContractId', 'brands', 'nextBrandId', 'countries', 'stocks', 'trends', 'districtEvents', 'offers', 'nextOfferId', 'growth'];
 
 // opts.lots — включить владельцев/аренду участков и ИИ-конкурентов в районах (меняются редко)
 // opts.newsAfter — номер последней новости, которую клиент уже видел; opts.companyId — чьи новости слать

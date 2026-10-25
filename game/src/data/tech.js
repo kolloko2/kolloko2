@@ -10,5 +10,6 @@ export const TECHS = {
   durability: { name: 'Долговечное оборудование', icon: '🔩', desc: 'Износ на 20% медленнее', max: 2, cost: 180000, months: 8 },
   banking: { name: 'Финансовые технологии', icon: '🏦', desc: 'Открывает банки', max: 1, cost: 800000, months: 12 },
   electronics: { name: 'Электроника', icon: '📱', desc: 'Открывает завод электроники и магазины техники', max: 1, cost: 1200000, months: 14, requires: { automation: 1 } },
+  pharma: { name: 'Фармацевтика', icon: '💊', desc: 'Открывает фармацевтический завод', max: 1, cost: 1500000, months: 18, requires: { quality: 1 } },
   cloud: { name: 'Облачные технологии', icon: '☁️', desc: 'Открывает облачный сервис (SaaS)', max: 1, cost: 1000000, months: 12, requires: { pos: 1 } },
 };

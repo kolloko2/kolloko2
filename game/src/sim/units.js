@@ -6,17 +6,18 @@ import { itCapacityBoost } from './bonuses.js';
 import { efficiency, laborFactor, wageLevel } from './staff.js';
 import { foreignFactor } from './expansion.js';
 import { techLevel } from './research.js';
+import { energyFactor, mallDiscount } from './bonuses.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 export function emptyMonth() {
   return {
     revenue: 0, revInternal: 0, cogs: 0, wages: 0, rent: 0, upkeep: 0, marketing: 0,
-    transport: 0, duty: 0, spoilage: 0, other: 0, customers: 0, lost: 0, produced: 0, days: 0,
+    transport: 0, duty: 0, commission: 0, spoilage: 0, other: 0, customers: 0, lost: 0, produced: 0, days: 0,
   };
 }
 
 export function monthProfit(m) {
-  return m.revenue + m.revInternal - m.cogs - m.wages - m.rent - m.upkeep - m.marketing - m.transport - (m.duty || 0) - m.spoilage - m.other;
+  return m.revenue + m.revInternal - m.cogs - m.wages - m.rent - m.upkeep - m.marketing - m.transport - (m.duty || 0) - (m.commission || 0) - m.spoilage - m.other;
 }
 
 export function placeOf(state, unit) {
@@ -46,7 +47,7 @@ export function monthlyUpkeep(state, unit) {
   const u = BUSINESSES[unit.type].upkeep;
   const place = placeOf(state, unit);
   return (u.base + u.perArea * lotOf(state, unit).area) * costIndex(place) * foreignFactor(state, unit) * (unit.tierUpkeep ?? 1) * wearUpkeep(unit)
-    * (1 - 0.08 * techLevel(state, unit.companyId, 'energy'));
+    * (1 - 0.08 * techLevel(state, unit.companyId, 'energy')) * energyFactor(state, unit.companyId, place);
 }
 
 // Аренда: не платим, если помещение принадлежит своей компании.
@@ -54,7 +55,8 @@ export function monthlyUpkeep(state, unit) {
 /** @param {State} state @param {Unit} unit */
 export function monthlyRent(state, unit) {
   const lot = lotOf(state, unit);
-  return lot.ownerId === unit.companyId ? 0 : lot.rent;
+  if (lot.ownerId === unit.companyId) return 0;
+  return BUSINESSES[unit.type].service?.realEstate ? lot.rent : lot.rent * mallDiscount(state, unit.companyId, lot.districtId);
 }
 
 // ---------- износ ----------
@@ -179,7 +181,8 @@ export function defaultPrices(state, lot, type) {
 
 export function baseQuality(unit, state = null) {
   const tech = state && BUSINESSES[unit.type].retail ? 0.15 * techLevel(state, unit.companyId, 'quality') : 0;
-  return (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1) + (unit.tierQuality ?? 0) - wearQuality(unit) + tech;
+  const people = 0.1 * (unit.training || 0) + (unit.star ? 0.4 : 0);
+  return people + (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1) + (unit.tierQuality ?? 0) - wearQuality(unit) + tech;
 }
 
 // Деньги: все движения кассы проходят через эти функции (для учёта и тестов).

@@ -20,6 +20,10 @@ export const GOODS = {
   fuel:           { name: 'Топливо',             icon: '⛽', unit: 'л',  base: 0.50, depth: 5000000, spoil: 0,     weight: 0.85, freight: 0.5 },
   chips:          { name: 'Микросхемы',          icon: '🔌', unit: 'шт', base: 22.0, depth: 300000, spoil: 0,      weight: 0.05 },
   electronics:    { name: 'Электроника',         icon: '📱', unit: 'шт', base: 110,  depth: 40000,  spoil: 0.0005, weight: 3 },
+  medicine:       { name: 'Лекарства',           icon: '💊', unit: 'уп', base: 5.0,  depth: 400000, spoil: 0.0005, weight: 0.1 },
+  cosmetics:      { name: 'Косметика',           icon: '🧴', unit: 'шт', base: 4.0,  depth: 500000, spoil: 0.0005, weight: 0.2 },
+  parts:          { name: 'Автозапчасти',        icon: '🔧', unit: 'шт', base: 30,   depth: 300000, spoil: 0,      weight: 3 },
+  cars:           { name: 'Автомобили',          icon: '🚗', unit: 'шт', base: 20000, depth: 2000,  spoil: 0,      weight: 1400 },
   oil:            { name: 'Нефть',               icon: '🛢️', unit: 'л',  base: 0.27, depth: 8000000, spoil: 0,     weight: 0.86, freight: 0.2 },
 };
 

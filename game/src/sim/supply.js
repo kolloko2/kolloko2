@@ -2,8 +2,8 @@ import { BUSINESSES } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
 import { buyPrice, sellPrice, recordTrade } from './market.js';
 import { distanceKm } from './world.js';
-import { leadDays, transportCost, deliver, inTransit } from './logistics.js';
-import { freightFactor } from './bonuses.js';
+import { leadDays, transportCost, deliver, inTransit, SEA_KM, PORT_DAYS } from './logistics.js';
+import { freightFactor, hasPort } from './bonuses.js';
 import { purchasingDiscount } from './expansion.js';
 import { tariffRate } from './countries.js';
 import { techLevel } from './research.js';
@@ -88,7 +88,10 @@ function supplyInternally(state, unit, good) {
     .sort((a, b) => a.km - b.km);
   const market = buyPrice(state, good, placeOf(state, unit), { bulk: toWarehouse });
   for (const { s, km } of sources) {
-    const lead = leadDays(km);
+    // свой порт в регионе отправления: без простоя в портах и дешевле по морю
+    const viaPort = km > SEA_KM && hasPort(state, unit.companyId, placeOf(state, s));
+    const lead = leadDays(km) - (viaPort ? PORT_DAYS : 0);
+    const seaFactor = viaPort ? 0.7 : 1;
     const want = capRoom(state, unit, good, orderQty(state, unit, good, lead));
     if (want <= (unit.usage[good] || 0) * 0.2) continue;
     const avail = invQty(s, good) - selfReserve(s, good);
@@ -99,14 +102,14 @@ function supplyInternally(state, unit, good) {
     // через границу (вне торгового блока) — таможенная пошлина
     const duty = tariffRate(state, placeOf(state, s).country, placeOf(state, unit).country);
     // везти своё имеет смысл, только если с доставкой и пошлиной выходит не дороже местного рынка
-    if (price * (1 + duty) + transportCost(good, 1, km, { bulk: toWarehouse }) > market) continue;
+    if (price * (1 + duty) + transportCost(good, 1, km, { bulk: toWarehouse }) * seaFactor > market) continue;
     const qty = Math.min(avail, want);
     const cost = takeInv(s, good, qty);
     s.month.revInternal += qty * price;
     s.month.cogs += cost;
     s.month.shippedInternal = (s.month.shippedInternal || 0) + qty;
     const transport = transportCost(good, qty, km, { bulk: toWarehouse }) * freightFactor(state, unit.companyId, placeOf(state, unit))
-      * (1 - 0.12 * techLevel(state, unit.companyId, 'logistics'));
+      * (1 - 0.12 * techLevel(state, unit.companyId, 'logistics')) * seaFactor;
     spend(state, unit, 'transport', transport);
     if (duty) spend(state, unit, 'duty', qty * price * duty);
     // доставка и пошлина уже записаны в отчёт отдельными строками — в себестоимость запаса их не включаем

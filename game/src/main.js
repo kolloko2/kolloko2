@@ -513,6 +513,12 @@ async function handleAction(el) {
     case 'buyTruce':
       if (confirm('Заплатить корпорации за перемирие?')) app.dispatch({ type: 'buyTruce', rivalId: id });
       break;
+    case 'trainStaff':
+      app.dispatch({ type: 'trainStaff', unitId: id });
+      break;
+    case 'releaseStar':
+      if (confirm('Отпустить звёздного сотрудника?')) app.dispatch({ type: 'releaseStar', unitId: id });
+      break;
     case 'renovate':
       app.dispatch({ type: 'renovate', unitId: id });
       break;
@@ -668,6 +674,9 @@ function handleChange(el) {
       break;
     case 'brandAds':
       app.dispatch({ type: 'updateBrand', brandId: id, ads: { [el.dataset.channel]: Number(el.value) } });
+      break;
+    case 'setDelivery':
+      app.dispatch({ type: 'setDelivery', unitId: id, mode: el.value });
       break;
     case 'setAds':
       app.dispatch({ type: 'setAds', unitId: id, channel: el.dataset.channel, budget: Number(el.value) });

@@ -14,6 +14,12 @@ const THRESHOLDS = {
   restaurant: [25, 90],
   fuel: [40, 150],
   electronics: [15, 50],
+  hotel: [20, 70],
+  fitness: [80, 260],
+  beauty: [20, 60],
+  pharmacy: [60, 200],
+  cars: [1, 4],
+  autoservice: [10, 35],
 };
 
 const CATEGORY_NAMES = {
@@ -24,6 +30,12 @@ const CATEGORY_NAMES = {
   restaurant: 'ресторан',
   fuel: 'АЗС',
   electronics: 'магазин техники',
+  hotel: 'отель',
+  fitness: 'фитнес-клуб',
+  beauty: 'салон красоты',
+  pharmacy: 'аптеку',
+  cars: 'автосалон',
+  autoservice: 'автосервис',
 };
 
 export function monthlyAI(state) {

@@ -7,8 +7,8 @@ import {
 import { buyPrice, sellPrice } from './market.js';
 import { costIndex } from './world.js';
 import { capexFor, dailyNeed } from './units.js';
-import { serviceRevenuePerStaff } from './services.js';
-import { licenseNeeded } from './countries.js';
+import { serviceRevenuePerStaff, realEstateRentFor } from './services.js';
+import { licenseNeeded, countryDemand } from './countries.js';
 import { attention } from './staff.js';
 import { techLevel, missingTech } from './research.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
@@ -20,6 +20,7 @@ export function canBuildHere(state, lot, type) {
   if (def.zoning !== lot.zoning) return false;
   if (def.minArea && lot.area < def.minArea) return false;
   if (lot.zoning === 'farmland') return state.world.places[lot.placeId].kinds.includes(type);
+  if (def.service?.onlyPort) return Boolean(state.world.places[lot.placeId].port);
   return true;
 }
 
@@ -117,8 +118,11 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     r.outputPrice = sellPrice(state, out, place);
     revenueDay += Math.max(0, produced - ownUse) * r.outputPrice;
   }
-  if (def.service) {
-    revenueDay += r.staff * serviceRevenuePerStaff(state, def, place, type);
+  if (def.service?.realEstate) {
+    revenueDay += (realEstateRentFor(state, lot, type) / 30) * 0.88;
+    r.service = true;
+  } else if (def.service) {
+    revenueDay += r.staff * serviceRevenuePerStaff(state, def, place, type) * countryDemand(state, place.country) ** (def.service.cycle ?? 1);
     r.service = true;
   }
   const need = dailyNeed({ type, staff: r.staff }, served, produced);

@@ -31,6 +31,10 @@ export const REGION_BIAS = {
   plastic: { asia: 0.9, mea: 0.88, na: 0.95, eu: 1.08, la: 1.05, cis: 1.0, oc: 1.12 },
   chips: { asia: 0.85, na: 1.0, eu: 1.08, la: 1.12, mea: 1.1, cis: 1.15, oc: 1.08 },
   electronics: { asia: 0.88, na: 1.0, eu: 1.05, la: 1.15, mea: 1.08, cis: 1.12, oc: 1.08 },
+  medicine: { eu: 0.95, na: 1.05, asia: 0.92, la: 1.1, mea: 1.08, cis: 1.1, oc: 1.05 },
+  cosmetics: { eu: 0.95, asia: 0.92, na: 1.0, la: 1.08, mea: 1.05, cis: 1.05, oc: 1.05 },
+  parts: { asia: 0.9, eu: 1.0, na: 1.0, la: 1.08, mea: 1.08, cis: 1.1, oc: 1.08 },
+  cars: { asia: 0.92, eu: 1.0, na: 0.95, la: 1.15, mea: 1.1, cis: 1.15, oc: 1.12 },
   oil: { mea: 0.8, cis: 0.85, na: 0.92, la: 0.95, eu: 1.1, asia: 1.1, oc: 1.08 },
   fuel: { mea: 0.7, cis: 0.8, na: 0.88, la: 0.95, asia: 1.05, eu: 1.2, oc: 1.1 },
 };

@@ -1,5 +1,5 @@
 import { bizIcon, districtIcon, goodIcon } from './icons.js';
-import { BUSINESSES, MAX_LEVEL } from '../data/businesses.js';
+import { BUSINESSES, MAX_LEVEL, RISK, RISK_NAMES } from '../data/businesses.js';
 import { DISTRICTS, ZONING_NAMES } from '../data/districts.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
 import { GOODS } from '../data/goods.js';
@@ -11,11 +11,11 @@ import {
   countryState, regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
-  condition, renovateCost, seasonFactor, rivalUnitPrice, ARCHETYPES, bidForUnit, rivalWants, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
+  condition, renovateCost, seasonFactor, trainingCost, MAX_TRAINING, serviceMood, DELIVERY_CATEGORIES, ownCourier, rivalUnitPrice, ARCHETYPES, bidForUnit, rivalWants, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
-const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка', restaurant: '🍽️ Рестораны', fuel: '⛽ АЗС', electronics: '📱 Техника' };
+const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка', restaurant: '🍽️ Рестораны', fuel: '⛽ АЗС', electronics: '📱 Техника', hotel: '🏨 Отели', fitness: '🏋️ Фитнес', beauty: '💇 Красота', pharmacy: '💊 Аптеки', cars: '🚗 Автомобили', autoservice: '🔧 Автосервис' };
 const SUPPLY_LABEL = { internal: '🔗 своё', warehouse: '🏗️ склад', contract: '📝 контракт', market: '💹 рынок', nocash: '⛔ нет денег' };
 
 function row(label, value, cls = '') {
@@ -148,6 +148,7 @@ function renderLot(app, lot) {
     else activity = `запас для точек в радиусе ${num(def.storage.radiusKm)} км`;
     html += `<div class="offer">
       <div class="offer-head"><span class="li-icon big">${bizIcon(f.type)}</span><b>${def.name}</b><span class="tier">тир ${def.tier}</span></div>
+      ${RISK[f.type] ? `<div class="small"><b>${RISK_NAMES[RISK[f.type][0]]}</b> · ${RISK[f.type][1]}</div>` : ''}
       <div class="muted small">${def.description}</div>
       <div class="offer-grid">
         <span>Вложения</span><b>${money(f.capex)}</b>
@@ -221,6 +222,7 @@ function plTable(m, title) {
     ['Реклама', -m.marketing],
     ['Перевозка', -m.transport],
     ['Таможенные пошлины', -(m.duty || 0)],
+    ['Комиссия доставки', -(m.commission || 0)],
     ['Порча', -m.spoilage],
     ['Прочее (ремонт, штрафы)', -m.other],
   ].filter(([, v]) => Math.abs(v) >= 0.5);
@@ -326,7 +328,10 @@ function renderStaff(app, u) {
     <div class="row" ${u.brandId ? 'hidden' : ''}><span>Зарплата</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${wageLevel(u) === l ? 'active' : ''}" data-action="setWage" data-id="${u.id}" data-level="${l}">${Math.round(l * 100)}%</button>`).join('')}</span></div>
     <div class="row"><span>Мораль: ${moodText}</span><b>${num(m)} / 100</b></div>
     <div class="progress ${m < 35 ? 'bad' : m < 50 ? 'warn' : ''}"><span style="width:${m.toFixed(0)}%"></span></div>
-    ${row('Производительность', `<span class="${signClass(eff - 1)}">${pct(eff)}</span>`)}`;
+    ${row('Производительность', `<span class="${signClass(eff - 1)}">${pct(eff)}</span>`)}
+    <div class="row"><span>🎓 Обучение: ${'★'.repeat(Math.floor(u.training || 0))}${'☆'.repeat(MAX_TRAINING - Math.floor(u.training || 0))} <small class="muted">(+5% скорости и +0.1★ за уровень)</small></span>
+      ${(u.training || 0) < MAX_TRAINING ? `<button class="mini wide" data-action="trainStaff" data-id="${u.id}">Обучить · ${moneyShort(trainingCost(state, u, monthlyWage(state, u)))}</button>` : '<b class="pos">макс.</b>'}</div>
+    ${u.star ? `<div class="row"><span>⭐ Звёздный сотрудник: +0.4★, зарплата как у троих</span><button class="mini wide" data-action="releaseStar" data-id="${u.id}">Отпустить</button></div>` : ''}`;
   if (u.manager) {
     html += `<div class="row"><span>👔 Управляющий · ${money(managerCost(place, u.type))}/мес</span><button class="mini wide" data-action="fireManager" data-id="${u.id}">Уволить</button></div>
       <label class="row check"><span>Сам подбирает число сотрудников под спрос</span><input type="checkbox" data-change="setAutoStaff" data-id="${u.id}" ${u.autoStaff ? 'checked' : ''}></label>`;
@@ -389,7 +394,7 @@ function renderUnit(app, u) {
   }
   if (def.service) {
     html += `<div class="kpi"><small>Работают сегодня</small><b>${num(t.working ?? 0)} из ${u.staff}</b><small>${def.staff.role.toLowerCase()}</small></div>
-      <div class="kpi"><small>Заказы сегодня</small><b>${money(t.revenue ?? 0)}</b><small>от ИИ-клиентов</small></div>`;
+      <div class="kpi"><small>${def.service.realEstate ? 'Доход сегодня' : 'Заказы сегодня'}</small><b>${money(t.revenue ?? 0)}</b><small>${def.service.realEstate ? `заполненность ${pct(t.occupancy ?? 0)}` : `спрос на услуги ${pct(serviceMood(state, u))}`}</small></div>`;
   }
   html += '</div>';
   if (def.service) html += `<div class="card small">🎁 <b>Бонус компании:</b> ${def.service.bonus}.</div>`;
@@ -413,6 +418,13 @@ function renderUnit(app, u) {
 
   html += renderStaff(app, u);
   html += '<h3>Управление</h3><div class="card">';
+  if (def.retail && DELIVERY_CATEGORIES.includes(def.category)) {
+    const courier = ownCourier(state, u.companyId, u.placeId);
+    html += `<div class="row"><span>🛵 Доставка${u.today?.delivered ? ` <small class="muted">сегодня ${num(u.today.delivered)} заказов</small>` : ''}</span><select data-change="setDelivery" data-id="${u.id}">
+      <option value="none" ${!u.delivery || u.delivery === 'none' ? 'selected' : ''}>Нет</option>
+      <option value="aggregator" ${u.delivery === 'aggregator' ? 'selected' : ''}>Агрегатор: +35% заказов, комиссия 25%</option>
+      <option value="own" ${u.delivery === 'own' ? 'selected' : ''}>Своя доставка: +30%, комиссия 8%${courier ? '' : ' (нужна служба доставки в городе)'}</option></select></div>`;
+  }
   if (def.retail && !brand) {
     html += renderAds(app, u);
   }

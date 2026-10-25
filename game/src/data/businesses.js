@@ -8,6 +8,11 @@
 //              tradable — доля цены, не зависящая от доходов города (топливо стоит почти везде одинаково).
 // capex      — базовые вложения при индексе цен 1; renovPerM2 — ремонт за м².
 // license    — нужна лицензия (см. data/laws.js): платится один раз в каждой стране.
+// service.volatility — насколько «гуляет» выручка услуги от месяца к месяцу (риск);
+// service.cycle — чувствительность к экономике страны (кризис бьёт по застройщику и банку, но не по электростанции);
+// service.realEstate — доход от сдачи площадей (торговый и бизнес-центр); service.onlyPort — только в портовых городах.
+// Профили: розница — средний риск; недвижимость и энергетика — дорого, но стабильно;
+// застройщик, фарма, автосалоны — дорого и рискованно, зато могут принести очень много.
 // upkeep     — коммунальные/обслуживание в месяц: base + perArea × площадь (м² или га).
 export const BUSINESSES = {
   coffee_shop: {
@@ -220,7 +225,7 @@ export const BUSINESSES = {
     upkeep: { base: 3000, perArea: 1.5 },
     staff: { role: 'Водитель', wage: 2700, min: 1, max: 60, def: 6 },
     marketing: 0,
-    service: { revenuePerStaff: 260, inputs: { fuel: 80 }, bonus: 'Доставка для ваших бизнесов в этом регионе дешевле на 40%' },
+    service: { revenuePerStaff: 260, volatility: 0.08, cycle: 1, inputs: { fuel: 80 }, bonus: 'Доставка для ваших бизнесов в этом регионе дешевле на 40%' },
   },
   ad_agency: {
     name: 'Рекламное агентство', icon: '📣', zoning: 'commercial', category: 'service', tier: 2,
@@ -229,7 +234,7 @@ export const BUSINESSES = {
     upkeep: { base: 1200, perArea: 8 },
     staff: { role: 'Креативщик', wage: 3800, min: 1, max: 30, def: 4 },
     marketing: 0,
-    service: { revenuePerStaff: 210, inputs: {}, talent: true, bonus: 'Реклама ваших точек в этой стране эффективнее на 30%' },
+    service: { revenuePerStaff: 210, volatility: 0.12, cycle: 1.5, inputs: {}, talent: true, bonus: 'Реклама ваших точек в этой стране эффективнее на 30%' },
   },
   it_studio: {
     name: 'IT-студия', icon: '💻', zoning: 'commercial', category: 'service', tier: 2,
@@ -238,7 +243,7 @@ export const BUSINESSES = {
     upkeep: { base: 1000, perArea: 8 },
     staff: { role: 'Программист', wage: 5000, min: 1, max: 40, def: 4 },
     marketing: 0,
-    service: { revenuePerStaff: 240, inputs: {}, talent: true, bonus: '+10% мощности всех ваших точек продаж (нужно 3+ программиста)' },
+    service: { revenuePerStaff: 240, volatility: 0.15, cycle: 0.5, inputs: {}, talent: true, bonus: '+10% мощности всех ваших точек продаж (нужно 3+ программиста)' },
   },
   billboards: {
     name: 'Рекламные щиты', icon: '🪧', zoning: 'commercial', category: 'service', tier: 2,
@@ -247,7 +252,165 @@ export const BUSINESSES = {
     upkeep: { base: 1200, perArea: 2 },
     staff: { role: 'Монтажник', wage: 2600, min: 1, max: 15, def: 3 },
     marketing: 0,
-    service: { revenuePerStaff: 110, inputs: {}, bonus: 'Ваши точки в этом городе бесплатно висят на билбордах (как $1500/мес рекламы каждой)' },
+    service: { revenuePerStaff: 110, volatility: 0.08, cycle: 1, inputs: {}, bonus: 'Ваши точки в этом городе бесплатно висят на билбордах (как $1500/мес рекламы каждой)' },
+  },
+  // ---------- туризм, здоровье, авто ----------
+  hotel: {
+    name: 'Отель', icon: '🏨', zoning: 'commercial', category: 'hotel', tier: 3, minArea: 120,
+    description: 'Номера для туристов: чем туристичнее город, тем больше гостей. Летом аншлаг, зимой пусто. Дорого, но надолго.',
+    capex: 1600000, renovPerM2: 500,
+    upkeep: { base: 7000, perArea: 25 },
+    staff: { role: 'Персонал отеля', wage: 2400, min: 8, max: 80, def: 20 },
+    marketing: 3000,
+    retail: {
+      perStaff: 3, cap: [60, 120, 200],
+      products: [
+        { id: 'room', name: 'Номер на ночь', ref: 95, attach: 1, tradable: 0.3, recipe: { groceries: 1.5 } },
+        { id: 'hmeal', name: 'Ресторан отеля', ref: 25, attach: 0.5, recipe: { groceries: 3, meat: 0.1 } },
+      ],
+    },
+  },
+  fitness: {
+    name: 'Фитнес-клуб', icon: '🏋️', zoning: 'commercial', category: 'fitness', tier: 2, minArea: 100,
+    description: 'Абонементы: сырья почти нет, доход стабильный, но большие площади и зарплаты тренеров. Пик — в январе.',
+    capex: 380000, renovPerM2: 250,
+    upkeep: { base: 1500, perArea: 12 },
+    staff: { role: 'Тренер', wage: 2700, min: 3, max: 30, def: 6 },
+    marketing: 1500,
+    retail: {
+      perStaff: 45, cap: [300, 500, 800],
+      products: [
+        { id: 'visit', name: 'Посещение', ref: 7, attach: 1, recipe: {} },
+        { id: 'shake', name: 'Протеиновый коктейль', ref: 4, attach: 0.2, recipe: { milk: 0.3, sugar: 0.03 } },
+      ],
+    },
+  },
+  beauty_salon: {
+    name: 'Салон красоты', icon: '💇', zoning: 'commercial', category: 'beauty', tier: 1,
+    description: 'Стрижки и уход: дорогой труд мастеров, дешёвая косметика. Любит престижные районы.',
+    capex: 140000, renovPerM2: 200,
+    upkeep: { base: 800, perArea: 10 },
+    staff: { role: 'Мастер', wage: 3200, min: 2, max: 20, def: 4 },
+    marketing: 800,
+    retail: {
+      perStaff: 7, cap: [50, 90, 140],
+      products: [
+        { id: 'haircut', name: 'Услуга', ref: 30, attach: 1, recipe: { cosmetics: 0.15 } },
+        { id: 'beautyshop', name: 'Косметика', ref: 12, attach: 0.25, recipe: { cosmetics: 1 } },
+      ],
+    },
+  },
+  pharmacy: {
+    name: 'Аптека', icon: '💊', zoning: 'commercial', category: 'pharmacy', tier: 2, license: 'pharma_retail',
+    description: 'Лекарства нужны всегда: спрос почти не зависит от кризисов. Невысокая, но стабильная маржа.',
+    capex: 130000, renovPerM2: 150,
+    upkeep: { base: 700, perArea: 9 },
+    staff: { role: 'Фармацевт', wage: 2700, min: 2, max: 15, def: 3 },
+    marketing: 500,
+    retail: {
+      perStaff: 35, cap: [250, 450, 700],
+      products: [
+        { id: 'meds', name: 'Лекарства', ref: 15, attach: 1, recipe: { medicine: 1.4 } },
+        { id: 'pcosm', name: 'Косметика', ref: 9, attach: 0.3, recipe: { cosmetics: 1 } },
+      ],
+    },
+  },
+  pharma_plant: {
+    name: 'Фармзавод', icon: '🧬', zoning: 'industrial', category: 'industry', tier: 4, license: 'pharma', requiresTech: 'pharma',
+    description: 'Огромная маржа на лекарствах, но очень дорогой вход, лицензия и риск отзыва партии. Снабжает ваши аптеки.',
+    capex: 12000000, renovPerM2: 200,
+    upkeep: { base: 40000, perArea: 10 },
+    staff: { role: 'Технолог', wage: 4500, min: 10, max: 120, def: 50 },
+    marketing: 0,
+    production: {
+      perStaff: 60, cap: [3000, 6000, 10000],
+      recipe: { output: 'medicine', inputs: { sugar: 0.05, plastic: 0.08 } },
+    },
+  },
+  car_dealer: {
+    name: 'Автосалон', icon: '🚗', zoning: 'commercial', category: 'cars', tier: 3, minArea: 120,
+    description: 'Дорогие покупки: несколько машин в день дают большие деньги, но в кризис продажи падают вдвое.',
+    capex: 650000, renovPerM2: 200,
+    upkeep: { base: 3000, perArea: 12 },
+    staff: { role: 'Менеджер продаж', wage: 3200, min: 4, max: 30, def: 8 },
+    marketing: 4000,
+    retail: {
+      perStaff: 0.6, cap: [5, 9, 15],
+      products: [
+        { id: 'car', name: 'Автомобиль', ref: 24000, attach: 1, tradable: 0.75, recipe: { cars: 1 } },
+        { id: 'carservice', name: 'Допы и сервис', ref: 900, attach: 0.6, recipe: { parts: 5 } },
+      ],
+    },
+  },
+  auto_service: {
+    name: 'Автосервис', icon: '🔧', zoning: 'commercial', category: 'autoservice', tier: 2,
+    description: 'Ремонт и шиномонтаж: машины ломаются всегда — скромно, но стабильно. Хорошая пара к АЗС и автосалону.',
+    capex: 250000, renovPerM2: 120,
+    upkeep: { base: 1000, perArea: 8 },
+    staff: { role: 'Автомеханик', wage: 3000, min: 2, max: 25, def: 5 },
+    marketing: 600,
+    retail: {
+      perStaff: 6, cap: [40, 70, 110],
+      products: [
+        { id: 'repair', name: 'Ремонт', ref: 110, attach: 1, recipe: { parts: 1.5 } },
+        { id: 'tires', name: 'Шиномонтаж', ref: 50, attach: 0.3, recipe: { parts: 0.3 } },
+      ],
+    },
+  },
+  // ---------- недвижимость, стройка, инфраструктура ----------
+  shopping_mall: {
+    name: 'Торговый центр', icon: '🏬', zoning: 'commercial', category: 'service', tier: 3, minArea: 120,
+    description: 'Многоэтажный ТЦ: сдаёте площади арендаторам. Дорого, окупается долго, зато доход как часы. Ваши точки в районе платят на 30% меньше аренды.',
+    capex: 3200000, renovPerM2: 600,
+    upkeep: { base: 12000, perArea: 30 },
+    staff: { role: 'Управляющий площадями', wage: 3000, min: 4, max: 30, def: 8 },
+    marketing: 0,
+    service: { realEstate: 32, volatility: 0.04, cycle: 0.5, inputs: {}, bonus: 'Ваши точки в этом районе платят на 30% меньше аренды' },
+  },
+  business_center: {
+    name: 'Бизнес-центр', icon: '🏢', zoning: 'commercial', category: 'service', tier: 3, minArea: 100,
+    description: 'Офисы в аренду: самый спокойный доход в игре, если район деловой. Окупается 4–6 лет.',
+    capex: 2600000, renovPerM2: 500,
+    upkeep: { base: 8000, perArea: 25 },
+    staff: { role: 'Администратор', wage: 3000, min: 3, max: 20, def: 6 },
+    marketing: 0,
+    service: { realEstate: 30, volatility: 0.03, cycle: 0.7, inputs: {}, bonus: 'Стабильная аренда офисов' },
+  },
+  developer: {
+    name: 'Застройщик', icon: '🏗️', zoning: 'industrial', category: 'service', tier: 3,
+    description: 'Строит жильё: в хорошие годы — огромные деньги, в кризис — убытки. Каждый год делает свой город на 2% многолюднее.',
+    capex: 900000, renovPerM2: 30,
+    upkeep: { base: 8000, perArea: 3 },
+    staff: { role: 'Строитель', wage: 3200, min: 10, max: 120, def: 25 },
+    marketing: 0,
+    service: { revenuePerStaff: 120, volatility: 0.3, cycle: 2.5, inputs: {}, bonus: 'Каждый год +2% потока людей во всех районах города (до +20%)' },
+  },
+  power_plant: {
+    name: 'Электростанция', icon: '⚡', zoning: 'industrial', category: 'service', tier: 4, license: 'energy',
+    description: 'Газовая электростанция: продаёт энергию по регулируемому тарифу — очень дорого, очень стабильно. Ваши бизнесы в регионе платят на 15% меньше за коммунальные.',
+    capex: 5000000, renovPerM2: 60,
+    upkeep: { base: 30000, perArea: 5 },
+    staff: { role: 'Энергетик', wage: 4000, min: 10, max: 60, def: 20 },
+    marketing: 0,
+    service: { revenuePerStaff: 520, volatility: 0.02, cycle: 0, inputs: { fuel: 350 }, bonus: 'Коммунальные ваших бизнесов в регионе −15%' },
+  },
+  port: {
+    name: 'Морской порт', icon: '⚓', zoning: 'industrial', category: 'service', tier: 4,
+    description: 'Только в портовых городах. Перевалка грузов ИИ-клиентов; ваши межконтинентальные грузы из региона идут без задержки в портах и дешевле.',
+    capex: 3500000, renovPerM2: 60,
+    upkeep: { base: 25000, perArea: 5 },
+    staff: { role: 'Докер', wage: 3200, min: 15, max: 150, def: 40 },
+    marketing: 0,
+    service: { revenuePerStaff: 140, volatility: 0.1, cycle: 1.2, inputs: { fuel: 20 }, onlyPort: true, bonus: 'Ваши грузы из этого региона: без 3 дней в портах и на 30% дешевле' },
+  },
+  courier: {
+    name: 'Служба доставки', icon: '🛵', zoning: 'commercial', category: 'service', tier: 2,
+    description: 'Свои курьеры: ваши кафе и рестораны в городе доставляют еду сами — комиссия 8% вместо 25% у агрегатора. Плюс заказы ИИ-клиентов.',
+    capex: 120000, renovPerM2: 60,
+    upkeep: { base: 900, perArea: 5 },
+    staff: { role: 'Курьер', wage: 2200, min: 3, max: 80, def: 10 },
+    marketing: 0,
+    service: { revenuePerStaff: 55, volatility: 0.06, cycle: 0.8, inputs: { fuel: 6 }, bonus: 'Своя доставка для ваших кафе и ресторанов в городе (комиссия 8%)' },
   },
   warehouse: {
     name: 'Склад', icon: '🏗️', zoning: 'industrial', category: 'logistics', tier: 2,
@@ -331,7 +494,7 @@ export const BUSINESSES = {
     upkeep: { base: 15000, perArea: 20 },
     staff: { role: 'Банкир', wage: 6000, min: 10, max: 80, def: 20 },
     marketing: 0,
-    service: { revenuePerStaff: 380, inputs: {}, talent: true, bonus: 'Ставка по вашим кредитам −3 п.п., кредитный лимит +30%' },
+    service: { revenuePerStaff: 380, volatility: 0.1, cycle: 2, inputs: {}, talent: true, bonus: 'Ставка по вашим кредитам −3 п.п., кредитный лимит +30%' },
   },
   saas: {
     name: 'Облачный сервис', icon: '☁️', zoning: 'commercial', category: 'service', tier: 4, requiresTech: 'cloud',
@@ -340,7 +503,7 @@ export const BUSINESSES = {
     upkeep: { base: 8000, perArea: 10 },
     staff: { role: 'Инженер', wage: 7000, min: 10, max: 100, def: 25 },
     marketing: 0,
-    service: { revenuePerStaff: 300, inputs: {}, talent: true, bonus: 'Подписки ИИ-клиентов' },
+    service: { revenuePerStaff: 300, volatility: 0.2, cycle: 0.5, inputs: {}, talent: true, bonus: 'Подписки ИИ-клиентов' },
   },
   electronics_plant: {
     name: 'Завод электроники', icon: '🏭', zoning: 'industrial', category: 'industry', tier: 4, requiresTech: 'electronics', license: 'eco',
@@ -370,6 +533,41 @@ export const BUSINESSES = {
     },
   },
 };
+
+// Профиль бизнеса для игрока: риск и характер дохода
+export const RISK = {
+  coffee_shop: ['mid', 'Ходовой старт: быстро окупается, но много конкурентов'],
+  bakery: ['mid', 'Своя выпечка снабжает кофейни'],
+  fastfood: ['mid', 'Дёшево открыть, тонкая маржа, любит студентов'],
+  minimarket: ['low', 'Тонкая маржа, зато спрос есть всегда'],
+  restaurant: ['mid', 'Высокий чек, дорогой персонал'],
+  supermarket: ['low', 'Большой оборот, стабильно'],
+  gas_station: ['mid', 'Зависит от цен на топливо'],
+  coffee_roastery: ['mid', 'Маржа зависит от цен на зерно'],
+  mill: ['mid', 'Сырьевой бизнес: цены гуляют'],
+  meat_plant: ['mid', 'Сырьевой бизнес: цены гуляют'],
+  dairy_plant: ['mid', 'Сырьевой бизнес: цены гуляют'],
+  packaging_plant: ['mid', 'Зависит от цен на пластик'],
+  food_factory: ['mid', 'Большой оборот, маржа зависит от сырья'],
+  refinery: ['high', 'Нефтяные шоки: то густо, то пусто'],
+  chemical_plant: ['high', 'Зависит от цен на нефть'],
+  oil_well: ['high', 'Огромные деньги при дорогой нефти, убытки при дешёвой'],
+  coffee_plantation: ['mid', 'Урожай и цены на кофе'], wheat_farm: ['mid', 'Урожай и погода'],
+  dairy_farm: ['mid', 'Корма и цены на молоко'], livestock_farm: ['mid', 'Корма и цены на мясо'],
+  trucking: ['mid', 'Заказы зависят от экономики'], ad_agency: ['high', 'В кризис реклама — первое, на чём экономят'],
+  it_studio: ['mid', 'Нужны дорогие программисты'], billboards: ['mid', 'Реклама на своих щитах — бесплатно'],
+  warehouse: ['low', 'Экономит на закупках и доставке'],
+  bank: ['high', 'В кризис невозвраты бьют по прибыли'], saas: ['high', 'Подписки: то бум, то отток'],
+  electronics_plant: ['high', 'Огромный оборот, мода и цены на чипы'], electronics_store: ['high', 'Дорогие покупки, мода на гаджеты'],
+  hotel: ['mid', 'Сезон и туристы: летом аншлаг, зимой пусто'], fitness: ['low', 'Абонементы: стабильно, пик в январе'],
+  beauty_salon: ['low', 'Мастера дорогие, клиенты верные'], pharmacy: ['low', 'Лекарства нужны всегда — почти без кризисов'],
+  pharma_plant: ['high', 'Огромная маржа, но отзывы партий стоят миллионы'], car_dealer: ['high', 'Дорогие покупки: в кризис продажи падают вдвое'],
+  auto_service: ['low', 'Машины ломаются всегда'], shopping_mall: ['low', 'Дорого, но аренда как часы'],
+  business_center: ['low', 'Самый спокойный доход'], developer: ['high', 'Бум — огромные деньги, кризис — убытки'],
+  power_plant: ['low', 'Регулируемый тариф: очень стабильно'], port: ['mid', 'Зависит от мировой торговли'],
+  courier: ['mid', 'Своя доставка для ваших кафе'],
+};
+export const RISK_NAMES = { low: '🟢 низкий риск', mid: '🟡 средний риск', high: '🔴 высокий риск' };
 
 // Улучшения оборудования: уровень 1..3.
 export const MAX_LEVEL = 3;

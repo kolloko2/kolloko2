@@ -68,6 +68,23 @@
     "ui/tasks": "a clipboard with a checklist and a red exclamation mark",
     "ui/rivals": "a shark fin above blue water",
     "ui/research": "a laboratory flask with a glowing liquid next to a small microscope",
-    "business/billboards": "a large roadside advertising billboard on two steel legs"
+    "business/billboards": "a large roadside advertising billboard on two steel legs",
+    "business/hotel": "a modern city hotel building with balconies and a small entrance canopy",
+    "business/fitness": "a gym building with a large window showing a dumbbell rack",
+    "business/beauty_salon": "a small beauty salon storefront with a salon chair and mirror in the window",
+    "business/pharmacy": "a pharmacy storefront with a green cross sign",
+    "business/pharma_plant": "a clean white pharmaceutical factory with stainless steel tanks",
+    "business/car_dealer": "a glass car showroom with a shiny car inside",
+    "business/auto_service": "a car repair garage with an open roller door and a car on a lift",
+    "business/shopping_mall": "a large multi-storey shopping mall with a glass atrium",
+    "business/business_center": "a modern glass office tower business center",
+    "business/developer": "a residential building under construction with a tower crane",
+    "business/power_plant": "a gas power plant with cooling tower and power lines",
+    "business/port": "a seaport with a container ship and a gantry crane",
+    "business/courier": "a food delivery scooter with a thermal box",
+    "goods/medicine": "a pill blister pack next to a small medicine bottle",
+    "goods/cosmetics": "a set of cosmetic bottles and a lipstick",
+    "goods/parts": "a car tire next to a brake disc and a wrench",
+    "goods/cars": "a modern compact passenger car"
   }
 }

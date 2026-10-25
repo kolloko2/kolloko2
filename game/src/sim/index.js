@@ -16,7 +16,9 @@ export {
 export {
   presenceByCountry, presenceIn, hasLocalTeam, overhead, marginalOverhead, foreignFactor, entryFee, purchasingDiscount, LOCAL_TEAM_UNITS, isConsumer,
 } from './expansion.js';
-export { attention, efficiency, morale, wageLevel, managerCost, laborFactor, WAGE_LEVELS, BASE_ATTENTION } from './staff.js';
+export {
+  attention, efficiency, morale, wageLevel, managerCost, laborFactor, trainingCost, WAGE_LEVELS, BASE_ATTENTION, MAX_TRAINING,
+} from './staff.js';
 export { districtShares, districtPotential, refPrice, seasonFactor, aiUtility } from './demand.js';
 export { distanceKm, costIndex, priceIndex } from './world.js';
 export * from './units.js';
@@ -41,6 +43,8 @@ export {
   LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER,
 } from './research.js';
 export { adsOf, channelFit, adGain } from './ads.js';
-export { ownBillboards } from './bonuses.js';
 export { trendOf, districtEventOf } from './luck.js';
 export { advice } from './advisor.js';
+export { serviceMood, realEstateRent } from './services.js';
+export { DELIVERY, DELIVERY_CATEGORIES } from './tick.js';
+export { ownBillboards, ownCourier, energyFactor, hasPort, mallDiscount } from './bonuses.js';

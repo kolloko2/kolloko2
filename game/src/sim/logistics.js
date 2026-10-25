@@ -5,8 +5,8 @@ import { techLevel } from './research.js';
 // Доставка товаров. Закупка у местного оптовика приходит на следующий день; поставки между своими
 // бизнесами идут столько, сколько ехать: ~700 км в день, межконтинентальные — ещё +3 дня в портах.
 const KM_PER_DAY = 700;
-const SEA_KM = 3000;
-const PORT_DAYS = 3;
+export const SEA_KM = 3000;
+export const PORT_DAYS = 3;
 export const BULK_FREIGHT = 0.4; // тариф на крупные партии до склада — 40% от обычного
 
 export function leadDays(km) {

@@ -8,8 +8,10 @@ import { checkGoals, checkVictory } from './goals.js';
 import { receiveDeliveries } from './logistics.js';
 import { runServices } from './services.js';
 import { adGain, monthlyViral } from './ads.js';
+import { ownCourier } from './bonuses.js';
 import { monthlyLuck } from './luck.js';
-import { updateStaff, monthlyStaffEvents, managerCost, morale } from './staff.js';
+import { monthlyServiceMood } from './services.js';
+import { updateStaff, monthlyStaffEvents, managerCost, morale, STAR_WAGE } from './staff.js';
 import { updateBrands } from './brands.js';
 import { runContracts } from './contracts.js';
 import { countryTax, monthlyCountryEvents, monthlyInflation } from './countries.js';
@@ -49,8 +51,24 @@ function runProduction(state) {
   }
 }
 
-function sellRetail(state, unit, potential) {
+// Доставка еды: агрегатор приводит +35% заказов за 25% комиссии, своя служба доставки — +30% за 8%
+export const DELIVERY = {
+  aggregator: { extra: 0.35, fee: 0.25 },
+  own: { extra: 0.3, fee: 0.08 },
+};
+export const DELIVERY_CATEGORIES = ['coffee', 'fastfood', 'restaurant', 'bakery'];
+
+function deliveryMode(state, unit) {
+  const mode = unit.delivery;
+  if (!mode || mode === 'none' || !DELIVERY_CATEGORIES.includes(BUSINESSES[unit.type].category)) return null;
+  if (mode === 'own' && !ownCourier(state, unit.companyId, unit.placeId)) return DELIVERY.aggregator; // без курьеров — через агрегатор
+  return DELIVERY[mode];
+}
+
+function sellRetail(state, unit, basePotential) {
   const def = BUSINESSES[unit.type];
+  const d = deliveryMode(state, unit);
+  const potential = basePotential * (1 + (d?.extra ?? 0));
   const cap = retailCapacity(state, unit);
   const [main, ...extras] = def.retail.products;
   let stockMain = Infinity;
@@ -67,6 +85,11 @@ function sellRetail(state, unit, potential) {
     revenue += can * unit.prices[p.id];
   }
   earn(state, unit, revenue);
+  if (d) {
+    const share = d.extra / (1 + d.extra); // доля заказов с доставкой
+    spend(state, unit, 'commission', revenue * share * d.fee);
+    unit.today.delivered = Math.round(served * share);
+  }
   unit.month.cogs += cost;
   unit.month.customers += served;
   const lost = Math.max(0, Math.round(potential - served));
@@ -107,7 +130,8 @@ function updateUsage(state) {
 
 function dailyCosts(state) {
   for (const unit of Object.values(state.units)) {
-    spend(state, unit, 'wages', (unit.staff * monthlyWage(state, unit) + (unit.manager ? managerCost(placeOf(state, unit), unit.type) : 0)) / 30);
+    const staffCount = unit.staff + (unit.star ? STAR_WAGE : 0);
+    spend(state, unit, 'wages', (staffCount * monthlyWage(state, unit) + (unit.manager ? managerCost(placeOf(state, unit), unit.type) : 0)) / 30);
     const rent = monthlyRent(state, unit) / 30;
     spend(state, unit, 'rent', rent);
     // помещение принадлежит другой компании — аренда идёт ей
@@ -160,6 +184,15 @@ function updateBrand(state) {
     unit.awareness = Math.min(0.95, Math.max(floor, unit.awareness));
     const q = baseQuality(unit, state) - unit.queue - (unit.today.stockout ? 0.4 : 0) - (morale(unit) < 40 ? 0.3 : 0);
     unit.quality = Math.min(5, Math.max(1, unit.quality * 0.97 + q * 0.03));
+  }
+}
+
+// Застройщики каждый год делают свои города многолюднее
+function yearlyGrowth(state) {
+  state.growth ||= {};
+  for (const u of Object.values(state.units)) {
+    if (u.type !== 'developer' || u.broken > 0) continue;
+    state.growth[u.placeId] = Math.round(Math.min(1.2, (state.growth[u.placeId] ?? 1) * 1.02) * 1000) / 1000;
   }
 }
 
@@ -255,6 +288,8 @@ function monthEnd(state) {
   monthlyCountryEvents(state);
   monthlyViral(state);
   monthlyLuck(state);
+  monthlyServiceMood(state);
+  if (newYear) yearlyGrowth(state);
   monthlyEvents(state);
   monthlyStaffEvents(state);
   checkVictory(state);

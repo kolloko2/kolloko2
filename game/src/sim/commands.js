@@ -5,9 +5,10 @@ import { canBuildHere, forecast } from './forecast.js';
 import { addNews, loanLimit, companyUnits } from './state.js';
 import {
   emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, pay, receive, placeOf, renovateCost, condition,
+  monthlyWage, spend,
 } from './units.js';
 import { contractOffer, contractGoods, endContract, CONTRACT_MONTHS } from './contracts.js';
-import { WAGE_LEVELS } from './staff.js';
+import { WAGE_LEVELS, trainingCost, MAX_TRAINING } from './staff.js';
 import { COUNTRIES } from '../data/cities.js';
 import { BRAND_TIERS, newBrand, applyBrand, detachFromBrand, brandUnits } from './brands.js';
 import { entryFee, LOCAL_TEAM_UNITS } from './expansion.js';
@@ -21,6 +22,7 @@ import {
 } from './research.js';
 import { TECHS } from '../data/tech.js';
 import { AD_CHANNELS } from '../data/ads.js';
+import { DELIVERY_CATEGORIES } from './tick.js';
 import { defaultAds, setAds, adsOf } from './ads.js';
 import { ROYALTIES, FRANCHISE_MIN_UNITS, packageCost } from './franchise.js';
 import {
@@ -426,6 +428,34 @@ const handlers = {
     if (unit.brandId) return fail('Зарплаты в точках сети задаёт сеть');
     if (!WAGE_LEVELS.includes(level)) return fail('Уровень зарплаты: 80%, 100%, 120% или 150%');
     unit.wageLevel = level;
+    return OK;
+  },
+
+  trainStaff(state, { unitId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if ((unit.training || 0) >= MAX_TRAINING) return fail('Персонал обучен по максимуму');
+    const cost = trainingCost(state, unit, monthlyWage(state, unit));
+    if (state.companies[companyId].cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
+    spend(state, unit, 'other', cost);
+    unit.training = Math.min(MAX_TRAINING, Math.floor((unit.training || 0) + 1));
+    addNews(state, 'good', `Персонал «${unit.name}» прошёл обучение (уровень ${unit.training}).`, { unitId }, companyId);
+    return OK;
+  },
+
+  releaseStar(state, { unitId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit?.star) return fail('Звезды здесь нет');
+    unit.star = false;
+    return OK;
+  },
+
+  setDelivery(state, { unitId, mode }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (!['none', 'aggregator', 'own'].includes(mode)) return fail('Неизвестный режим');
+    if (mode !== 'none' && !DELIVERY_CATEGORIES.includes(BUSINESSES[unit.type].category)) return fail('Доставка — только для кафе, фастфуда, ресторанов и пекарен');
+    unit.delivery = mode;
     return OK;
   },
 
