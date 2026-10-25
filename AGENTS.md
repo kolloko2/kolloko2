@@ -90,7 +90,7 @@ npm install && npm run typecheck   # проверка типов TypeScript (н�
 
 Сервер (Ubuntu 24.04, домен автора nkodzaev.ru): под root
 `git clone -b claude/exciting-ride-b0x3rf https://github.com/kolloko2/kolloko2.git /opt/magnat-src && bash /opt/magnat-src/game/deploy/install.sh nkodzaev.ru`;
-обновление — `bash /opt/magnat-src/game/deploy/update.sh`. Пароли сервера в репозиторий не писать.
+обновление — само (таймер `magnat-update`, раз в 5 минут тянет ветку) или `bash /opt/magnat-src/game/deploy/update.sh`. Пароли сервера в репозиторий не писать.
 
 ---
 

@@ -66,10 +66,43 @@ server {
   }
 }
 NGINX
+# старые сайты с этим доменом (например, редирект) отключаются, копия — в /root/nginx-backup-*
+BACKUP="/root/nginx-backup-$(date +%Y%m%d-%H%M%S)"
+for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
+  [ -e "$f" ] && [ "$(basename "$f")" != magnat ] || continue
+  if grep -qE "server_name[^;]*[[:space:]](www\.)?${DOMAIN//./\\.}[[:space:];]" "$f"; then
+    mkdir -p "$BACKUP"; cp -L "$f" "$BACKUP/"; rm -f "$f"
+    echo "Отключён старый сайт $f (копия в $BACKUP)"
+  fi
+done
 ln -sf /etc/nginx/sites-available/magnat /etc/nginx/sites-enabled/magnat
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
+
+echo "== Автообновление из GitHub (каждые 5 минут)"
+REPO="$(cd "$SRC/.." && pwd)"
+cat > /etc/systemd/system/magnat-update.service <<UNIT
+[Unit]
+Description=МАГНАТ: обновление из git
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash $REPO/game/deploy/update.sh --if-changed
+UNIT
+cat > /etc/systemd/system/magnat-update.timer <<UNIT
+[Unit]
+Description=МАГНАТ: проверка обновлений
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now magnat-update.timer
 
 echo "== Брандмауэр"
 ufw allow OpenSSH
@@ -86,3 +119,4 @@ certbot --nginx $DOMAINS --non-interactive --agree-tos --register-unsafely-witho
 echo
 echo "Готово: https://$DOMAIN"
 echo "Логи: journalctl -u magnat -f    Перезапуск: systemctl restart magnat"
+echo "Новые версии из ветки подтягиваются сами каждые 5 минут (журнал: journalctl -u magnat-update)."
