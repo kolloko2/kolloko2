@@ -6,6 +6,7 @@ import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot
 import { renderPanel } from './ui/panels.js';
 import { renderDrawer, TABS, filteredUnits } from './ui/tabs.js';
 import { money, moneyShort, signClass, esc } from './ui/format.js';
+import { play, toggleSound, soundOn } from './ui/sound.js';
 
 const SAVE_KEY = 'magnat-save-v3';
 const MP_KEY = 'magnat-mp';
@@ -27,6 +28,11 @@ const app = {
   },
   select(sel) {
     app.selection = sel;
+    // на телефоне панель объекта и вкладка не помещаются вместе
+    if (sel && window.innerWidth < 760 && app.tab) {
+      app.tab = null;
+      renderDrawer(app);
+    }
     renderPanel(app);
     refreshMap(app);
     renderTutorial(app);
@@ -83,7 +89,7 @@ function renderHud() {
   document.getElementById('hud-company').textContent = co.name;
   document.getElementById('hud-company').style.borderLeft = `4px solid ${co.color}`;
   const cash = document.getElementById('hud-cash');
-  cash.textContent = money(co.cash);
+  tween('hud-cash', co.cash, (v) => money(v));
   cash.className = co.cash < 0 ? 'neg' : '';
   document.getElementById('hud-worth').textContent = moneyShort(netWorth(state, app.companyId));
   const profit = document.getElementById('hud-profit');
@@ -140,6 +146,39 @@ function checkWinner() {
   document.getElementById('winner-text').innerHTML = `${me ? '🎉 Вы победили!' : '🏆 Игра окончена'}<br>
     Компания <b style="color:${co.color}">«${esc(co.name)}»</b> — капитал ${money(w.worth)} на ${formatDate(w.day)}.`;
   document.getElementById('winner').classList.add('open');
+  play('win');
+}
+
+// ---------- анимации ----------
+// Прибыль месяца всплывает над кассой
+function floatMoney(amount) {
+  const anchor = document.getElementById('hud-cash').getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = `fx-money ${amount >= 0 ? 'pos' : 'neg'}`;
+  el.textContent = `${amount >= 0 ? '+' : '−'}${moneyShort(Math.abs(amount))}`;
+  el.style.left = `${anchor.left}px`;
+  el.style.top = `${anchor.bottom}px`;
+  document.getElementById('fx').appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+}
+
+// Плавный счётчик денег в шапке
+const shown = {};
+function tween(id, value, format) {
+  const el = document.getElementById(id);
+  const from = shown[id] ?? value;
+  shown[id] = value;
+  if (Math.abs(value - from) < 1 || Math.abs(value - from) > Math.abs(from) * 5 + 1e6) {
+    el.textContent = format(value);
+    return;
+  }
+  const t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / 400);
+    el.textContent = format(from + (value - from) * (1 - (1 - k) ** 3));
+    if (k < 1 && shown[id] === value) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 // ---------- уведомления ----------
@@ -159,6 +198,7 @@ function announceNews() {
   if (fresh.length && lastNewsSeq > 0) {
     const n = fresh[0];
     if (n.kind === 'bad' || n.kind === 'warn' || n.kind === 'good') toast(n.text, n.kind);
+    play(n.kind === 'bad' ? 'bad' : n.kind === 'good' ? 'good' : 'click');
   }
   if (news.length) lastNewsSeq = Math.max(lastNewsSeq, news[0].seq);
 }
@@ -182,6 +222,11 @@ function onTick() {
   if (months !== lastMonths) {
     lastMonths = months;
     save(true);
+    const h = app.company.history.at(-1);
+    if (h) {
+      floatMoney(h.profit);
+      play(h.profit >= 0 ? 'month' : 'bad');
+    }
   }
   if (!app.session.multiplayer && isOver(app.state)) app.session.setSpeed(0);
 }
@@ -382,7 +427,10 @@ async function handleAction(el) {
       const brand = el.dataset.brand;
       const brandId = brand === 'none' ? null : brand || undefined;
       const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type, brandId: brandId ?? null });
-      if (r.ok) app.select({ kind: 'unit', id: r.unitId });
+      if (r.ok) {
+        play('coin');
+        app.select({ kind: 'unit', id: r.unitId });
+      }
       break;
     }
     case 'close':
@@ -684,6 +732,9 @@ function bindUi() {
   });
 
   document.getElementById('btn-save').addEventListener('click', () => save());
+  const soundBtn = document.getElementById('btn-sound');
+  soundBtn.textContent = soundOn() ? '🔊' : '🔇';
+  soundBtn.addEventListener('click', () => (soundBtn.textContent = toggleSound() ? '🔊' : '🔇'));
   document.getElementById('btn-new').addEventListener('click', () => {
     const msg = app.session.multiplayer ? 'Выйти из комнаты? Вернуться можно по коду.' : 'Выйти в меню? Игра сохранится.';
     if (!confirm(msg)) return;

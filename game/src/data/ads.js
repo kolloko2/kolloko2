@@ -5,13 +5,13 @@
 // ТВ — это национальная реклама сети (вкладка «Сети»).
 export const AD_CHANNELS = {
   flyers: {
-    name: 'Листовки и промоутеры', icon: '📄', k: 0.0015, cap: 0.35,
+    name: 'Листовки и промоутеры', icon: '📄', k: 0.0012, cap: 0.35,
     desc: 'Копейки, работает рядом с точкой. Узнаваемость выше 35% ими не поднять.',
     district: { residential: 1.3, student: 1.1, historic: 0.9, mall: 0.8, cbd: 0.7, premium: 0.6 },
     category: { grocery: 1.3, bakery: 1.3, fastfood: 1.1, restaurant: 0.8, fuel: 0.6, electronics: 0.7 },
   },
   social: {
-    name: 'Соцсети и короткие видео', icon: '📱', k: 0.0006, cap: 0.75, viral: true,
+    name: 'Соцсети и короткие видео', icon: '📱', k: 0.0005, cap: 0.75, viral: true,
     desc: 'Дёшево начать, молодая аудитория. Иногда ролик «залетает» — а иногда случается скандал.',
     district: { student: 1.5, cbd: 1.2, mall: 1.1, residential: 0.8, premium: 0.8 },
     category: { coffee: 1.3, fastfood: 1.3, electronics: 1.3, restaurant: 1.1, bakery: 0.9, grocery: 0.6, fuel: 0.5 },

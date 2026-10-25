@@ -58,7 +58,7 @@ export function monthlyViral(state) {
     if (!social || !BUSINESSES[unit.type].retail) continue;
     const idx = costIndex(state.world.places[unit.placeId]);
     const power = Math.min(1.5, ((social / idx) * channelFit(state, unit, 'social')) / 500);
-    if (chance(state.rng, 0.03 * power)) {
+    if (chance(state.rng, 0.02 * power)) {
       const jump = 0.12 + 0.18 * rand(state.rng);
       unit.awareness = Math.min(0.95, unit.awareness + jump);
       addNews(state, 'good', `🔥 Ролик про «${unit.name}» набрал миллионы просмотров — к вам идут толпы!`, { unitId: unit.id }, unit.companyId);

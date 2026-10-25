@@ -464,3 +464,41 @@ label.row.check { cursor: pointer; font-weight: normal; }
 #tutorial.advisor .link { color: #8a6d00; }
 .hint { background: #fffbea; border: 1px solid #f0d77a; border-radius: 10px; padding: 8px 10px; margin: 0 0 10px; font-size: 13px; }
 .hint .link { margin-left: 6px; }
+
+/* ---------- анимации ---------- */
+#drawer.open { animation: slide-left 0.18s ease-out; }
+#panel.open { animation: slide-right 0.18s ease-out; }
+@keyframes slide-left { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes slide-right { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+#fx { position: fixed; inset: 0; pointer-events: none; z-index: 2500; }
+.fx-money { position: absolute; font-weight: 800; font-size: 18px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); animation: fx-up 2.2s ease-out forwards; }
+.fx-money.pos { color: #3ddc84; }
+.fx-money.neg { color: #ff6b6b; }
+@keyframes fx-up { 0% { opacity: 0; transform: translateY(0) scale(0.8); } 15% { opacity: 1; transform: translateY(6px) scale(1.15); } 100% { opacity: 0; transform: translateY(46px) scale(1); } }
+.btn, .mini, .chip { transition: transform 0.08s, background 0.15s, box-shadow 0.15s; }
+.btn:active, .mini:active, .chip:active { transform: scale(0.96); }
+.nav-badge:not(:empty) { animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- телефон ---------- */
+@media (max-width: 760px) {
+  #hud { padding: 0 8px; }
+  #hud .stat small { font-size: 10px; }
+  #hud .stat:nth-of-type(4) { display: none; }
+  #btn-save, #hud-company { display: none; }
+  #nav { padding: 6px 4px; }
+  /* панель объекта — снизу, как лист */
+  #panel { top: auto; bottom: 0; right: 0; left: 0; width: 100vw; max-width: none; max-height: 62vh; border-radius: 16px 16px 0 0; }
+  #panel.open { animation: slide-up 0.2s ease-out; }
+  #drawer { top: 56px; bottom: 0; border-radius: 0; }
+  #tutorial, #tutorial.advisor { left: 64px; right: 8px; width: auto; transform: none; bottom: 8px; }
+  .tbl { font-size: 12px; }
+  .mini { min-height: 32px; }
+  .filters { flex-direction: column; }
+  #panel.open ~ #tutorial, #drawer.open ~ #tutorial { display: none; }
+  #toast { bottom: 70px; max-width: 90vw; }
+}
+@keyframes slide-up { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
