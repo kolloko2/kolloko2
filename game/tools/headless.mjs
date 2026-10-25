@@ -12,7 +12,7 @@ import { BUSINESSES } from '../src/data/businesses.js';
 const years = Number(process.argv[2] || 5);
 const seed = Number(process.argv[3] || 42);
 const bot = process.argv[4] || 'smart';
-const state = createGame({ seed, companyNames: ['Бот'] });
+const state = createGame({ seed, companyNames: ['Бот'], rivals: process.argv[5] === 'norivals' ? 0 : 4 });
 const ME = 'c1';
 const co = state.companies[ME];
 const smart = bot === 'smart';
@@ -82,7 +82,7 @@ function manage() {
   // кредит: держим подушку на 2 месяца расходов, берём не больше половины лимита
   const reserve = monthlyCosts() * 2;
   if (co.cash < reserve && co.loan < loanLimit(state, ME) * 0.5) applyCommand(state, { type: 'takeLoan', amount: Math.round(reserve - co.cash) }, ME);
-  if (co.cash > reserve * 4 && co.loan > 0) applyCommand(state, { type: 'repayLoan', amount: Math.min(co.loan, co.cash - reserve * 3) }, ME);
+  if (co.cash > reserve * 2 && co.loan > 0) applyCommand(state, { type: 'repayLoan', amount: Math.min(co.loan, co.cash - reserve * 1.5) }, ME);
 }
 
 const opened = []; // для проверки точности прогноза

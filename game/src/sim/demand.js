@@ -27,10 +27,11 @@ export function utility(priceRatio, quality, awareness, visibility, betaPrice = 
 export const AI_UTILITY = utility(1, 3, AI_AWARENESS, 0.5);
 
 // Фоновые конкуренты со временем становятся сильнее: рынок взрослеет, сети учатся.
-// Через 20 лет средний конкурент — 3.5★ и узнаваемость 60%: старые точки без обновлений проигрывают.
+// Через 30 лет средний конкурент — 3.5★ и узнаваемость 60%: старые точки без обновлений проигрывают.
+// (Настоящих соперников теперь дают ИИ-корпорации, поэтому фон взрослеет мягко.)
 export function aiUtility(state) {
   const years = state.day / 365;
-  return utility(1, 3 + Math.min(0.75, years * 0.025), AI_AWARENESS + Math.min(0.15, years * 0.005), 0.5);
+  return utility(1, 3 + Math.min(0.5, years * 0.015), AI_AWARENESS + Math.min(0.1, years * 0.004), 0.5);
 }
 
 // Сезонность спроса по месяцам (северное полушарие; в южном — со сдвигом на полгода)
