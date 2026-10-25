@@ -27,7 +27,7 @@ import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } 
 import {
   emptyMonth, monthProfit, retailCapacity, productionCapacity, dailyNeed, invQty, takeInv, addInv,
   lotOf, placeOf, spend, earn, spendCompany, earnCompany, monthlyWage, monthlyRent, monthlyUpkeep, baseQuality,
-  WEAR_PER_DAY, condition, renovateCost, pay,
+  WEAR_PER_DAY, condition, renovateCost, pay, recipeOf,
 } from './units.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
@@ -35,15 +35,16 @@ const BANKRUPT_DAYS = 45;
 
 function runProduction(state) {
   for (const unit of Object.values(state.units)) {
-    const p = BUSINESSES[unit.type].production;
-    if (!p) continue;
+    const recipe = recipeOf(unit);
+    if (!recipe) continue;
     const cap = productionCapacity(state, unit);
+    const lean = 1 - 0.05 * techLevel(state, unit.companyId, 'lean'); // бережливое производство: меньше сырья
     let limit = cap;
-    for (const [g, q] of Object.entries(p.recipe.inputs)) limit = Math.min(limit, invQty(unit, g) / q);
+    for (const [g, q] of Object.entries(recipe.inputs)) limit = Math.min(limit, invQty(unit, g) / (q * lean));
     const produced = Math.floor(Math.max(0, limit));
     let cost = 0;
-    for (const [g, q] of Object.entries(p.recipe.inputs)) cost += takeInv(unit, g, produced * q);
-    addInv(unit, p.recipe.output, produced, produced > 0 ? cost / produced : 0);
+    for (const [g, q] of Object.entries(recipe.inputs)) cost += takeInv(unit, g, produced * q * lean);
+    addInv(unit, recipe.output, produced, produced > 0 ? cost / produced : 0);
     unit.month.produced += produced;
     unit.today.produced = produced;
     unit.today.prodCap = cap;
@@ -61,8 +62,9 @@ export const DELIVERY_CATEGORIES = ['coffee', 'fastfood', 'restaurant', 'bakery'
 function deliveryMode(state, unit) {
   const mode = unit.delivery;
   if (!mode || mode === 'none' || !DELIVERY_CATEGORIES.includes(BUSINESSES[unit.type].category)) return null;
-  if (mode === 'own' && !ownCourier(state, unit.companyId, unit.placeId)) return DELIVERY.aggregator; // без курьеров — через агрегатор
-  return DELIVERY[mode];
+  const d = mode === 'own' && !ownCourier(state, unit.companyId, unit.placeId) ? DELIVERY.aggregator : DELIVERY[mode]; // без курьеров — через агрегатор
+  const online = techLevel(state, unit.companyId, 'ecommerce');
+  return online ? { ...d, extra: d.extra + 0.1 * online } : d;
 }
 
 function sellRetail(state, unit, basePotential) {

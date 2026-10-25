@@ -1,4 +1,4 @@
-import { TECHS } from '../data/tech.js';
+import { TECHS, STAT_TECHS } from '../data/tech.js';
 import { BUSINESSES } from '../data/businesses.js';
 import { COUNTRIES } from '../data/cities.js';
 import { addNews, companyUnits } from './state.js';
@@ -7,23 +7,33 @@ import { chance } from './rng.js';
 
 // Исследования, лоббирование и льготы крупным работодателям.
 
-export function techLevel(state, companyId, id) {
-  return state.companies[companyId]?.tech?.[id] ?? 0;
+// Изучена ли технология (узел дерева)
+export function hasTech(state, companyId, id) {
+  return Boolean(state.companies[companyId]?.tech?.[id]);
 }
 
-// Цена и срок следующего уровня (с учётом мировой инфляции)
+// Уровень бонуса: сколько изучено технологий с этим stat (pos, automation…); для открывающих технологий — 0 или 1
+export function techLevel(state, companyId, stat) {
+  const tech = state.companies[companyId]?.tech;
+  if (!tech) return 0;
+  const ids = STAT_TECHS[stat];
+  if (!ids) return tech[stat] ? 1 : 0;
+  let n = 0;
+  for (const id of ids) if (tech[id]) n++;
+  return n;
+}
+
+// Цена (с учётом мировой инфляции)
 export function techCost(state, companyId, id) {
-  const t = TECHS[id];
-  const lvl = techLevel(state, companyId, id);
-  return Math.round(t.cost * 2 ** lvl * (state.countries?.US?.cpi ?? 1));
+  return Math.round(TECHS[id].cost * (state.countries?.US?.cpi ?? 1));
 }
 
+// Почему нельзя изучать: уже изучено или не хватает предыдущих
 export function techLocked(state, companyId, id) {
   const t = TECHS[id];
-  if (techLevel(state, companyId, id) >= t.max) return 'Изучено полностью';
-  for (const [req, lvl] of Object.entries(t.requires || {})) {
-    if (techLevel(state, companyId, req) < lvl) return `Сначала «${TECHS[req].name}»`;
-  }
+  if (hasTech(state, companyId, id)) return 'Изучено';
+  const miss = t.requires.filter((req) => !hasTech(state, companyId, req));
+  if (miss.length) return `Сначала: ${miss.map((req) => `«${TECHS[req].name}»`).join(', ')}`;
   return null;
 }
 
@@ -37,7 +47,7 @@ export function researchSpeed(state, companyId) {
 export function missingTech(state, companyId, type) {
   const req = BUSINESSES[type].requiresTech;
   if (!req || !companyId) return null;
-  return techLevel(state, companyId, req) ? null : TECHS[req].name;
+  return hasTech(state, companyId, req) ? null : TECHS[req].name;
 }
 
 export function startResearch(state, companyId, id) {
@@ -56,10 +66,10 @@ export function runResearch(state) {
     r.progress += speed;
     if (r.progress >= r.days) {
       co.tech ||= {};
-      co.tech[r.id] = (co.tech[r.id] || 0) + 1;
+      co.tech[r.id] = 1;
       co.research = null;
       state.mapVersion++;
-      addNews(state, 'good', `${TECHS[r.id].icon} Исследование завершено: «${TECHS[r.id].name}», уровень ${co.tech[r.id]}.`, null, co.id);
+      addNews(state, 'good', `${TECHS[r.id].icon} Исследование завершено: «${TECHS[r.id].name}» — ${TECHS[r.id].desc.toLowerCase()}.`, null, co.id);
     }
   }
 }
@@ -85,7 +95,7 @@ export function employees(state, companyId, country) {
 }
 
 export function lobbyChance(state, companyId, country) {
-  return Math.min(0.85, 0.2 + employees(state, companyId, country) / 1500);
+  return Math.min(0.9, 0.2 + employees(state, companyId, country) / 1500 + 0.1 * techLevel(state, companyId, 'pr'));
 }
 
 export function lobby(state, companyId, country, goal) {
@@ -107,5 +117,5 @@ export function lobby(state, companyId, country, goal) {
 // Крупный работодатель (500+ работников в стране) получает налоговую льготу −5 п.п.
 export const BIG_EMPLOYER = 500;
 export function taxBreak(state, companyId, country) {
-  return employees(state, companyId, country) >= BIG_EMPLOYER ? 0.05 : 0;
+  return (employees(state, companyId, country) >= BIG_EMPLOYER ? 0.05 : 0) + 0.02 * techLevel(state, companyId, 'tax');
 }

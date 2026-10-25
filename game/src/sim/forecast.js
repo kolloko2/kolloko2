@@ -6,7 +6,7 @@ import {
 } from './expansion.js';
 import { buyPrice, sellPrice } from './market.js';
 import { costIndex } from './world.js';
-import { capexFor, dailyNeed } from './units.js';
+import { capexFor, dailyNeed, allowedRecipes, recipeOf, techOutput } from './units.js';
 import { serviceRevenuePerStaff, realEstateRentFor } from './services.js';
 import { licenseNeeded, countryDemand } from './countries.js';
 import { attention } from './staff.js';
@@ -19,8 +19,8 @@ export function canBuildHere(state, lot, type) {
   const def = BUSINESSES[type];
   if (def.zoning !== lot.zoning) return false;
   if (def.minArea && lot.area < def.minArea) return false;
-  if (lot.zoning === 'farmland') return state.world.places[lot.placeId].kinds.includes(type);
-  if (def.service?.onlyPort) return Boolean(state.world.places[lot.placeId].port);
+  if (lot.zoning === 'farmland') return state.world.places[lot.placeId].kinds.includes(type) && allowedRecipes(state.world.places[lot.placeId], type).length > 0;
+  if (def.onlyPort || def.service?.onlyPort) return Boolean(state.world.places[lot.placeId].port);
   return true;
 }
 
@@ -36,13 +36,22 @@ export function forecastBrand(state, companyId, type, brandId) {
 }
 
 // Прогноз месячной экономики бизнеса типа type на участке lot.
-/** @param {any} state @param {string} lotId @param {string} type @param {string|null} [companyId] @param {string|null} [brandId] */
-export function forecast(state, lotId, type, companyId = null, brandId = undefined) {
+// У заводов с выбором продукции без recipe — лучший из доступных вариантов (r.variants — все варианты).
+/** @param {any} state @param {string} lotId @param {string} type @param {string|null} [companyId] @param {string|null} [brandId] @param {string} [recipe] @returns {any} */
+export function forecast(state, lotId, type, companyId = null, brandId = undefined, recipe = undefined) {
   const lot = state.world.lots[lotId];
   const def = BUSINESSES[type];
   const place = state.world.places[lot.placeId];
+  if (def.production?.recipes && !recipe) {
+    const all = allowedRecipes(place, type).map((out) => forecast(state, lotId, type, companyId, brandId, out));
+    if (!all.length) return forecast(state, lotId, type, companyId, brandId, Object.keys(def.production.recipes)[0]);
+    const best = all.reduce((a, b) => (b.profit > a.profit ? b : a));
+    best.variants = all.map((f) => ({ output: f.recipe, profit: f.profit, payback: f.payback }));
+    return best;
+  }
   const idx = costIndex(place);
-  const r = { type, capex: capexFor(state, lot, type), customers: 0, produced: 0, staff: def.staff.def };
+  /** @type {any} */
+  const r = { type, capex: capexFor(state, lot, type), customers: 0, produced: 0, staff: def.staff.def, recipe: recipe ?? null };
   const brand = forecastBrand(state, companyId, type, brandId);
   const tier = brand ? BRAND_TIERS[brand.tier] : null;
   r.brandId = brand?.id ?? null;
@@ -63,8 +72,8 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     const excess = Math.max(0, Math.ceil(att.used + (brand ? 0.5 : 1) - att.limit));
     eff *= Math.max(0.6, 1 - 0.04 * excess);
     r.efficiency = eff;
-    if (def.retail) eff *= 1 + 0.08 * techLevel(state, companyId, 'pos');
-    if (def.production) eff *= 1 + 0.12 * techLevel(state, companyId, 'automation');
+    if (def.retail) eff *= (1 + 0.08 * techLevel(state, companyId, 'pos')) * (1 + 0.05 * techLevel(state, companyId, 'ai'));
+    if (def.production) eff *= techOutput(state, co.id, type);
   }
   let served = 0;
   let produced = 0;
@@ -106,13 +115,15 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
   }
   if (def.production) {
     const p = def.production;
-    const cap = p.cap ? p.cap[0] : p.capPerArea * lot.area;
+    const rec = /** @type {import("./units.js").Recipe} */ (recipeOf({ type, recipe }));
+    const rate = rec.rate ?? 1;
+    const cap = (p.cap ? p.cap[0] : p.capPerArea * lot.area) * rate;
     // производство без витрины — штат под полную мощность первого уровня
-    if (!def.retail) r.staff = Math.min(def.staff.max, Math.max(def.staff.min, Math.ceil(cap / (p.perStaff * (place.productivity ?? 1)))));
+    if (!def.retail) r.staff = Math.min(def.staff.max, Math.max(def.staff.min, Math.ceil(cap / (p.perStaff * rate * (place.productivity ?? 1)))));
     const staff = r.staff;
-    produced = Math.min(staff * p.perStaff * (place.productivity ?? 1) * eff, cap);
+    produced = Math.min(staff * p.perStaff * rate * (place.productivity ?? 1) * eff, cap);
     r.produced = Math.round(produced);
-    const out = p.recipe.output;
+    const out = rec.output;
     let ownUse = 0;
     if (def.retail) for (const pr of def.retail.products) ownUse += (pr.recipe[out] || 0) * pr.attach * served;
     r.output = out;
@@ -126,7 +137,7 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     revenueDay += r.staff * serviceRevenuePerStaff(state, def, place, type) * countryDemand(state, place.country) ** (def.service.cycle ?? 1);
     r.service = true;
   }
-  const need = dailyNeed({ type, staff: r.staff }, served, produced);
+  const need = dailyNeed({ type, staff: r.staff, recipe }, served, produced);
   let inputsDay = 0;
   const discount = companyId ? purchasingDiscount(state, companyId, place) : 0;
   for (const [g, q] of Object.entries(need)) inputsDay += q * buyPrice(state, g, place) * (1 - discount);

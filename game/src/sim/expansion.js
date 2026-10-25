@@ -1,4 +1,5 @@
 import { BUSINESSES } from '../data/businesses.js';
+import { techLevel } from './research.js';
 import { regionOf } from './market.js';
 import { costIndex } from './world.js';
 import { COUNTRIES } from '../data/cities.js';
@@ -90,7 +91,7 @@ export function overhead(state, companyId, extra = 0) {
   }
   n += extra;
   if (n <= 3) return 0;
-  return OVERHEAD_BASE * (n - 3) ** OVERHEAD_POWER * (units ? cpi / units : 1);
+  return OVERHEAD_BASE * (n - 3) ** OVERHEAD_POWER * (units ? cpi / units : 1) * (1 - 0.15 * techLevel(state, companyId, 'holding'));
 }
 
 // Насколько вырастут расходы штаба, если открыть ещё одну точку

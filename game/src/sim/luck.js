@@ -8,10 +8,12 @@ import { chance, rand, randNormal, randPick } from './rng.js';
 //   districtEvents[район] — фестиваль, ремонт дороги, новая станция метро.
 const CATEGORY_NAMES = {
   coffee: 'кофейни', fastfood: 'фастфуд', grocery: 'магазины у дома', bakery: 'пекарни', restaurant: 'рестораны', fuel: 'АЗС', electronics: 'гаджеты',
+  clothing: 'магазины одежды', bar: 'бары', sports: 'спорттовары', kids: 'игрушки', luxury: 'ювелирные салоны',
 };
 const FADS = {
   coffee: ['спешелти-кофе', 'кофе с собой'], fastfood: ['уличная еда', 'бургеры'], bakery: ['ремесленный хлеб'], restaurant: ['гастрономический туризм'],
   grocery: ['доставка продуктов'], electronics: ['новый смартфон'], fuel: ['автопутешествия'],
+  clothing: ['оверсайз', 'винтаж'], bar: ['крафтовое пиво'], sports: ['велоспорт', 'бег'], kids: ['новый мультфильм'], luxury: ['помолвки звёзд'],
 };
 
 export function trendOf(state, country, category) {

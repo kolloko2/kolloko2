@@ -88,7 +88,7 @@ export function receiveDeliveries(state) {
     }
     const unit = state.units[s.to];
     if (!unit) continue; // получатель закрыт — груз пропал
-    const spoil = GOODS[s.good].spoil * (1 - 0.15 * techLevel(state, s.companyId, 'logistics'));
+    const spoil = GOODS[s.good].spoil * (1 - 0.15 * techLevel(state, s.companyId, 'logistics')) * (1 - 0.3 * techLevel(state, s.companyId, 'cold'));
     const left = s.qty * (1 - spoil) ** (s.arrive - s.sent);
     unit.month.spoilage += (s.qty - left) * s.unitCost;
     addInv(unit, s.good, left, s.unitCost);

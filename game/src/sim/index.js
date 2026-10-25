@@ -39,7 +39,7 @@ export {
   ARCHETYPES, rivalUnitPrice, truceCost, isAi, TRUCE_MONTHS, offerText, bidForUnit, rivalWants,
 } from './rivals.js';
 export {
-  techLevel, techCost, techLocked, researchSpeed, missingTech, lobbyCost, lobbyChance, employees, taxBreak,
+  techLevel, hasTech, techCost, techLocked, researchSpeed, missingTech, lobbyCost, lobbyChance, employees, taxBreak,
   LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER,
 } from './research.js';
 export { adsOf, channelFit, adGain } from './ads.js';

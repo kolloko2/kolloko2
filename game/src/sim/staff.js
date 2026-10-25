@@ -1,4 +1,5 @@
 import { BUSINESSES } from '../data/businesses.js';
+import { techLevel } from './research.js';
 import { chance } from './rng.js';
 import { addNews, companyUnits } from './state.js';
 
@@ -33,7 +34,8 @@ function dayData(state) {
 
 export function attention(state, companyId) {
   const used = dayData(state).unmanaged[companyId] || 0;
-  return { used: Math.round(used * 10) / 10, limit: BASE_ATTENTION, excess: Math.max(0, Math.ceil(used - BASE_ATTENTION - 1e-9)) };
+  const limit = BASE_ATTENTION + 2 * techLevel(state, companyId, 'mgmt');
+  return { used: Math.round(used * 10) / 10, limit, excess: Math.max(0, Math.ceil(used - limit - 1e-9)) };
 }
 
 // Рынок труда: если игроки наняли заметную долю работников города, зарплаты растут для всех
@@ -60,8 +62,8 @@ export function managerCost(place, type) {
   return MANAGER_WAGE * place.wage * (place.cpi ?? 1) * scale;
 }
 
-function moraleTarget(unit) {
-  let t = 65 + (wageLevel(unit) - 1) * 100;
+function moraleTarget(unit, hr = 0) {
+  let t = 65 + (wageLevel(unit) - 1) * 100 + 5 * hr;
   t -= 25 * (unit.queue || 0); // перегрузка
   if (unit.manager) t += 8;
   if (unit.broken > 0) t -= 5;
@@ -81,7 +83,7 @@ export function autoStaff(state, unit, perStaffEff) {
     const lot = state.world.lots[unit.lotId];
     const p = def.production;
     const cap = p.cap ? p.cap[unit.level - 1] : p.capPerArea * lot.area * (1 + 0.5 * (unit.level - 1));
-    want = Math.ceil(cap / (p.perStaff * (place.productivity ?? 1) * perStaffEff));
+    want = Math.ceil(cap / (p.perStaff * (place.productivity ?? 1) * perStaffEff)); // rate варианта сокращается
   }
   want = Math.max(s.min, Math.min(s.max, want));
   if (want !== unit.staff) unit.staff = want;
@@ -91,7 +93,7 @@ export function updateStaff(state) {
   const rng = state.rng;
   for (const unit of Object.values(state.units)) {
     const m = morale(unit);
-    unit.morale = m + (moraleTarget(unit) - m) * 0.05;
+    unit.morale = m + (moraleTarget(unit, techLevel(state, unit.companyId, 'hr')) - m) * 0.05;
     const min = BUSINESSES[unit.type].staff.min;
     // недовольные увольняются
     if (unit.morale < 35 && unit.staff > min && chance(rng, 0.03)) {

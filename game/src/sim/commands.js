@@ -5,8 +5,12 @@ import { canBuildHere, forecast } from './forecast.js';
 import { addNews, loanLimit, companyUnits } from './state.js';
 import {
   emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, pay, receive, placeOf, renovateCost, condition,
-  monthlyWage, spend,
+  monthlyWage, spend, allowedRecipes,
 } from './units.js';
+import { GOODS } from '../data/goods.js';
+
+const RETOOL_COST = 0.05; // доля вложений на перенастройку завода
+const RETOOL_DAYS = 7;
 import { contractOffer, contractGoods, endContract, CONTRACT_MONTHS } from './contracts.js';
 import { WAGE_LEVELS, trainingCost, MAX_TRAINING } from './staff.js';
 import { COUNTRIES } from '../data/cities.js';
@@ -52,7 +56,7 @@ function ownUnit(state, id, companyId) {
 /** @type {Record<string, (state: State, cmd: any, companyId: string) => any>} */
 const handlers = {
   // brandId — открыть сразу в составе сети (undefined — в первой сети этого типа, null — отдельно)
-  openBusiness(state, { lotId, businessType, brandId, templateId }, companyId) {
+  openBusiness(state, { lotId, businessType, brandId, templateId, recipe }, companyId) {
     const lot = state.world.lots[lotId];
     const def = BUSINESSES[businessType];
     const co = state.companies[companyId];
@@ -78,7 +82,10 @@ const handlers = {
     } else if (brandId === undefined) {
       brand = companyBrands(state, companyId).find((b) => b.type === businessType) || null;
     }
-    const fc = forecast(state, lotId, businessType, companyId);
+    const variants = allowedRecipes(place, businessType);
+    if (recipe && !variants.includes(recipe)) return fail('Здесь нельзя выпускать этот товар');
+    if (def.production?.recipes) recipe ||= variants[0]; // по умолчанию — основной товар завода
+    const fc = forecast(state, lotId, businessType, companyId, undefined, recipe);
     pay(state, companyId, capex + extra);
     if (!co.homeCountry) co.homeCountry = place.country;
     if (license) {
@@ -122,6 +129,7 @@ const handlers = {
       autoStaff: false,
     };
     if (def.storage) unit.coverDays = def.storage.defaultCover;
+    if (def.production?.recipes) unit.recipe = fc.recipe;
     setAds(unit, def.retail ? defaultAds(businessType, costIndex(place)) : {});
     unit.brandId = brand?.id ?? null;
     unit.usage = dailyNeed(unit, fc.customers, def.production ? productionCapacity(state, unit) : 0);
@@ -193,6 +201,24 @@ const handlers = {
     if (!AD_CHANNELS[channel]) return fail('Нет такого канала');
     if (!(budget >= 0) || budget > 1e6) return fail('Недопустимый бюджет');
     setAds(unit, { ...adsOf(unit), [channel]: budget });
+    return OK;
+  },
+
+  // Перенастроить завод на другой товар: 5% стоимости оборудования и неделя простоя
+  setRecipe(state, { unitId, recipe }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (!BUSINESSES[unit.type].production?.recipes) return fail('Этот бизнес выпускает только один товар');
+    if (unit.recipe === recipe) return OK;
+    if (!allowedRecipes(placeOf(state, unit), unit.type).includes(recipe)) return fail('Здесь нельзя выпускать этот товар');
+    const cost = Math.round(capexFor(state, state.world.lots[unit.lotId], unit.type) * RETOOL_COST);
+    if (state.companies[companyId].cash < cost) return fail(`Перенастройка стоит ${fmt(cost)} — не хватает денег`);
+    spend(state, unit, 'other', cost);
+    unit.recipe = recipe;
+    unit.broken = Math.max(unit.broken, RETOOL_DAYS);
+    unit.usage = dailyNeed(unit, 0, productionCapacity(state, { ...unit, broken: 0 }));
+    state.mapVersion++;
+    addNews(state, 'info', `«${unit.name}» перенастраивается на выпуск: ${GOODS[recipe].name} (${fmt(cost)}, ${RETOOL_DAYS} дней).`, { unitId }, companyId);
     return OK;
   },
 

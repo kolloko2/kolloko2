@@ -48,6 +48,13 @@ const SEASON = {
   pharmacy: [1.15, 1.15, 1.05, 1.0, 0.95, 0.9, 0.9, 0.9, 0.95, 1.0, 1.05, 1.1],
   cars: [0.8, 0.85, 1.05, 1.1, 1.1, 1.05, 1.0, 0.95, 1.0, 1.0, 0.95, 1.1],
   fuel: [0.92, 0.92, 0.96, 1.0, 1.05, 1.1, 1.14, 1.12, 1.0, 0.97, 0.94, 0.98],
+  clothing: [1.1, 0.85, 0.95, 1.0, 1.0, 0.95, 1.05, 1.1, 1.05, 0.95, 1.05, 1.3],
+  kids: [0.7, 0.75, 0.85, 0.9, 0.95, 1.0, 0.95, 1.05, 1.05, 0.95, 1.15, 1.7],
+  sports: [1.15, 0.9, 1.0, 1.1, 1.2, 1.2, 1.1, 1.0, 0.9, 0.85, 0.85, 1.05],
+  diy: [0.75, 0.8, 1.0, 1.15, 1.2, 1.15, 1.1, 1.05, 1.0, 0.95, 0.85, 0.75],
+  home: [0.9, 0.9, 1.0, 1.0, 1.0, 0.95, 0.95, 1.0, 1.05, 1.0, 1.1, 1.15],
+  luxury: [0.8, 1.1, 1.0, 0.9, 1.0, 0.95, 0.9, 0.9, 0.95, 1.0, 1.05, 1.5],
+  bar: [0.85, 0.9, 0.95, 1.0, 1.05, 1.12, 1.18, 1.15, 1.0, 0.95, 0.92, 1.15],
 };
 
 export function seasonFactor(state, category, place) {
@@ -69,7 +76,7 @@ export function districtPotential(state, district, category) {
   const event = districtEventOf(state, district.id)?.mult ?? 1;
   const econ = countryDemand(state, place.country);
   // отелям нужны туристы; дорогие покупки (машины) сильнее страдают в кризис
-  const special = category === 'hotel' ? 1.5 * (place.tourism ?? 0.3) : category === 'cars' ? econ : 1;
+  const special = category === 'hotel' ? 1.5 * (place.tourism ?? 0.3) : category === 'cars' || category === 'luxury' ? econ : category === 'bar' ? 0.7 + 0.6 * (place.tourism ?? 0.3) : 1;
   return traffic * rate * incomeFactor * econ * special * seasonFactor(state, category, place)
     * trendOf(state, place.country, category) * event * (state.growth?.[place.id] ?? 1);
 }

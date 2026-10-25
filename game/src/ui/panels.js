@@ -12,6 +12,7 @@ import {
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
   condition, renovateCost, seasonFactor, trainingCost, MAX_TRAINING, serviceMood, DELIVERY_CATEGORIES, ownCourier, rivalUnitPrice, ARCHETYPES, bidForUnit, rivalWants, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
+  recipeOf, allowedRecipes,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
@@ -43,8 +44,9 @@ function renderPlace(app, place) {
     html += row('Население', `${num(place.pop, 1)} млн`) + row('Доходы жителей', pct(place.income)) +
       row('Уровень аренды', pct(place.rent)) + row('Уровень зарплат', pct(place.wage));
   } else {
-    html += row(place.kinds.includes('oil_well') ? 'Можно добывать' : 'Можно выращивать', place.kinds.map((k) => `${bizIcon(k, 'inline')} ${BUSINESSES[k].name}`).join('<br>')) +
-      row(place.kinds.includes('oil_well') ? 'Дебит скважин' : 'Урожайность', pct(place.productivity)) + row('Аренда земли', `${money(place.landRent)}/га в мес`) +
+    html += row('Можно открыть', place.kinds.map((k) => `${bizIcon(k, 'inline')} ${BUSINESSES[k].name}`).join('<br>')) +
+      (place.resources?.length ? row('Ресурсы', place.resources.map((g) => `${goodIcon(g, 'inline')} ${GOODS[g].name}`).join('<br>')) : '') +
+      row('Продуктивность', pct(place.productivity)) + row('Аренда земли', `${money(place.landRent)}/га в мес`) +
       row('Уровень зарплат', pct(place.wage));
   }
   html += '</div><h3>Районы</h3><div class="list">';
@@ -162,11 +164,14 @@ function renderLot(app, lot) {
       ${f.efficiency && f.efficiency < 1 ? `<div class="note warn">👔 Вам не хватает внимания на все точки: без управляющего эта будет работать на ${pct(f.efficiency / 1.06)}.</div>` : ''}
       ${f.locked ? `<div class="note warn">🔬 Нужна технология «${esc(f.locked)}» — <a href="#" data-action="openTab" data-tab="research">исследования</a>.</div>` : ''}
       ${f.license ? `<div class="note">📜 Нужна ${esc(f.license.name.toLowerCase())}: ${money(f.license.cost)} (разово, на всю страну).</div>` : ''}
+      ${f.variants?.length > 1 ? `<div class="variants"><div class="small muted">Что выпускать (прогноз прибыли в месяц):</div>${f.variants.slice().sort((a, b) => b.profit - a.profit).map((v) => `<div class="row"><span>${goodIcon(v.output, 'inline')} ${GOODS[v.output].name}</span>
+        <span><b class="${signClass(v.profit)}">${moneyShort(v.profit)}</b> <button class="mini" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-recipe="${v.output}" data-brand="${f.brandId ?? ''}" data-profit="${v.profit}" data-capex="${cost}" data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>Открыть</button></span></div>`).join('')}</div>` : ''}
       ${f.brandId ? `<div class="note">🏷️ В сети «${esc(state.brands[f.brandId].name)}»: узнаваемость бренда здесь ~${pct(f.brandAwareness)}, цены сети.</div>` : ''}
       <div class="btn-row">
       <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="${f.brandId ?? ''}" data-profit="${def.storage ? 0 : f.profit}" data-capex="${cost}"
-        data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>
-        ${f.locked ? 'Нужна технология' : afford ? `Открыть${f.brandId ? ' в сети' : ''} за ${moneyShort(cost)}` : `Не хватает ${moneyShort(cost - app.company.cash)}`}</button>
+        data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}
+        ${f.recipe ? `data-recipe="${f.recipe}"` : ''}>
+        ${f.locked ? 'Нужна технология' : afford ? `Открыть${f.brandId ? ' в сети' : ''}${f.recipe ? ` (${GOODS[f.recipe].name.toLowerCase()})` : ''} за ${moneyShort(cost)}` : `Не хватает ${moneyShort(cost - app.company.cash)}`}</button>
       ${templatesFor(app, f.type).map(([tid, t]) => `<button class="btn ghost" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-template="${tid}" data-brand="${t.brandId ?? 'none'}" data-profit="${f.profit}" data-capex="${cost}" data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>📋 По шаблону «${esc(t.name)}»</button>`).join('')}
       ${f.brandId && afford ? `<button class="btn ghost" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="none" data-profit="${f.profit}" data-capex="${cost}" data-costs="${f.revenue - f.profit}">Отдельно</button>` : ''}
       </div>
@@ -393,9 +398,10 @@ function renderUnit(app, u) {
       <div class="kpi"><small>Узнаваемость</small><b>${pct(effectiveAwareness(state, u))}</b><small>реклама ${money(u.marketing)}/мес</small></div>`;
   }
   if (def.production) {
-    const out = GOODS[def.production.recipe.output];
-    html += `<div class="kpi"><small>Выпуск сегодня</small><b>${num(t.produced ?? 0)} ${out.unit}</b><small>${goodIcon(def.production.recipe.output, 'inline')} ${out.name} · макс ${num(productionCapacity(state, u))}</small></div>
-      <div class="kpi"><small>Цена продажи</small><b>${money(sellPrice(state, def.production.recipe.output, place), { cents: true })}</b><small>за ${out.unit} · рынок «${MARKET_REGIONS[regionOf(place)].name}»</small></div>`;
+    const outId = recipeOf(u).output;
+    const out = GOODS[outId];
+    html += `<div class="kpi"><small>Выпуск сегодня</small><b>${num(t.produced ?? 0)} ${out.unit}</b><small>${goodIcon(outId, 'inline')} ${out.name} · макс ${num(productionCapacity(state, u))}</small></div>
+      <div class="kpi"><small>Цена продажи</small><b>${money(sellPrice(state, outId, place), { cents: true })}</b><small>за ${out.unit} · рынок «${MARKET_REGIONS[regionOf(place)].name}»</small></div>`;
   }
   if (def.service) {
     html += `<div class="kpi"><small>Работают сегодня</small><b>${num(t.working ?? 0)} из ${u.staff}</b><small>${def.staff.role.toLowerCase()}</small></div>
@@ -433,6 +439,16 @@ function renderUnit(app, u) {
   if (def.retail && !brand) {
     html += renderAds(app, u);
   }
+  if (def.production?.recipes) {
+    const cur = recipeOf(u).output;
+    const opts = allowedRecipes(place, u.type);
+    html += `<div class="row"><span>Продукция</span><select data-change="setRecipe" data-id="${u.id}">${opts.map((g) => {
+      const r = def.production.recipes[g];
+      const ins = Object.keys(r.inputs).map((i) => GOODS[i].name.toLowerCase()).join(', ');
+      return `<option value="${g}" ${g === cur ? 'selected' : ''}>${GOODS[g].icon} ${GOODS[g].name}${ins ? ` ← ${ins}` : ''}</option>`;
+    }).join('')}</select></div>
+      <div class="muted small">Смена продукции: 5% стоимости оборудования и неделя простоя.</div>`;
+  }
   if (def.production) {
     html += `<div class="row"><span>Сбыт продукции</span><select data-change="setSellMode" data-id="${u.id}">
       <option value="auto" ${u.sellMode === 'auto' ? 'selected' : ''}>Сначала своим, излишки — на рынок</option>
@@ -466,7 +482,7 @@ function renderUnit(app, u) {
   const goods = [...new Set([...Object.keys(u.usage), ...Object.keys(u.inv)])];
   if (goods.length) {
     html += `<h3>${def.storage ? 'Запасы' : 'Склад и поставки'}</h3><table class="tbl compact"><tr><th>Товар</th><th>Запас</th><th>Дней</th><th>В пути</th><th>Откуда</th><th>Цена</th></tr>`;
-    const out = def.production?.recipe.output;
+    const out = recipeOf(u)?.output;
     for (const g of goods) {
       const q = invQty(u, g);
       const use = u.usage[g] || 0;

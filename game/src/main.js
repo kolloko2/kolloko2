@@ -537,7 +537,7 @@ async function handleAction(el) {
       if (warn.length && !confirm(`${warn.join('\n\n')}\n\nВсё равно открыть?`)) break;
       const brand = el.dataset.brand;
       const brandId = brand === 'none' ? null : brand || undefined;
-      const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type, brandId: brandId ?? null, templateId: el.dataset.template });
+      const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type, brandId: brandId ?? null, templateId: el.dataset.template, recipe: el.dataset.recipe || undefined });
       if (r.ok) {
         play('coin');
         app.select({ kind: 'unit', id: r.unitId });
@@ -782,6 +782,9 @@ function handleChange(el) {
     case 'setMarketing':
       app.dispatch({ type: 'setMarketing', unitId: id, budget: Number(el.value) });
       break;
+    case 'setRecipe':
+      app.dispatch({ type: 'setRecipe', unitId: id, recipe: el.value });
+      break;
     case 'setSellMode':
       app.dispatch({ type: 'setSellMode', unitId: id, mode: el.value });
       break;
@@ -829,7 +832,40 @@ function handleChange(el) {
   }
 }
 
+// Дерево исследований листается перетаскиванием (клик по узлу без сдвига — начать исследование)
+function bindTreeDrag(drawer) {
+  let drag = null;
+  let dragEnded = 0;
+  // клик сразу после перетаскивания не считается
+  drawer.addEventListener('click', (ev) => {
+    if (performance.now() - dragEnded < 250) ev.stopPropagation();
+  }, true);
+  drawer.addEventListener('pointerdown', (e) => {
+    const tree = /** @type {HTMLElement|null} */ (closestEl(e, '#tech-tree'));
+    if (!tree || e.button !== 0) return;
+    drag = { tree, x: e.clientX, y: e.clientY, left: tree.scrollLeft, top: tree.scrollTop, moved: false };
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    drag.moved = true;
+    drag.tree.classList.add('dragging');
+    drag.tree.scrollLeft = drag.left - dx;
+    drag.tree.scrollTop = drag.top - dy;
+  });
+  window.addEventListener('pointerup', () => {
+    if (drag?.moved) {
+      dragEnded = performance.now();
+      drag.tree.classList.remove('dragging');
+    }
+    drag = null;
+  });
+}
+
 function bindUi() {
+  bindTreeDrag(document.getElementById('drawer'));
   for (const root of [document.getElementById('panel'), document.getElementById('drawer')]) {
     root.addEventListener('click', (e) => {
       const el = closestEl(e, '[data-action]');
@@ -839,8 +875,8 @@ function bindUi() {
     });
     root.addEventListener('change', (e) => {
       if (target(e).dataset.change) {
+        target(e).blur(); // сначала снять фокус: иначе панель не перерисуется после изменения
         handleChange(e.target);
-        target(e).blur();
       }
     });
     root.addEventListener('keydown', (e) => {

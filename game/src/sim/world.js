@@ -81,6 +81,14 @@ function aiScale(pop) {
   return Math.min(1.6, Math.max(0.6, 0.5 + pop / 15));
 }
 
+// Категории фоновых конкурентов, которые были в мире с самого начала (для них — общий ГСЧ)
+const LEGACY_AI = new Set(['coffee', 'fastfood', 'grocery', 'bakery', 'restaurant', 'fuel', 'electronics', 'hotel', 'fitness', 'beauty', 'pharmacy', 'cars', 'autoservice']);
+function hashStr(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
 export function generateWorld(rng) {
   /** @type {Record<string, any>} */
   const places = {};
@@ -136,7 +144,26 @@ export function generateWorld(rng) {
     district.lotIds.push(id);
   };
 
-  for (const c of CITIES) {
+  /** @param {any} r */
+  function addRegion(r) {
+    const place = { ...r, kind: 'region', districtIds: /** @type {string[]} */ ([]) };
+    places[r.id] = place;
+    const id = `${r.id}:1`;
+    const district = { id, placeId: r.id, type: 'rural', lat: r.lat, lng: r.lng, radius: 20000, lotIds: [], ai: {} };
+    districts[id] = district;
+    place.districtIds.push(id);
+    const n = randInt(rng, DISTRICTS.rural.lots[0], DISTRICTS.rural.lots[1]);
+    for (let k = 0; k < n; k++) addLot(district, place, 'rural', [3000, 18000]);
+  }
+
+  // Порядок важен для старых партий: сначала первые 26 городов и 16 регионов (как раньше), потом новые —
+  // так у сохранённых комнат мир из сида получается прежним, а новые места просто добавляются.
+  const order = [...CITIES.slice(0, 26), ...REGIONS.slice(0, 16), ...CITIES.slice(26), ...REGIONS.slice(16)];
+  for (const c of order) {
+    if (!('pop' in c)) {
+      addRegion(c);
+      continue;
+    }
     const place = { ...c, kind: 'city', districtIds: /** @type {string[]} */ ([]) };
     places[c.id] = place;
     const types = cityDistrictTypes(c.pop);
@@ -166,7 +193,9 @@ export function generateWorld(rng) {
       const id = `${c.id}:${i + 1}`;
       const ai = {};
       for (const [cat, n] of Object.entries(def.ai)) {
-        ai[cat] = Math.max(0, Math.round(n * aiScale(c.pop)) + randInt(rng, -1, 1));
+        // новые категории не трогают общий ГСЧ, чтобы мир старых партий не поменялся
+        const jitter = LEGACY_AI.has(cat) ? randInt(rng, -1, 1) : (hashStr(`${id}|${cat}`) % 3) - 1;
+        ai[cat] = Math.max(0, Math.round(n * aiScale(c.pop)) + jitter);
       }
       const district = { id, placeId: c.id, type, lat: center.lat, lng: center.lng, radius: 800, lotIds: [], ai };
       districts[id] = district;
@@ -174,17 +203,6 @@ export function generateWorld(rng) {
       const n = randInt(rng, def.lots[0], def.lots[1]);
       for (let k = 0; k < n; k++) addLot(district, place, type, [80, 650]);
     });
-  }
-
-  for (const r of REGIONS) {
-    const place = { ...r, kind: 'region', districtIds: /** @type {string[]} */ ([]) };
-    places[r.id] = place;
-    const id = `${r.id}:1`;
-    const district = { id, placeId: r.id, type: 'rural', lat: r.lat, lng: r.lng, radius: 20000, lotIds: [], ai: {} };
-    districts[id] = district;
-    place.districtIds.push(id);
-    const n = randInt(rng, DISTRICTS.rural.lots[0], DISTRICTS.rural.lots[1]);
-    for (let k = 0; k < n; k++) addLot(district, place, 'rural', [3000, 18000]);
   }
 
   return { places, districts, lots };

@@ -1,6 +1,7 @@
 import { createGame, SAVE_VERSION } from './state.js';
 import { syncCpi } from './countries.js';
 import { addRivals } from './rivals.js';
+import { LEGACY_LEVELS } from '../data/tech.js';
 
 // Миграция сохранений: старая партия дополняется всем, что появилось в игре позже, и продолжается.
 // Сохранение хранит свой мир целиком, поэтому районы и участки остаются прежними — добавляются только
@@ -64,6 +65,11 @@ function fillDefaults(state, fresh) {
     co.licenses ||= [];
     co.payout ??= 0.3;
     co.month ||= { interest: 0, tax: 0 };
+    // исследования: уровни (pos: 2) → узлы дерева (pos, pos_2)
+    for (const [k, nodes] of Object.entries(LEGACY_LEVELS)) {
+      const lvl = co.tech?.[k] ?? 0;
+      if (lvl > 1) for (let i = 0; i < Math.min(lvl, nodes.length); i++) co.tech[nodes[i]] = 1;
+    }
   }
   for (const u of Object.values(state.units)) {
     u.condition ??= 100;

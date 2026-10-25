@@ -1,4 +1,5 @@
 import { BUSINESSES } from '../data/businesses.js';
+import { techLevel } from './research.js';
 import { GOODS } from '../data/goods.js';
 import { chance } from './rng.js';
 import { setShock } from './market.js';
@@ -43,7 +44,7 @@ export function monthlyEvents(state) {
       }
     }
     // фарма: редкий, но дорогой отзыв партии
-    if (unit.type === 'pharma_plant' && chance(rng, 0.015)) {
+    if (unit.type === 'pharma_plant' && chance(rng, 0.015 / (1 + techLevel(state, unit.companyId, 'biotech')))) {
       const cost = Math.round(Math.max(200000, 2 * (unit.last?.revenue ?? 0)));
       spend(state, unit, 'other', cost);
       addNews(state, 'bad', `💊 Отзыв партии лекарств с «${unit.name}»: проверки и компенсации — $${cost.toLocaleString('ru-RU')}.`, { unitId: unit.id }, unit.companyId);

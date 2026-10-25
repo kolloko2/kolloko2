@@ -16,15 +16,15 @@ import { newBrand, brandUnits } from './brands.js';
 export const ARCHETYPES = {
   discount: {
     name: 'Дискаунтер', desc: 'Дёшево и много: эконом-сети в спальных районах и у студентов.',
-    types: ['fastfood', 'minimarket', 'supermarket'], districts: ['residential', 'student', 'mall'], tier: 'eco', rate: 1,
+    types: ['fastfood', 'minimarket', 'supermarket', 'clothing_store', 'kids_store'], districts: ['residential', 'student', 'mall'], tier: 'eco', rate: 1,
   },
   premium: {
     name: 'Премиум', desc: 'Дорогие кофейни и рестораны в центре и престижных районах.',
-    types: ['coffee_shop', 'restaurant', 'bakery'], districts: ['cbd', 'historic', 'premium'], tier: 'premium', rate: 1,
+    types: ['coffee_shop', 'restaurant', 'bakery', 'bar', 'jewelry_store'], districts: ['cbd', 'historic', 'premium'], tier: 'premium', rate: 1,
   },
   raw: {
-    name: 'Сырьевик', desc: 'Фермы, мельницы, мясокомбинаты и нефть — продаёт сырьё всему миру.',
-    types: ['wheat_farm', 'dairy_farm', 'livestock_farm', 'coffee_plantation', 'mill', 'meat_plant', 'oil_well', 'refinery'], districts: ['industrial', 'rural'], rate: 1,
+    name: 'Сырьевик', desc: 'Фермы, шахты, мельницы, мясокомбинаты и нефть — продаёт сырьё всему миру.',
+    types: ['wheat_farm', 'dairy_farm', 'livestock_farm', 'coffee_plantation', 'mill', 'meat_plant', 'oil_well', 'refinery', 'crop_farm', 'mine', 'quarry', 'sawmill'], districts: ['industrial', 'rural'], rate: 1,
   },
   raider: {
     name: 'Агрессор', desc: 'Идёт туда, где зарабатываете вы: открывается рядом, выкупает помещения, скупает акции.',

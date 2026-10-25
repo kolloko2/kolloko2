@@ -5,10 +5,10 @@ import { GOODS } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
 import { LICENSES } from '../data/laws.js';
-import { TECHS } from '../data/tech.js';
+import { TECHS, BRANCHES, STAT_EFFECTS } from '../data/tech.js';
 import { AD_CHANNELS } from '../data/ads.js';
 import {
-  ARCHETYPES, truceCost, TRUCE_MONTHS, offerText, techLevel, techCost, techLocked, researchSpeed, lobbyCost, lobbyChance, employees, taxBreak,
+  ARCHETYPES, truceCost, TRUCE_MONTHS, offerText, techLevel, hasTech, techCost, techLocked, researchSpeed, lobbyCost, lobbyChance, employees, taxBreak,
   LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER, loanRate,
   companyAlerts, ALERT_KINDS, directorCost, condition, companyReport, defaultRules,
   overhead, countryState, franchiseCount, franchiseAppeal, packageCost, ROYALTIES, FRANCHISE_MIN_UNITS,
@@ -16,6 +16,7 @@ import {
   IPO_MIN_WORTH, IPO_MIN_MONTHS, ABSORB_SHARE, CONTROL_SHARE, TRADE_FEE,
   BRAND_TIERS, brandAwareness, WAGE_LEVELS, presenceByCountry, hasLocalTeam, purchasingDiscount, LOCAL_TEAM_UNITS,
   regionOf, midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits, GOALS, goalContext, victoryText,
+  recipeOf,
 } from '../sim/index.js';
 import { SPEEDS } from '../net/session.js';
 import { tabHint } from './tutorial.js';
@@ -73,7 +74,7 @@ function renderUnits(app) {
     const warn = (u.broken > 0 || t.stockout || t.inputShort ? ' ⚠️' : '') + ((u.morale ?? 65) < 35 ? ' 😠' : '') + (u.manager ? ' 👔' : '');
     let today = 'склад';
     if (def.retail) today = `${num(t.customers ?? 0)} кл.<br><small class="stars">${stars(u.quality)}</small>`;
-    else if (def.production) today = `${num(t.produced ?? 0)} ${GOODS[def.production.recipe.output].unit}`;
+    else if (def.production) today = `${num(t.produced ?? 0)} ${GOODS[recipeOf(u).output].unit}`;
     else if (def.service) today = moneyShort(t.revenue ?? 0);
     const cond = condition(u);
     html += `<tr data-action="selectUnit" data-fly="1" data-id="${u.id}"><td>${bizIcon(u.type, 'row')}</td><td>${esc(u.name)}${warn}<small class="muted"><br>${esc(place.name)}</small></td>
@@ -85,12 +86,21 @@ function renderUnits(app) {
 }
 
 // Поиск мест: лучшие участки для выбранного бизнеса (считается по кнопке — это долго)
+// Группы в списке типов бизнеса: так длинный список легче листать
+const SEARCH_GROUPS = [
+  ['Магазины и общепит', (d) => Boolean(d.retail)],
+  ['Услуги и недвижимость', (d) => !d.retail && Boolean(d.service)],
+  ['Сырьё: земля и недра', (d) => !d.retail && ['farm', 'mining', 'oil'].includes(d.category)],
+  ['Заводы и фабрики', (d) => !d.retail && !d.service && !['farm', 'mining', 'oil'].includes(d.category)],
+];
+
 function renderSearch(app) {
   const { state } = app;
   const q = app.search || { type: 'coffee_shop', country: '' };
   const types = Object.entries(BUSINESSES).filter(([, d]) => !d.storage);
   let html = `<h2>🔍 Поиск мест</h2><p class="muted small">Лучшие свободные участки по окупаемости для выбранного бизнеса. Прогноз — примерный: учтены спрос, конкуренты, аренда, сборы и лицензии.</p>
-    <div class="filters"><select id="search-type">${types.map(([id, d]) => `<option value="${id}" ${q.type === id ? 'selected' : ''}>${d.icon} ${d.name}</option>`).join('')}</select>
+    <div class="filters"><select id="search-type">${SEARCH_GROUPS.map(([name, test]) => `<optgroup label="${name}">${types.filter(([, d]) => test(d))
+      .map(([id, d]) => `<option value="${id}" ${q.type === id ? 'selected' : ''}>${d.icon} ${d.name}</option>`).join('')}</optgroup>`).join('')}</select>
     <select id="search-country"><option value="">Весь мир</option>${Object.entries(COUNTRIES).sort((a, z) => a[1].name.localeCompare(z[1].name, 'ru')).map(([c, d]) => `<option value="${c}" ${q.country === c ? 'selected' : ''}>${d.name}</option>`).join('')}</select></div>
     <button class="btn" data-action="search">Найти</button>`;
   const res = app.searchResults;
@@ -529,30 +539,76 @@ function renderRivals(app) {
   return html;
 }
 
-// Исследования: дерево технологий
+// Исследования: дерево технологий — ветки колонками, ряды сверху вниз, стрелки от требуемых технологий
+const NODE_W = 150;
+const NODE_H = 74;
+const GAP_X = 22;
+const GAP_Y = 34;
+const TECH_LAYOUT = (() => {
+  const cols = {};
+  for (const t of Object.values(TECHS)) cols[t.branch] = Math.max(cols[t.branch] ?? 0, t.col + 1);
+  let x = 0;
+  const branchX = {};
+  for (const b of Object.keys(BRANCHES)) {
+    branchX[b] = x;
+    x += (cols[b] || 1) * (NODE_W + GAP_X) + 26;
+  }
+  const rows = Math.max(...Object.values(TECHS).map((t) => t.row)) + 1;
+  const pos = {};
+  for (const [id, t] of Object.entries(TECHS)) pos[id] = { x: branchX[t.branch] + t.col * (NODE_W + GAP_X), y: 40 + t.row * (NODE_H + GAP_Y) };
+  return { pos, branchX, cols, width: x, height: 40 + rows * (NODE_H + GAP_Y) };
+})();
+
 function renderResearch(app) {
   const { state } = app;
   const co = app.company;
   const r = co.research;
-  let html = `<h2>🔬 Исследования</h2><p class="muted small">Технологии дают постоянные бонусы всей компании и открывают тир IV: банки, электронику, облачные сервисы.
+  const done = Object.keys(TECHS).filter((id) => hasTech(state, app.companyId, id)).length;
+  let html = `<h2>🔬 Исследования <small class="muted">${done} из ${Object.keys(TECHS).length}</small></h2><p class="muted small">Дерево технологий: стрелки показывают, что нужно изучить раньше (бывают связи между ветками).
     Деньги списываются каждый день, пока идёт работа. IT-студии с 3+ программистами ускоряют исследования (+25% каждая, до +50%; сейчас ×${researchSpeed(state, app.companyId).toFixed(2)}).</p>`;
   if (r) {
     const t = TECHS[r.id];
     const p = Math.min(1, r.progress / r.days);
-    html += `<div class="card"><div class="row"><b>${t.icon} ${t.name}, уровень ${techLevel(state, app.companyId, r.id) + 1}</b><button class="mini wide" data-action="cancelResearch">Остановить</button></div>
+    html += `<div class="card"><div class="row"><b>${t.icon} ${t.name}</b><button class="mini wide" data-action="cancelResearch">Остановить</button></div>
       <div class="progress"><span style="width:${(p * 100).toFixed(0)}%"></span></div>
       <div class="muted small">Готово ${pct(p)} · осталось ~${Math.ceil((r.days - r.progress) / researchSpeed(state, app.companyId) / 30)} мес. · бюджет ${moneyShort(r.cost)}</div></div>`;
   }
-  html += '<div class="goals">';
+  const bonuses = Object.entries(STAT_EFFECTS).map(([k, d]) => ({ d, n: techLevel(state, app.companyId, k) })).filter((b) => b.n > 0);
+  if (bonuses.length) html += `<div class="card small"><b>Действует:</b> ${bonuses.map((b) => `${esc(b.d)}${b.n > 1 ? ` ×${b.n}` : ''}`).join(' · ')}</div>`;
+  const L = TECH_LAYOUT;
+  let lines = '';
+  let nodes = '';
   for (const [id, t] of Object.entries(TECHS)) {
-    const lvl = techLevel(state, app.companyId, id);
+    const p = L.pos[id];
+    for (const req of t.requires) {
+      const q = L.pos[req];
+      const x1 = q.x + NODE_W / 2;
+      const y1 = q.y + NODE_H;
+      const x2 = p.x + NODE_W / 2;
+      const y2 = p.y;
+      const ok = hasTech(state, app.companyId, req);
+      const cross = TECHS[req].branch !== t.branch;
+      lines += `<path d="M${x1} ${y1} C ${x1} ${y1 + 26}, ${x2} ${y2 - 26}, ${x2} ${y2 - 4}" class="${ok ? 'done' : ''} ${cross ? 'cross' : ''}" marker-end="url(#arr)"/>`;
+    }
+    const have = hasTech(state, app.companyId, id);
     const why = techLocked(state, app.companyId, id);
-    html += `<div class="goal ${lvl >= t.max ? 'done' : ''}"><span class="goal-icon">${t.icon}</span><div class="goal-main"><b>${t.name}</b> <small class="muted">${lvl}/${t.max}</small>
-      <small>${t.desc}</small>
-      ${lvl >= t.max ? '<small class="pos">✓ изучено</small>' : why ? `<small class="muted">${esc(why)}</small>`
-        : `<button class="mini wide" data-action="startResearch" data-id="${id}" ${r ? 'disabled' : ''}>Изучать · ${moneyShort(techCost(state, app.companyId, id))} · ${t.months} мес.</button>`}</div></div>`;
+    const active = r?.id === id;
+    const cls = have ? 'done' : active ? 'active' : why ? 'locked' : 'open';
+    const color = BRANCHES[t.branch].color;
+    const title = `${t.name}\n${t.desc}${have ? '\n✓ изучено' : why ? `\n${why}` : `\n${moneyShort(techCost(state, app.companyId, id))} · ${t.months} мес.`}`;
+    nodes += `<div class="tnode ${cls}" style="left:${p.x}px;top:${p.y}px;width:${NODE_W}px;height:${NODE_H}px;--c:${color}" title="${esc(title)}"
+      ${!have && !why && !r ? `data-action="startResearch" data-id="${id}"` : ''}>
+      <div class="tn-head"><span>${t.icon}</span><b>${esc(t.name)}</b></div>
+      <div class="tn-desc">${esc(t.desc)}</div>
+      <div class="tn-foot">${have ? '✓ изучено' : active ? `идёт · ${pct(Math.min(1, r.progress / r.days))}` : why ? '🔒' : `${moneyShort(techCost(state, app.companyId, id))} · ${t.months} мес.`}</div>
+    </div>`;
   }
-  return `${html}</div>`;
+  const heads = Object.entries(BRANCHES).map(([b, d]) => `<div class="tbranch" style="left:${L.branchX[b]}px;width:${(L.cols[b] || 1) * (NODE_W + GAP_X) - GAP_X}px;--c:${d.color}">${d.icon} ${d.name}</div>`).join('');
+  html += `<div class="tech-tree" id="tech-tree"><div class="tech-canvas" style="width:${L.width}px;height:${L.height}px">${heads}
+    <svg width="${L.width}" height="${L.height}"><defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>${lines}</svg>
+    ${nodes}</div></div>
+    <div class="muted small">Нажмите на доступную технологию, чтобы начать. Колёсиком или перетаскиванием можно листать дерево.</div>`;
+  return html;
 }
 
 // Лоббирование и льготы в странах, где работает компания
@@ -566,7 +622,7 @@ function renderLobby(app) {
     Раз в год на страну. Крупный работодатель (${BIG_EMPLOYER}+ сотрудников) платит налог на 5 п.п. меньше.</div><table class="tbl compact"><tr><th>Страна</th><th>Работников</th><th>Льгота</th><th>Шанс</th><th></th></tr>`;
   for (const c of list) {
     const wait = co.lobbied?.[c] && state.day - co.lobbied[c] < LOBBY_COOLDOWN;
-    html += `<tr><td>${COUNTRIES[c].name}</td><td>${num(employees(state, app.companyId, c))}</td><td>${taxBreak(state, app.companyId, c) ? '−5 п.п.' : '—'}</td>
+    html += `<tr><td>${COUNTRIES[c].name}</td><td>${num(employees(state, app.companyId, c))}</td><td>${taxBreak(state, app.companyId, c) ? `−${Math.round(taxBreak(state, app.companyId, c) * 100)} п.п.` : '—'}</td>
       <td>${pct(lobbyChance(state, app.companyId, c))}</td><td>${wait ? '<small class="muted">через год</small>' : Object.entries(LOBBY_GOALS).map(([g, x]) => `<button class="mini wide" data-action="lobby" data-country="${c}" data-goal="${g}" title="${x.name}">${g === 'tax' ? '↓ налог' : '↓ пошлины'} · ${moneyShort(lobbyCost(state, c))}</button>`).join(' ')}</td></tr>`;
   }
   return `${html}</table>`;
@@ -620,7 +676,9 @@ function renderHelp() {
     <li><b>У каждого бизнеса свой характер</b> (метка риска на карточке): 🟢 недвижимость, электростанция, аптеки — дорого, но стабильно;
       🔴 застройщик, фарма, автосалоны, нефть — могут принести очень много, а могут и убытки. Отели живут туристами и сезоном.</li>
     <li><b>Цепочки</b>: нефтехимия → завод запчастей → автозавод → автосалоны и автосервисы; фармзавод → аптеки; косметическая фабрика → салоны и аптеки;
-      пищевая фабрика → магазины и отели; служба доставки → своя доставка для кафе. Порт ускоряет межконтинентальные поставки.</li>
+      пищевая фабрика → магазины и отели; служба доставки → своя доставка для кафе. Порт ускоряет межконтинентальные поставки.
+      Недра: шахты (руда, уголь, литий…) → металлургия → кабель, техника, грузовики и роботы; карьеры → стройматериалы → стройгипермаркет;
+      лес → лесопилка → мебель и бумага; хлопок → ткань → одежда; виноград → вино → бары. Заводы с выбором продукции можно перенастроить (неделя простоя).</li>
     <li><b>Удобство</b>: 🔍 «Поиск мест» находит лучшие участки; 💾 шаблон точки переносит настройки в новый город; 🤖 автопилот в «Финансах»
       гасит кредит, обновляет и закрывает точки; ⚙️ настройки — громкость, скорость дня, размер, пауза при важных событиях; три слота сохранений и файл.</li>
     <li><b>Расходы штаба</b> растут быстрее числа бизнесов: тысяча мелких киосков — не империя. Растите в крупные и прибыльные активы, цепочки, франшизу.</li>
@@ -631,7 +689,7 @@ function renderHelp() {
   <p class="muted small">Прототип (см. docs/PLAN.md).</p>`;
 }
 
-export function renderDrawer(app) {
+export function renderDrawer(app, force = false) {
   const el = document.getElementById('drawer');
   const nav = document.getElementById('nav');
   /** @type {NodeListOf<HTMLElement>} */ (nav.querySelectorAll('button[data-tab]')).forEach((b) => b.classList.toggle('active', b.dataset.tab === app.tab));
@@ -641,14 +699,20 @@ export function renderDrawer(app) {
   }
   const active = /** @type {HTMLInputElement | null} */ (el.contains(document.activeElement) ? document.activeElement : null);
   const chatDraft = active?.closest('#chat-form') ? active.value : null;
-  if (active?.tagName === 'INPUT' && chatDraft === null) return; // не мешаем вводу суммы кредита и т.п.
+  // не мешаем вводу суммы кредита и выбору в выпадающем списке (перерисовка закрыла бы его)
+  if ((active?.tagName === 'INPUT' || active?.tagName === 'SELECT') && chatDraft === null && !force) return;
   const render = {
     units: renderUnits, tasks: renderTasks, search: renderSearch, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands,
     countries: renderCountries, stocks: renderStocks, rivals: renderRivals, research: renderResearch, goals: renderGoals, room: renderRoom, help: renderHelp,
   }[app.tab];
   const scroll = el.scrollTop;
+  const tree = document.getElementById('tech-tree');
+  const treeScroll = tree ? [tree.scrollLeft, tree.scrollTop] : null;
+  el.classList.toggle('wide', app.tab === 'research');
   el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${tabHint(app.tab)}${render(app)}`;
   el.scrollTop = scroll;
+  const tree2 = document.getElementById('tech-tree');
+  if (tree2 && treeScroll) [tree2.scrollLeft, tree2.scrollTop] = treeScroll;
   if (chatDraft !== null) {
     const input = /** @type {HTMLInputElement} */ (el.querySelector('#chat-form input'));
     input.value = chatDraft;

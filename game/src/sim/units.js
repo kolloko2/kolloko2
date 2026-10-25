@@ -90,8 +90,41 @@ export function renovateCost(state, unit) {
 export function retailCapacity(state, unit) {
   const r = BUSINESSES[unit.type].retail;
   if (!r || unit.broken > 0) return 0;
-  const pos = 1 + 0.08 * techLevel(state, unit.companyId, 'pos');
+  const pos = (1 + 0.08 * techLevel(state, unit.companyId, 'pos')) * (1 + 0.05 * techLevel(state, unit.companyId, 'ai'));
   return Math.min(unit.staff * r.perStaff * efficiency(state, unit) * pos, r.cap[unit.level - 1]) * itCapacityBoost(state, unit.companyId);
+}
+
+// Заводы с выбором продукции: production.variants = { товар: { inputs, rate, res } }.
+// rate — множитель выпуска (в штуках) относительно perStaff/cap; res — только там, где есть такое сырьё (place.resources).
+/** @typedef {{ output: string, inputs: Record<string, number>, rate: number, res?: boolean }} Recipe */
+for (const def of Object.values(BUSINESSES)) {
+  const p = def.production;
+  if (!p?.variants) continue;
+  p.recipes = Object.fromEntries(Object.entries(p.variants).map(([output, v]) => [output, { output, inputs: v.inputs || {}, rate: v.rate ?? 1, res: v.res }]));
+}
+
+/** Рецепт выпуска бизнеса (у заводов с вариантами — выбранный) @returns {Recipe|null} */
+export function recipeOf(unit) {
+  const p = BUSINESSES[unit.type].production;
+  if (!p) return null;
+  if (!p.recipes) return p.recipe;
+  return p.recipes[unit.recipe] || Object.values(p.recipes)[0];
+}
+
+/** Какие варианты продукции доступны в этом месте @returns {string[]} */
+export function allowedRecipes(place, type) {
+  const p = BUSINESSES[type].production;
+  if (!p?.recipes) return p ? [p.recipe.output] : [];
+  return Object.values(p.recipes).filter((r) => !r.res || (place.resources || []).includes(r.output)).map((r) => r.output);
+}
+
+// Бонусы исследований к выработке: автоматизация и ИИ везде, агрономия — на земле, геология — в недрах
+/** @param {State} state @param {string} companyId @param {string} type */
+export function techOutput(state, companyId, type) {
+  const cat = BUSINESSES[type].category;
+  const extra = cat === 'farm' ? 0.1 * techLevel(state, companyId, 'agro')
+    : cat === 'mining' || cat === 'oil' ? 0.1 * techLevel(state, companyId, 'mining') : 0;
+  return (1 + 0.12 * techLevel(state, companyId, 'automation')) * (1 + 0.05 * techLevel(state, companyId, 'ai')) * (1 + extra);
 }
 
 /** @param {State} state @param {Unit} unit */
@@ -99,9 +132,10 @@ export function productionCapacity(state, unit) {
   const p = BUSINESSES[unit.type].production;
   if (!p || unit.broken > 0) return 0;
   const place = placeOf(state, unit);
-  const byStaff = unit.staff * p.perStaff * (place.productivity ?? 1) * efficiency(state, unit) * wearEfficiency(unit)
-    * (1 + 0.12 * techLevel(state, unit.companyId, 'automation'));
-  const cap = p.cap ? p.cap[unit.level - 1] : p.capPerArea * lotOf(state, unit).area * (1 + 0.5 * (unit.level - 1));
+  const rate = recipeOf(unit)?.rate ?? 1;
+  const byStaff = unit.staff * p.perStaff * rate * (place.productivity ?? 1) * efficiency(state, unit) * wearEfficiency(unit)
+    * techOutput(state, unit.companyId, unit.type);
+  const cap = (p.cap ? p.cap[unit.level - 1] : p.capPerArea * lotOf(state, unit).area * (1 + 0.5 * (unit.level - 1))) * rate;
   return Math.min(byStaff, cap);
 }
 
@@ -110,14 +144,13 @@ export function inputGoods(unit) {
   const def = BUSINESSES[unit.type];
   const goods = new Set();
   if (def.retail) for (const p of def.retail.products) for (const g of Object.keys(p.recipe)) goods.add(g);
-  if (def.production) for (const g of Object.keys(def.production.recipe.inputs)) goods.add(g);
+  if (def.production) for (const g of Object.keys(recipeOf(unit)?.inputs || {})) goods.add(g);
   if (def.service) for (const g of Object.keys(def.service.inputs)) goods.add(g);
   return [...goods];
 }
 
 export function outputGood(unit) {
-  const def = BUSINESSES[unit.type];
-  return def.production ? def.production.recipe.output : null;
+  return recipeOf(unit)?.output ?? null;
 }
 
 // Сколько товара юнит тратит в день при заданном числе клиентов/выпуске
@@ -131,7 +164,7 @@ export function dailyNeed(unit, customers, produced) {
     }
   }
   if (def.production) {
-    for (const [g, q] of Object.entries(def.production.recipe.inputs)) need[g] = (need[g] || 0) + produced * q;
+    for (const [g, q] of Object.entries(recipeOf(unit)?.inputs || {})) need[g] = (need[g] || 0) + produced * q;
   }
   if (def.service) {
     for (const [g, q] of Object.entries(def.service.inputs)) need[g] = (need[g] || 0) + (unit.staff || 0) * q;

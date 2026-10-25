@@ -93,14 +93,17 @@ export const BUSINESSES = {
   },
   mill: {
     name: 'Мельница', icon: '⚙️', zoning: 'industrial', category: 'industry', tier: 2,
-    description: 'Мелет пшеницу в муку для пекарен и фастфуда.',
+    description: 'Мелет пшеницу в муку для пекарен и фастфуда или делает комбикорм для ферм.',
     capex: 493000, renovPerM2: 40,
     upkeep: { base: 4500, perArea: 2 },
     staff: { role: 'Мельник', wage: 3000, min: 1, max: 20, def: 3 },
     marketing: 0,
     production: {
       perStaff: 2000, cap: [6000, 12000, 20000],
-      recipe: { output: 'flour', inputs: { wheat: 1.35 } },
+      variants: {
+        flour: { inputs: { wheat: 1.35 } },
+        feed: { inputs: { corn: 0.6, soybeans: 0.3 }, rate: 0.9 },
+      },
     },
   },
   coffee_plantation: {
@@ -196,14 +199,17 @@ export const BUSINESSES = {
   },
   dairy_plant: {
     name: 'Молокозавод', icon: '🧀', zoning: 'industrial', category: 'industry', tier: 2, license: 'food',
-    description: 'Делает сыр из молока. Ставьте рядом с молочными фермами — молоко быстро портится в дороге.',
+    description: 'Делает сыр или сливочное масло из молока. Ставьте рядом с молочными фермами — молоко быстро портится в дороге.',
     capex: 634000, renovPerM2: 50,
     upkeep: { base: 6000, perArea: 3 },
     staff: { role: 'Технолог', wage: 2700, min: 2, max: 30, def: 4 },
     marketing: 0,
     production: {
       perStaff: 75, cap: [300, 600, 1000],
-      recipe: { output: 'cheese', inputs: { milk: 9 } },
+      variants: {
+        cheese: { inputs: { milk: 9 } },
+        butter: { inputs: { milk: 9 }, rate: 1.6 },
+      },
     },
   },
   packaging_plant: {
@@ -507,19 +513,28 @@ export const BUSINESSES = {
     marketing: 0,
     production: {
       perStaff: 2500, cap: [30000, 60000, 100000],
-      recipe: { output: 'fuel', inputs: { oil: 1.15 } },
+      variants: {
+        fuel: { inputs: { oil: 1.15 } },
+        jet_fuel: { inputs: { oil: 1.2 }, rate: 0.7 },
+      },
     },
   },
   chemical_plant: {
     name: 'Нефтехимический завод', icon: '🧪', zoning: 'industrial', category: 'industry', tier: 3, license: 'eco',
-    description: 'Делает пластик из нефти — для заводов упаковки и пищевых фабрик.',
+    description: 'Пластик из нефти, а также химикаты, удобрения, краски и бытовая химия. Продукцию можно сменить (перенастройка — неделя).',
     capex: 2464000, renovPerM2: 40,
     upkeep: { base: 15000, perArea: 3 },
     staff: { role: 'Химик-технолог', wage: 3600, min: 3, max: 50, def: 8 },
     marketing: 0,
     production: {
       perStaff: 800, cap: [4000, 8000, 14000],
-      recipe: { output: 'plastic', inputs: { oil: 1.6 } },
+      variants: {
+        plastic: { inputs: { oil: 1.6 } },
+        chemicals: { inputs: { natural_gas: 1.2, salt: 0.5 }, rate: 1.2 },
+        fertilizer: { inputs: { natural_gas: 0.6, phosphate: 0.5, potash: 0.4 }, rate: 3 },
+        paint: { inputs: { chemicals: 0.6, oil: 0.3 }, rate: 0.15 },
+        detergents: { inputs: { chemicals: 0.5, plastic: 0.08 }, rate: 0.3 },
+      },
     },
   },
   // ---------- тир IV (нужны исследования) ----------
@@ -550,7 +565,10 @@ export const BUSINESSES = {
     marketing: 0,
     production: {
       perStaff: 8, cap: [300, 600, 1000],
-      recipe: { output: 'electronics', inputs: { chips: 3, plastic: 1.5 } },
+      variants: {
+        electronics: { inputs: { chips: 3, plastic: 1.5 } },
+        computers: { inputs: { chips: 6, plastic: 2, aluminum: 1.5, cables: 3 }, rate: 0.12 },
+      },
     },
   },
   electronics_store: {
@@ -565,6 +583,479 @@ export const BUSINESSES = {
       products: [
         { id: 'device', name: 'Гаджет', ref: 215, attach: 1, tradable: 0.6, recipe: { electronics: 1 } },
         { id: 'accessory', name: 'Аксессуары', ref: 25, attach: 0.6, recipe: { electronics: 0.1, plastic: 0.2 } },
+      ],
+    },
+  },
+
+  // ---------- добыча: шахты, карьеры, прииски, месторождения ----------
+  mine: {
+    name: 'Шахта / рудник', icon: '⛏️', zoning: 'farmland', category: 'mining', tier: 3, license: 'subsoil',
+    description: 'Добывает то, что есть в недрах региона: руду, уголь, соли, литий, уран. Дорого и тяжело, зато сырьё нужно всем заводам мира.',
+    capex: 3600000, renovPerM2: 0,
+    upkeep: { base: 22000, perArea: 10 },
+    staff: { role: 'Горняк', wage: 3600, min: 10, max: 150, def: 40 },
+    marketing: 0,
+    production: {
+      perStaff: 900, cap: [60000, 120000, 200000],
+      variants: {
+        iron_ore: { res: true }, coal: { res: true, rate: 0.95 }, copper_ore: { res: true, rate: 0.13 },
+        bauxite: { res: true, rate: 1.8 }, nickel_ore: { res: true, rate: 0.075 }, phosphate: { res: true, rate: 0.9 },
+        potash: { res: true, rate: 0.4 }, salt: { res: true, rate: 1.4 }, lithium: { res: true, rate: 0.008 },
+        uranium: { res: true, rate: 0.001 },
+      },
+    },
+  },
+  gold_mine: {
+    name: 'Золотой прииск', icon: '🥇', zoning: 'farmland', category: 'mining', tier: 3, license: 'subsoil',
+    description: 'Золото и серебро: цена металлов скачет — то сказочная прибыль, то работа в ноль.',
+    capex: 4000000, renovPerM2: 0,
+    upkeep: { base: 20000, perArea: 8 },
+    staff: { role: 'Старатель', wage: 3400, min: 8, max: 120, def: 30 },
+    marketing: 0,
+    production: {
+      perStaff: 2, cap: [100, 200, 340],
+      variants: { gold: { res: true }, silver: { res: true, rate: 70 } },
+    },
+  },
+  gas_field: {
+    name: 'Газовое месторождение', icon: '🔥', zoning: 'farmland', category: 'oil', tier: 3, license: 'subsoil',
+    description: 'Добывает природный газ — сырьё для химии, удобрений, стекла и алюминия.',
+    capex: 2100000, renovPerM2: 0,
+    upkeep: { base: 7000, perArea: 10 },
+    staff: { role: 'Газовик', wage: 4000, min: 3, max: 60, def: 12 },
+    marketing: 0,
+    production: {
+      perStaff: 520, capPerArea: 60,
+      variants: { natural_gas: { res: true } },
+    },
+  },
+  quarry: {
+    name: 'Карьер', icon: '🪨', zoning: 'industrial', category: 'mining', tier: 2,
+    description: 'Известняк, песок или глина на окраине города — дёшево, скромно, но стройка и стекольщики берут всегда.',
+    capex: 700000, renovPerM2: 10,
+    upkeep: { base: 5000, perArea: 1 },
+    staff: { role: 'Машинист экскаватора', wage: 2800, min: 2, max: 30, def: 8 },
+    marketing: 0,
+    production: {
+      perStaff: 4000, cap: [40000, 80000, 130000],
+      variants: { limestone: {}, sand: { rate: 0.75 }, clay: {} },
+    },
+  },
+  logging: {
+    name: 'Лесозаготовка', icon: '🪵', zoning: 'farmland', category: 'farm', tier: 2,
+    description: 'Валит лес для лесопилок: пиломатериалы, бумага, картон.',
+    capex: 520000, renovPerM2: 0,
+    upkeep: { base: 2500, perArea: 2 },
+    staff: { role: 'Лесоруб', wage: 2600, min: 2, max: 60, def: 12 },
+    marketing: 0,
+    production: {
+      perStaff: 1.1, capPerArea: 0.07,
+      variants: { timber: { res: true } },
+    },
+  },
+  // ---------- поля, сады, птица, море ----------
+  crop_farm: {
+    name: 'Растениеводство', icon: '🌽', zoning: 'farmland', category: 'farm', tier: 2,
+    description: 'Кукуруза, рис, соя, картофель, овощи, ячмень, свёкла или хлопок — что растёт в этом регионе.',
+    capex: 450000, renovPerM2: 0,
+    upkeep: { base: 1600, perArea: 3 },
+    staff: { role: 'Механизатор', wage: 2200, min: 1, max: 40, def: 6 },
+    marketing: 0,
+    production: {
+      perStaff: 160, capPerArea: 40,
+      variants: {
+        corn: { res: true, rate: 0.7 }, rice: { res: true, rate: 0.35 }, soybeans: { res: true, rate: 0.3 },
+        potatoes: { res: true, rate: 0.7 }, vegetables: { res: true, rate: 0.25 }, barley: { res: true, rate: 0.75 },
+        sugar_beet: { res: true, rate: 2.8 }, cotton: { res: true, rate: 0.085 },
+      },
+    },
+  },
+  orchard: {
+    name: 'Сад / плантация', icon: '🍇', zoning: 'farmland', category: 'farm', tier: 2,
+    description: 'Фрукты, виноград, какао, чай или каучук. Много ручного труда — выгоднее там, где он дешёвый.',
+    capex: 620000, renovPerM2: 0,
+    upkeep: { base: 1200, perArea: 2 },
+    staff: { role: 'Сборщик', wage: 1700, min: 2, max: 120, def: 15 },
+    marketing: 0,
+    production: {
+      perStaff: 20, capPerArea: 6,
+      variants: {
+        fruits: { res: true }, grapes: { res: true }, cocoa: { res: true, rate: 0.2 },
+        tea_leaf: { res: true, rate: 0.3 }, rubber: { res: true, rate: 0.55 },
+      },
+    },
+  },
+  poultry_farm: {
+    name: 'Птицефабрика', icon: '🐔', zoning: 'industrial', category: 'industry', tier: 2, license: 'food',
+    description: 'Яйца или курица из комбикорма — для фастфуда, ресторанов и консервных заводов.',
+    capex: 1000000, renovPerM2: 30,
+    upkeep: { base: 5000, perArea: 2 },
+    staff: { role: 'Птичник', wage: 2400, min: 2, max: 40, def: 10 },
+    marketing: 0,
+    production: {
+      perStaff: 1500, cap: [15000, 30000, 50000],
+      variants: { eggs: { inputs: { feed: 0.13 } }, chicken: { inputs: { feed: 2.0 }, rate: 0.05 } },
+    },
+  },
+  fishery: {
+    name: 'Рыболовецкая компания', icon: '🐟', zoning: 'industrial', category: 'industry', tier: 2, onlyPort: true,
+    description: 'Только в портовых городах. Свой флот ловит рыбу: улов и цены гуляют, топливо — главная статья расходов.',
+    capex: 2500000, renovPerM2: 20,
+    upkeep: { base: 12000, perArea: 2 },
+    staff: { role: 'Рыбак', wage: 3000, min: 6, max: 80, def: 30 },
+    marketing: 0,
+    production: {
+      perStaff: 21, cap: [1200, 2400, 4000],
+      recipe: { output: 'fish', inputs: { fuel: 0.3 } },
+    },
+  },
+  // ---------- переработка: металлы, стройматериалы, лес ----------
+  steel_mill: {
+    name: 'Металлургический комбинат', icon: '🔥', zoning: 'industrial', category: 'industry', tier: 3, license: 'eco', requiresTech: 'metallurgy',
+    description: 'Сталь из железной руды и угля. Огромные объёмы — свои шахты рядом решают всё.',
+    capex: 10400000, renovPerM2: 60,
+    upkeep: { base: 40000, perArea: 5 },
+    staff: { role: 'Сталевар', wage: 3600, min: 20, max: 200, def: 80 },
+    marketing: 0,
+    production: {
+      perStaff: 500, cap: [40000, 80000, 140000],
+      recipe: { output: 'steel', inputs: { iron_ore: 1.6, coal: 0.8 } },
+    },
+  },
+  smelter: {
+    name: 'Завод цветных металлов', icon: '🏭', zoning: 'industrial', category: 'industry', tier: 3, license: 'eco', requiresTech: 'metallurgy',
+    description: 'Алюминий из бокситов (нужно много газа), медь или никель из руды — для кабелей, батарей и техники.',
+    capex: 7500000, renovPerM2: 60,
+    upkeep: { base: 35000, perArea: 5 },
+    staff: { role: 'Металлург', wage: 3600, min: 15, max: 150, def: 60 },
+    marketing: 0,
+    production: {
+      perStaff: 170, cap: [10000, 20000, 35000],
+      variants: {
+        aluminum: { inputs: { bauxite: 4.5, natural_gas: 4 } },
+        copper: { inputs: { copper_ore: 4 }, rate: 0.2 },
+        nickel: { inputs: { nickel_ore: 8 }, rate: 0.45 },
+      },
+    },
+  },
+  building_materials: {
+    name: 'Завод стройматериалов', icon: '🧱', zoning: 'industrial', category: 'industry', tier: 2, license: 'eco',
+    description: 'Цемент, кирпич или стекло из карьерного сырья. Стройка любит местное: возить цемент далеко невыгодно.',
+    capex: 2500000, renovPerM2: 40,
+    upkeep: { base: 14000, perArea: 3 },
+    staff: { role: 'Технолог', wage: 3000, min: 6, max: 80, def: 25 },
+    marketing: 0,
+    production: {
+      perStaff: 1600, cap: [60000, 120000, 200000],
+      variants: {
+        cement: { inputs: { limestone: 1.3, clay: 0.3, coal: 0.12 } },
+        bricks: { inputs: { clay: 2.5, coal: 0.15 }, rate: 0.2 },
+        glass: { inputs: { sand: 0.75, limestone: 0.2, natural_gas: 0.6 }, rate: 0.08 },
+      },
+    },
+  },
+  sawmill: {
+    name: 'Лесопильный комбинат', icon: '🪚', zoning: 'industrial', category: 'industry', tier: 2,
+    description: 'Пиломатериалы для мебели и стройки, бумага для типографий или картон для упаковки.',
+    capex: 2300000, renovPerM2: 30,
+    upkeep: { base: 10000, perArea: 3 },
+    staff: { role: 'Станочник', wage: 2800, min: 4, max: 60, def: 20 },
+    marketing: 0,
+    production: {
+      perStaff: 1.5, cap: [30, 60, 100],
+      variants: {
+        lumber: { inputs: { timber: 1.6 } },
+        paper: { inputs: { timber: 0.004, chemicals: 0.1 }, rate: 190 },
+        cardboard: { inputs: { timber: 0.0028, chemicals: 0.03 }, rate: 250 },
+      },
+    },
+  },
+  // ---------- пищевая промышленность ----------
+  oil_mill: {
+    name: 'Маслозавод', icon: '🫒', zoning: 'industrial', category: 'industry', tier: 2, license: 'food',
+    description: 'Давит соевое масло для пищевых фабрик и ресторанов.',
+    capex: 1600000, renovPerM2: 40,
+    upkeep: { base: 7000, perArea: 3 },
+    staff: { role: 'Оператор', wage: 2700, min: 3, max: 40, def: 10 },
+    marketing: 0,
+    production: {
+      perStaff: 500, cap: [5000, 10000, 17000],
+      recipe: { output: 'vegetable_oil', inputs: { soybeans: 2.2 } },
+    },
+  },
+  beverage_plant: {
+    name: 'Завод напитков', icon: '🍺', zoning: 'industrial', category: 'industry', tier: 2, license: 'alcohol',
+    description: 'Пиво, газировка, вода, соки или чай — для баров, магазинов и мирового рынка.',
+    capex: 2600000, renovPerM2: 40,
+    upkeep: { base: 11000, perArea: 3 },
+    staff: { role: 'Технолог', wage: 2800, min: 4, max: 60, def: 15 },
+    marketing: 0,
+    production: {
+      perStaff: 175, cap: [5000, 10000, 17500],
+      variants: {
+        beer: { inputs: { barley: 0.18, glass: 0.3 } },
+        soda: { inputs: { sugar: 0.1, plastic: 0.03 }, rate: 1.6 },
+        water: { inputs: { plastic: 0.03 }, rate: 3.5 },
+        juice: { inputs: { fruits: 1.2, cardboard: 0.05 }, rate: 1.1 },
+        tea: { inputs: { tea_leaf: 1.1, cardboard: 0.1 }, rate: 0.12 },
+      },
+    },
+  },
+  winery: {
+    name: 'Винодельня', icon: '🍷', zoning: 'industrial', category: 'industry', tier: 2, license: 'alcohol',
+    description: 'Вино из винограда: дорогой продукт, хорошая маржа, свои виноградники делают её ещё лучше.',
+    capex: 2600000, renovPerM2: 60,
+    upkeep: { base: 8000, perArea: 3 },
+    staff: { role: 'Винодел', wage: 3000, min: 3, max: 40, def: 12 },
+    marketing: 0,
+    production: {
+      perStaff: 90, cap: [1000, 2000, 3500],
+      recipe: { output: 'wine', inputs: { grapes: 1.5, glass: 0.6 } },
+    },
+  },
+  confectionery: {
+    name: 'Кондитерская фабрика', icon: '🍫', zoning: 'industrial', category: 'industry', tier: 2, license: 'food',
+    description: 'Шоколад, мороженое или макароны. Шоколад зависит от капризных цен на какао.',
+    capex: 2700000, renovPerM2: 50,
+    upkeep: { base: 10000, perArea: 3 },
+    staff: { role: 'Кондитер', wage: 2700, min: 4, max: 60, def: 15 },
+    marketing: 0,
+    production: {
+      perStaff: 40, cap: [600, 1200, 2000],
+      variants: {
+        chocolate: { inputs: { cocoa: 0.5, sugar: 0.4, milk: 0.3 } },
+        ice_cream: { inputs: { milk: 1.5, sugar: 0.2, cardboard: 0.05 }, rate: 2.2 },
+        pasta: { inputs: { flour: 1.05 }, rate: 9 },
+      },
+    },
+  },
+  cannery: {
+    name: 'Консервный завод', icon: '🥫', zoning: 'industrial', category: 'industry', tier: 2, license: 'food',
+    description: 'Консервы, заморозка или колбасы: долго хранятся, легко возить через океан.',
+    capex: 2000000, renovPerM2: 40,
+    upkeep: { base: 10000, perArea: 3 },
+    staff: { role: 'Работник линии', wage: 2600, min: 4, max: 60, def: 15 },
+    marketing: 0,
+    production: {
+      perStaff: 200, cap: [3000, 6000, 10000],
+      variants: {
+        canned_food: { inputs: { vegetables: 0.3, fish: 0.05, steel: 0.08 } },
+        frozen_food: { inputs: { vegetables: 0.6, chicken: 0.2, plastic: 0.05 }, rate: 0.55 },
+        sausages: { inputs: { meat: 0.7, chicken: 0.3 }, rate: 0.6 },
+      },
+    },
+  },
+  // ---------- лёгкая промышленность и товары для людей ----------
+  textile_factory: {
+    name: 'Текстильная фабрика', icon: '🧵', zoning: 'industrial', category: 'industry', tier: 2, requiresTech: 'light_industry',
+    description: 'Ткань из хлопка, одежда или обувь. Много ручного труда — дешёвая рабочая сила решает.',
+    capex: 1500000, renovPerM2: 40,
+    upkeep: { base: 8000, perArea: 3 },
+    staff: { role: 'Швея', wage: 2200, min: 10, max: 200, def: 50 },
+    marketing: 0,
+    production: {
+      perStaff: 12.5, cap: [1500, 3000, 5000],
+      variants: {
+        fabric: { inputs: { cotton: 0.35, chemicals: 0.05 } },
+        clothing: { inputs: { fabric: 1.5 }, rate: 0.6 },
+        shoes: { inputs: { fabric: 0.6, rubber: 0.3, plastic: 0.3 }, rate: 0.15 },
+      },
+    },
+  },
+  consumer_factory: {
+    name: 'Фабрика потребтоваров', icon: '🧸', zoning: 'industrial', category: 'industry', tier: 2, requiresTech: 'light_industry',
+    description: 'Игрушки, спорттовары, велосипеды, книги или мебель — для своих магазинов и мирового рынка.',
+    capex: 2600000, renovPerM2: 40,
+    upkeep: { base: 9000, perArea: 3 },
+    staff: { role: 'Сборщик', wage: 2500, min: 6, max: 120, def: 35 },
+    marketing: 0,
+    production: {
+      perStaff: 8, cap: [600, 1200, 2000],
+      variants: {
+        toys: { inputs: { plastic: 0.3, paint: 0.03 } },
+        sports_goods: { inputs: { rubber: 0.2, fabric: 0.5, plastic: 0.2 }, rate: 0.5 },
+        bicycles: { inputs: { steel: 9, rubber: 0.6, aluminum: 2 }, rate: 0.05 },
+        books: { inputs: { paper: 0.4, paint: 0.02 }, rate: 1.5 },
+        furniture: { inputs: { lumber: 0.25, fabric: 3, steel: 4 }, rate: 0.04 },
+      },
+    },
+  },
+  rubber_plant: {
+    name: 'Шинный завод', icon: '🛞', zoning: 'industrial', category: 'industry', tier: 3, license: 'eco',
+    description: 'Шины из каучука, химии и стального корда — для автосервисов, автозаводов и грузовиков.',
+    capex: 3200000, renovPerM2: 50,
+    upkeep: { base: 15000, perArea: 3 },
+    staff: { role: 'Вулканизаторщик', wage: 3000, min: 8, max: 100, def: 30 },
+    marketing: 0,
+    production: {
+      perStaff: 2, cap: [100, 200, 340],
+      recipe: { output: 'tires', inputs: { rubber: 4, chemicals: 2, steel: 1.5 } },
+    },
+  },
+  jewelry_factory: {
+    name: 'Ювелирный завод', icon: '💍', zoning: 'industrial', category: 'industry', tier: 3,
+    description: 'Украшения из золота и серебра. Маржа держится на цене золота: дорожает металл — тает прибыль.',
+    capex: 3000000, renovPerM2: 80,
+    upkeep: { base: 8000, perArea: 5 },
+    staff: { role: 'Ювелир', wage: 3800, min: 4, max: 50, def: 15 },
+    marketing: 0,
+    production: {
+      perStaff: 2, cap: [25, 50, 85],
+      recipe: { output: 'jewelry', inputs: { gold: 4, silver: 10 } },
+    },
+  },
+  // ---------- высокие технологии ----------
+  electrical_plant: {
+    name: 'Электротехнический завод', icon: '🔌', zoning: 'industrial', category: 'industry', tier: 3, requiresTech: 'electrical', license: 'eco',
+    description: 'Кабель, бытовая техника, аккумуляторы или солнечные панели. Литий и никель для батарей — дефицит.',
+    capex: 5600000, renovPerM2: 60,
+    upkeep: { base: 22000, perArea: 4 },
+    staff: { role: 'Электромонтажник', wage: 3300, min: 10, max: 150, def: 45 },
+    marketing: 0,
+    production: {
+      perStaff: 120, cap: [10000, 20000, 35000],
+      variants: {
+        cables: { inputs: { copper: 0.08, plastic: 0.05 } },
+        appliances: { inputs: { steel: 15, electronics: 0.3, plastic: 4, copper: 0.5 }, rate: 0.005 },
+        batteries: { inputs: { lithium: 0.8, nickel: 0.6, chemicals: 1 }, rate: 0.012 },
+        solar_panels: { inputs: { glass: 10, aluminum: 2, chips: 0.2 }, rate: 0.007 },
+      },
+    },
+  },
+  chip_fab: {
+    name: 'Фабрика микросхем', icon: '🔬', zoning: 'industrial', category: 'industry', tier: 4, requiresTech: 'semiconductors', license: 'eco',
+    description: 'Микросхемы из кремния, химии и золота — для электроники, компьютеров и автомобилей. Самое дорогое производство в игре.',
+    capex: 50000000, renovPerM2: 400,
+    upkeep: { base: 120000, perArea: 20 },
+    staff: { role: 'Инженер-технолог', wage: 6000, min: 20, max: 200, def: 80 },
+    marketing: 0,
+    production: {
+      perStaff: 15, cap: [3000, 6000, 10000],
+      recipe: { output: 'chips', inputs: { sand: 0.05, chemicals: 0.2, gold: 0.005, copper: 0.01 } },
+    },
+  },
+  machine_plant: {
+    name: 'Машиностроительный завод', icon: '🏗️', zoning: 'industrial', category: 'industry', tier: 4, requiresTech: 'machine_building', license: 'eco',
+    description: 'Станки, грузовики, медтехника, авиакомпоненты или роботы. Длинные цепочки — огромная добавленная стоимость.',
+    capex: 18000000, renovPerM2: 200,
+    upkeep: { base: 60000, perArea: 10 },
+    staff: { role: 'Инженер', wage: 4200, min: 20, max: 300, def: 120 },
+    marketing: 0,
+    production: {
+      perStaff: 0.02, cap: [2, 4, 7],
+      variants: {
+        machinery: { inputs: { steel: 900, electronics: 4, cables: 50, parts: 20 } },
+        trucks: { inputs: { steel: 4500, parts: 250, tires: 10, electronics: 3 }, rate: 0.3 },
+        medical_devices: { inputs: { steel: 10, electronics: 3, plastic: 5 }, rate: 6 },
+        aircraft_parts: { inputs: { aluminum: 15, electronics: 6, chips: 10 }, rate: 2.5 },
+        robots: { inputs: { machinery: 1, chips: 40, electronics: 20 }, rate: 0.5 },
+      },
+    },
+  },
+  // ---------- новые магазины ----------
+  clothing_store: {
+    name: 'Магазин одежды', icon: '👕', zoning: 'commercial', category: 'clothing', tier: 2,
+    description: 'Одежда и обувь: мода меняется, торговые центры — лучшее место. Своя фабрика — главный козырь.',
+    capex: 220000, renovPerM2: 140,
+    upkeep: { base: 900, perArea: 9 },
+    staff: { role: 'Продавец-консультант', wage: 2500, min: 2, max: 20, def: 4 },
+    marketing: 800,
+    retail: {
+      perStaff: 14, cap: [120, 220, 350],
+      products: [
+        { id: 'clothes', name: 'Одежда', ref: 22, attach: 1, tradable: 0.4, recipe: { clothing: 1 } },
+        { id: 'shoes', name: 'Обувь', ref: 42, attach: 0.35, tradable: 0.4, recipe: { shoes: 1 } },
+      ],
+    },
+  },
+  home_store: {
+    name: 'Мебель и техника', icon: '🛋️', zoning: 'commercial', category: 'home', tier: 3, minArea: 100,
+    description: 'Мебель и бытовая техника: редкие, но крупные покупки. Любит спальные районы и торговые кластеры.',
+    capex: 380000, renovPerM2: 120,
+    upkeep: { base: 1800, perArea: 8 },
+    staff: { role: 'Консультант', wage: 2700, min: 3, max: 25, def: 5 },
+    marketing: 1200,
+    retail: {
+      perStaff: 2, cap: [14, 26, 42],
+      products: [
+        { id: 'furniture', name: 'Мебель', ref: 450, attach: 1, tradable: 0.5, recipe: { furniture: 1 } },
+        { id: 'appliance', name: 'Техника', ref: 480, attach: 0.5, tradable: 0.6, recipe: { appliances: 1 } },
+      ],
+    },
+  },
+  diy_store: {
+    name: 'Строительный гипермаркет', icon: '🔨', zoning: 'commercial', category: 'diy', tier: 3, minArea: 120,
+    description: 'Краска, цемент, кабель и доски для ремонта. Растёт вместе с городом и застройщиками.',
+    capex: 420000, renovPerM2: 90,
+    upkeep: { base: 2000, perArea: 7 },
+    staff: { role: 'Продавец', wage: 2500, min: 4, max: 40, def: 8 },
+    marketing: 1200,
+    retail: {
+      perStaff: 8, cap: [90, 170, 280],
+      products: [
+        { id: 'materials', name: 'Стройматериалы', ref: 75, attach: 1, tradable: 0.4, recipe: { paint: 2, cement: 25, cables: 5, lumber: 0.03 } },
+        { id: 'tools', name: 'Инструменты', ref: 16, attach: 0.4, recipe: { steel: 2, plastic: 1 } },
+      ],
+    },
+  },
+  kids_store: {
+    name: 'Игрушки и книги', icon: '🧸', zoning: 'commercial', category: 'kids', tier: 2,
+    description: 'Игрушки и книги: тихо весь год и аншлаг перед Новым годом.',
+    capex: 200000, renovPerM2: 110,
+    upkeep: { base: 700, perArea: 8 },
+    staff: { role: 'Продавец', wage: 2300, min: 2, max: 15, def: 3 },
+    marketing: 500,
+    retail: {
+      perStaff: 18, cap: [120, 220, 350],
+      products: [
+        { id: 'toy', name: 'Игрушка', ref: 18, attach: 1, tradable: 0.4, recipe: { toys: 1 } },
+        { id: 'book', name: 'Книга', ref: 12, attach: 0.4, tradable: 0.4, recipe: { books: 1 } },
+      ],
+    },
+  },
+  sports_store: {
+    name: 'Спорттовары', icon: '⚽', zoning: 'commercial', category: 'sports', tier: 2,
+    description: 'Мячи, форма и велосипеды. Летом — велосипеды, зимой — тихо. Хорошая пара к фитнес-клубу.',
+    capex: 140000, renovPerM2: 110,
+    upkeep: { base: 800, perArea: 8 },
+    staff: { role: 'Продавец', wage: 2400, min: 2, max: 15, def: 3 },
+    marketing: 600,
+    retail: {
+      perStaff: 12, cap: [90, 170, 280],
+      products: [
+        { id: 'sport', name: 'Спорттовары', ref: 34, attach: 1, tradable: 0.4, recipe: { sports_goods: 1 } },
+        { id: 'bike', name: 'Велосипед', ref: 290, attach: 0.06, tradable: 0.5, recipe: { bicycles: 1 } },
+      ],
+    },
+  },
+  jewelry_store: {
+    name: 'Ювелирный салон', icon: '💎', zoning: 'commercial', category: 'luxury', tier: 3, minArea: 40,
+    description: 'Пара покупок в день — и месяц сделан. Только для богатых районов; в кризис продажи проседают.',
+    capex: 500000, renovPerM2: 400,
+    upkeep: { base: 2500, perArea: 20 },
+    staff: { role: 'Ювелир-консультант', wage: 3600, min: 2, max: 12, def: 3 },
+    marketing: 2000,
+    retail: {
+      perStaff: 2, cap: [8, 14, 22],
+      products: [
+        { id: 'ring', name: 'Украшение', ref: 1050, attach: 1, tradable: 0.7, recipe: { jewelry: 1 } },
+        { id: 'watch', name: 'Часы и аксессуары', ref: 240, attach: 0.3, tradable: 0.6, recipe: { silver: 30, electronics: 0.2 } },
+      ],
+    },
+  },
+  bar: {
+    name: 'Бар', icon: '🍻', zoning: 'commercial', category: 'bar', tier: 2, license: 'alcohol',
+    description: 'Пиво, вино и закуски. Вечером и в выходные — полный зал; любит центр и студенческие кварталы.',
+    capex: 150000, renovPerM2: 180,
+    upkeep: { base: 1000, perArea: 10 },
+    staff: { role: 'Бармен', wage: 2500, min: 2, max: 20, def: 4 },
+    marketing: 700,
+    retail: {
+      perStaff: 25, cap: [180, 330, 520],
+      products: [
+        { id: 'beer', name: 'Пиво', ref: 5.5, attach: 1, recipe: { beer: 0.5 } },
+        { id: 'wine', name: 'Бокал вина', ref: 8, attach: 0.35, recipe: { wine: 0.15 } },
+        { id: 'snack', name: 'Закуски', ref: 6, attach: 0.4, recipe: { sausages: 0.1, potatoes: 0.15, vegetable_oil: 0.02 } },
       ],
     },
   },
@@ -605,6 +1096,21 @@ export const RISK = {
   cosmetics_factory: ['mid', 'Снабжает салоны и аптеки, высокая маржа'],
   parts_factory: ['mid', 'Запчасти нужны всем автосервисам'],
   car_plant: ['high', 'Гигантские вложения, обороты и риск'],
+  mine: ['mid', 'Сырьё нужно всем, но цены на руду гуляют'], gold_mine: ['high', 'Цена золота скачет: то густо, то пусто'],
+  gas_field: ['mid', 'Цены на газ — вслед за нефтью'], quarry: ['low', 'Дёшево и скромно, но спрос есть всегда'],
+  logging: ['low', 'Лес растёт, спрос стабилен'], crop_farm: ['mid', 'Урожай и погода'], orchard: ['mid', 'Урожай, погода и ручной труд'],
+  poultry_farm: ['low', 'Яйца и курица нужны всегда'], fishery: ['high', 'Улов и топливо: то густо, то пусто'],
+  steel_mill: ['mid', 'Огромные объёмы, маржа от цен на руду и уголь'], smelter: ['mid', 'Металлы: цены гуляют, газ дорог'],
+  building_materials: ['mid', 'Стройка: бум и спад вместе с экономикой'], sawmill: ['low', 'Спокойный сырьевой бизнес'],
+  oil_mill: ['low', 'Тонкая, но стабильная маржа'], beverage_plant: ['low', 'Напитки пьют всегда'], winery: ['mid', 'Урожай винограда решает'],
+  confectionery: ['mid', 'Капризные цены на какао'], cannery: ['low', 'Долгое хранение — стабильно'],
+  textile_factory: ['mid', 'Нужен дешёвый труд'], consumer_factory: ['mid', 'Широкий выбор продукции'],
+  rubber_plant: ['mid', 'Зависит от каучука и авторынка'], jewelry_factory: ['high', 'Маржа зависит от цены золота'],
+  electrical_plant: ['mid', 'Дефицит лития и никеля'], chip_fab: ['high', 'Гигантские вложения, огромная маржа'],
+  machine_plant: ['high', 'Длинные цепочки, огромная добавленная стоимость'],
+  clothing_store: ['mid', 'Мода и сезоны'], home_store: ['mid', 'Крупные редкие покупки'], diy_store: ['mid', 'Растёт со стройкой'],
+  kids_store: ['low', 'Пик перед Новым годом'], sports_store: ['mid', 'Сезонные велосипеды'], jewelry_store: ['high', 'Дорогие покупки: в кризис проседают'],
+  bar: ['mid', 'Вечерами и в выходные'],
 };
 export const RISK_NAMES = { low: '🟢 низкий риск', mid: '🟡 средний риск', high: '🔴 высокий риск' };
 

@@ -522,3 +522,34 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after { animation:
 .pm-port { font-size: 11px; margin-left: 2px; }
 .dl-event { font-size: 14px; }
 .district-event { font-size: 26px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); transform: translate(-50%, -50%); }
+.variants { margin: 6px 0; padding: 6px 8px; background: var(--panel2, rgba(0,0,0,.04)); border-radius: 8px; }
+.variants .row { padding: 2px 0; display: flex; gap: 6px; align-items: center; }
+.variants .row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.variants .row > span:last-child { display: flex; gap: 6px; align-items: center; white-space: nowrap; flex-shrink: 0; }
+
+/* ---------- дерево исследований ---------- */
+#drawer.wide { width: calc(100vw - 112px); max-width: none; }
+.tech-tree { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid var(--line); border-radius: 10px; background: #f8f9fb; cursor: grab; margin: 8px 0; }
+.tech-tree.dragging { cursor: grabbing; user-select: none; }
+.tech-canvas { position: relative; margin: 8px 12px; }
+.tech-canvas svg { position: absolute; left: 0; top: 0; pointer-events: none; }
+.tech-canvas svg path { fill: none; stroke: #b9bfcc; stroke-width: 2; }
+.tech-canvas svg path.done { stroke: #27ae60; }
+.tech-canvas svg path.cross { stroke-dasharray: 5 4; }
+.tech-canvas svg marker path { fill: #9aa1b0; stroke: none; }
+.tbranch { position: absolute; top: 0; height: 26px; line-height: 26px; font-weight: 700; font-size: 13px; color: var(--c);
+  border-bottom: 3px solid var(--c); text-align: center; white-space: nowrap; overflow: hidden; }
+.tnode { position: absolute; box-sizing: border-box; border-radius: 10px; padding: 6px 8px; background: #fff; border: 2px solid #d6dae2;
+  border-left: 5px solid var(--c); font-size: 11px; display: flex; flex-direction: column; gap: 2px; overflow: hidden; transition: transform .12s, box-shadow .12s; }
+.tnode .tn-head { display: flex; gap: 5px; align-items: center; font-size: 12px; line-height: 1.15; }
+.tnode .tn-head b { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tnode .tn-desc { color: var(--muted); line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; flex: 1; }
+.tnode .tn-foot { font-weight: 600; font-size: 11px; }
+.tnode.open { cursor: pointer; border-color: var(--c); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.tnode.open:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.16); }
+.tnode.done { background: #eafaf0; border-color: #8fd3a8; border-left-color: #27ae60; }
+.tnode.done .tn-foot { color: #1e8449; }
+.tnode.active { border-color: #f1c40f; background: #fffbe6; animation: pulse 1.6s infinite; }
+.tnode.locked { opacity: .55; filter: grayscale(.6); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(241,196,15,.25); } }
+@media (max-width: 700px) { #drawer.wide { width: calc(100vw - 76px); } .tech-tree { max-height: calc(100vh - 220px); } }

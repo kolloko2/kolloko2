@@ -3,6 +3,12 @@ import { refPrice } from './demand.js';
 import { costIndex } from './world.js';
 import { setAds } from './ads.js';
 import { DEFAULT_AD_SPLIT } from '../data/ads.js';
+import { CITIES } from '../data/cities.js';
+import { techLevel } from './research.js';
+
+// города каждой страны: известность сети растекается по стране ещё до открытия там точки
+const CITIES_BY_COUNTRY = {};
+for (const c of CITIES) (CITIES_BY_COUNTRY[c.country] ||= []).push(c.id);
 
 // Сети (бренды): точки одного типа с общими настройками и общей узнаваемостью.
 // Цены сети задаются в долях от местной нормы — поэтому сами подстраиваются под город.
@@ -103,17 +109,21 @@ export function updateBrands(state, spendCompany) {
     for (const [country, budget] of Object.entries(brand.national)) {
       if (budget > 0 && byCountry[country]) spendCompany(state, brand.companyId, 'brandAds', budget / 30);
     }
+    const loyalty = techLevel(state, brand.companyId, 'loyalty');
     const places = new Set([...Object.keys(byCity), ...Object.keys(brand.awareness)]);
+    for (const country of Object.keys(byCountry)) for (const id of CITIES_BY_COUNTRY[country] || []) places.add(id);
     for (const placeId of places) {
       const place = state.world.places[placeId];
+      if (!place) continue;
       const nCity = byCity[placeId] || 0;
       const nCountry = byCountry[place.country] || 0;
       const a = (brand.awareness[placeId] ||= { p: 0, ads: 0 });
-      a.p += (presenceTarget(nCity, nCountry - nCity) - a.p) * 0.03;
+      const target = presenceTarget(nCity, nCountry - nCity);
+      a.p += (target - a.p) * 0.03 * (1 + 0.5 * loyalty);
       const budget = nCountry ? brand.national[place.country] || 0 : 0;
       const gain = 1 - Math.exp(-0.00012 * (budget / 30 / costIndex(place)));
       a.ads += (1 - a.ads) * gain - 0.006 * a.ads;
-      if (!nCity && a.p < 0.01 && a.ads < 0.01) delete brand.awareness[placeId];
+      if (!nCity && target < 0.01 && a.p < 0.01 && a.ads < 0.01) delete brand.awareness[placeId];
     }
   }
 }

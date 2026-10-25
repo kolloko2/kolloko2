@@ -17,7 +17,7 @@ const CANCEL_PENALTY = 0.15;
 export function contractGoods(unit) {
   const def = BUSINESSES[unit.type];
   const buy = def.storage ? Object.keys(unit.usage) : Object.keys(unit.usage).filter((g) => g !== outputGood(unit));
-  const sell = def.production ? [def.production.recipe.output] : [];
+  const sell = def.production ? [outputGood(unit)] : [];
   return { buy, sell };
 }
 

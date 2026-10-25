@@ -68,6 +68,7 @@
  * @property {number} [training] обучение персонала 0–3
  * @property {boolean} [star] звёздный сотрудник
  * @property {'none'|'aggregator'|'own'} [delivery] доставка еды
+ * @property {string} [recipe] выбранный товар завода с вариантами
  */
 
 /**

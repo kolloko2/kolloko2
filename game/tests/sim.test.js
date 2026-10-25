@@ -591,8 +591,14 @@ test('исследования: бонусы и открытие тира IV, л
   const lot = firstLot(s, 'nyc', 'bank');
   assert.ok(forecast(s, lot.id, 'bank', 'c1').locked);
   assert.ok(!applyCommand(s, { type: 'openBusiness', lotId: lot.id, businessType: 'bank' }, 'c1').ok);
-  assert.ok(applyCommand(s, { type: 'startResearch', techId: 'banking' }, 'c1').ok);
+  assert.ok(!applyCommand(s, { type: 'startResearch', techId: 'banking' }, 'c1').ok, 'сначала — предыдущая технология в ветке');
+  assert.ok(applyCommand(s, { type: 'startResearch', techId: 'management' }, 'c1').ok);
   assert.ok(!applyCommand(s, { type: 'startResearch', techId: 'pos' }, 'c1').ok, 'одно исследование за раз');
+  stepDays(s, 185);
+  assert.equal(s.companies.c1.tech.management, 1);
+  const { attention } = await import('../src/sim/index.js');
+  assert.equal(attention(s, 'c1').limit, 7, 'школа менеджеров: +2 к вниманию');
+  assert.ok(applyCommand(s, { type: 'startResearch', techId: 'banking' }, 'c1').ok);
   stepDays(s, 370);
   assert.equal(s.companies.c1.tech.banking, 1);
   const rate = s.companies.c1.loanRate;
@@ -638,7 +644,7 @@ test('удача: вирусные ролики, мода и события в �
     const s = createGame({ seed, rivals: 0 });
     s.companies.c1.cash = 3e6;
     for (let i = 0; i < 12; i++) {
-      const u = open(s, ['ber', 'nyc', 'tyo'][i % 3], 'coffee_shop');
+      const u = open(s, ['ber', 'nyc', 'tyo', 'par', 'lon', 'mad'][i % 6], 'coffee_shop');
       applyCommand(s, { type: 'setAds', unitId: u.id, channel: 'social', budget: 1500 }, 'c1');
     }
     stepDays(s, 365 * 6);
@@ -766,4 +772,52 @@ test('миграция: старое сохранение без новых си
   stepDays(m, 120);
   assert.ok(m.units[u.id].condition < 100);
   assert.equal(migrate({ version: 99 }), null);
+});
+
+test('недра и заводы с выбором продукции: шахты → металлургия, перенастройка', async () => {
+  const { forecast, allowedRecipes, recipeOf, techLevel } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 41, rivals: 0 });
+  s.companies.c1.cash = 5e7;
+  // в регионе можно добывать только то, что есть в недрах
+  assert.deepEqual(allowedRecipes(s.world.places.r_kuzbass, 'mine'), ['coal']);
+  assert.ok(!firstLot(s, 'r_kansas', 'mine'), 'в Канзасе нет шахт');
+  const coal = open(s, 'r_kuzbass', 'mine');
+  const ore = open(s, 'r_kma', 'mine');
+  assert.equal(coal.recipe, 'coal');
+  assert.equal(ore.recipe, 'iron_ore');
+  // металлургия закрыта исследованием
+  const lot = firstLot(s, 'msk', 'steel_mill');
+  assert.ok(forecast(s, lot.id, 'steel_mill', 'c1').locked);
+  s.companies.c1.tech = { automation: 1, metallurgy: 1 };
+  assert.equal(techLevel(s, 'c1', 'automation'), 1);
+  const mill = open(s, 'nsk', 'steel_mill'); // Новосибирск рядом с Кузбассом
+  stepDays(s, 90);
+  assert.ok(coal.last.produced > 0 && ore.last.produced > 0);
+  assert.equal(mill.supplied.coal, 'internal', 'уголь — со своей шахты по соседству');
+  assert.ok(mill.last.produced > 0, 'сталь выплавляется');
+  // химзавод: выбор продукции при открытии и перенастройка
+  const chem = open(s, 'msk', 'chemical_plant');
+  assert.equal(recipeOf(chem).output, 'plastic');
+  const f = forecast(s, firstLot(s, 'msk', 'chemical_plant').id, 'chemical_plant', 'c1');
+  assert.ok(f.variants.length === 5);
+  const cash = s.companies.c1.cash;
+  assert.ok(applyCommand(s, { type: 'setRecipe', unitId: chem.id, recipe: 'fertilizer' }, 'c1').ok);
+  assert.equal(recipeOf(chem).output, 'fertilizer');
+  assert.ok(s.companies.c1.cash < cash && chem.broken > 0, 'перенастройка стоит денег и времени');
+  assert.ok(!applyCommand(s, { type: 'setRecipe', unitId: coal.id, recipe: 'gold' }, 'c1').ok, 'золота в Кузбассе нет');
+});
+
+test('города: по 3–6 в крупных странах, узнаваемость сети растекается по стране', async () => {
+  const { CITIES } = await import('../src/data/cities.js');
+  const by = {};
+  for (const c of CITIES) by[c.country] = (by[c.country] || 0) + 1;
+  for (const c of ['RU', 'US', 'DE', 'FR', 'GB', 'CN', 'JP', 'BR', 'IN']) assert.ok(by[c] >= 3 && by[c] <= 6, `${c}: ${by[c]}`);
+  const s = createGame({ seed: 43, rivals: 0 });
+  s.companies.c1.cash = 5e6;
+  const units = [0, 1, 2, 3].map(() => open(s, 'msk', 'coffee_shop'));
+  assert.ok(applyCommand(s, { type: 'createBrand', name: 'Кофе', businessType: 'coffee_shop', tier: 'std', unitIds: units.map((u) => u.id) }, 'c1').ok);
+  stepDays(s, 120);
+  const brand = Object.values(s.brands)[0];
+  assert.ok((brand.awareness.kzn?.p ?? 0) > 0.05, 'в Казани о сети уже слышали');
+  assert.ok(!brand.awareness.ber, 'а в Берлине — нет');
 });
