@@ -10,6 +10,7 @@ import {
   countryState, regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
+  condition, renovateCost, seasonFactor,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
@@ -85,13 +86,14 @@ function renderDistrict(app, d) {
   let html = `<h2>${districtTitle(state, d)}</h2><div class="sub">${ZONING_NAMES[def.zoning]} · участков: ${d.lotIds.length}</div>`;
   const cats = Object.keys(def.demand);
   if (cats.length) {
-    html += '<h3>Спрос в районе</h3><table class="tbl"><tr><th>Категория</th><th>Покупателей/день</th><th>Конкуренты</th></tr>';
+    html += '<h3>Спрос в районе</h3><table class="tbl"><tr><th>Категория</th><th>Покупателей/день</th><th>Сезон</th><th>Конкуренты</th></tr>';
     for (const c of cats) {
       const sh = districtShares(state, d, c);
       const owners = Object.keys(sh.byUnit).map((id) => state.units[id].companyId);
       const mine = owners.filter((c) => c === app.companyId).length;
       const rivals = owners.length - mine;
-      html += `<tr><td>${CATEGORY_LABEL[c]}</td><td>${num(sh.potential)}</td><td>${sh.ai} ИИ${mine ? ` + ${mine} ваших` : ''}${rivals ? ` + ${rivals} соперников` : ''}</td></tr>`;
+      const season = seasonFactor(state, c, state.world.places[d.placeId]) - 1;
+      html += `<tr><td>${CATEGORY_LABEL[c]}</td><td>${num(sh.potential)}</td><td class="${signClass(season)}">${Math.abs(season) < 0.02 ? '—' : `${season > 0 ? '+' : ''}${pct(season)}`}</td><td>${sh.ai} ИИ${mine ? ` + ${mine} ваших` : ''}${rivals ? ` + ${rivals} соперников` : ''}</td></tr>`;
     }
     html += '</table>';
   }
@@ -152,6 +154,7 @@ function renderLot(app, lot) {
         <span>Окупаемость</span><b>${months(f.payback)}</b>
       </div>
       ${f.entryFee ? `<div class="note warn">🌍 Новая страна: выход на рынок ${money(f.entryFee)} (разово)${f.foreign ? `, без местной команды зарплаты и содержание +10% (пока меньше ${LOCAL_TEAM_UNITS} точек)` : ''}.</div>` : f.foreign ? `<div class="note warn">Пока у вас меньше ${LOCAL_TEAM_UNITS} точек в этой стране — зарплаты и содержание +10%.</div>` : ''}
+      ${f.efficiency && f.efficiency < 1 ? `<div class="note warn">👔 Вам не хватает внимания на все точки: без управляющего эта будет работать на ${pct(f.efficiency / 1.06)}.</div>` : ''}
       ${f.license ? `<div class="note">📜 Нужна ${esc(f.license.name.toLowerCase())}: ${money(f.license.cost)} (разово, на всю страну).</div>` : ''}
       ${f.brandId ? `<div class="note">🏷️ В сети «${esc(state.brands[f.brandId].name)}»: узнаваемость бренда здесь ~${pct(f.brandAwareness)}, цены сети.</div>` : ''}
       <div class="btn-row">
@@ -183,7 +186,7 @@ function lotOwnershipButtons(app, lot) {
 }
 
 function costTitle(c) {
-  const names = { inputs: 'Сырьё и товары', wages: 'Зарплаты', rent: 'Аренда', upkeep: 'Коммунальные и обслуживание', marketing: 'Реклама' };
+  const names = { inputs: 'Сырьё и товары', wages: 'Зарплаты', rent: 'Аренда', upkeep: 'Коммунальные и обслуживание', marketing: 'Реклама', overhead: 'Рост расходов штаба' };
   return Object.entries(c).map(([k, v]) => `${names[k]}: ${money(v)}`).join('\n');
 }
 
@@ -195,6 +198,7 @@ function statusBadges(app, u) {
   if (t.inputShort && !u.broken) b.push('<span class="tag warn">📦 не хватает сырья</span>');
   if (t.lost > 5 && !t.stockout) b.push('<span class="tag warn">👥 очередь — не хватает мощности</span>');
   if (Object.values(u.supplied || {}).includes('nocash')) b.push('<span class="tag bad">💸 нет денег на закупку</span>');
+  if (condition(u) < 50) b.push('<span class="tag warn">🛠 сильный износ</span>');
   if (!b.length) b.push('<span class="tag good">✓ работает</span>');
   return b.join(' ');
 }
@@ -314,11 +318,11 @@ function renderStaff(app, u) {
     <div class="progress ${m < 35 ? 'bad' : m < 50 ? 'warn' : ''}"><span style="width:${m.toFixed(0)}%"></span></div>
     ${row('Производительность', `<span class="${signClass(eff - 1)}">${pct(eff)}</span>`)}`;
   if (u.manager) {
-    html += `<div class="row"><span>👔 Управляющий · ${money(managerCost(place))}/мес</span><button class="mini wide" data-action="fireManager" data-id="${u.id}">Уволить</button></div>
+    html += `<div class="row"><span>👔 Управляющий · ${money(managerCost(place, u.type))}/мес</span><button class="mini wide" data-action="fireManager" data-id="${u.id}">Уволить</button></div>
       <label class="row check"><span>Сам подбирает число сотрудников под спрос</span><input type="checkbox" data-change="setAutoStaff" data-id="${u.id}" ${u.autoStaff ? 'checked' : ''}></label>`;
   } else {
     html += `<div class="row"><span>Управляющего нет${att.excess ? ' — <span class="neg">точка теряет эффективность</span>' : ''}</span>
-      <button class="mini wide" data-action="hireManager" data-id="${u.id}">👔 Нанять · ${money(managerCost(place))}/мес</button></div>`;
+      <button class="mini wide" data-action="hireManager" data-id="${u.id}">👔 Нанять · ${money(managerCost(place, u.type))}/мес</button></div>`;
   }
   html += `<div class="muted small">Мораль растёт от зарплаты выше рынка и управляющего, падает от перегрузки. Ниже 35 — увольнения, ниже 25 — забастовки.
     Вы лично ведёте до ${BASE_ATTENTION} точек без управляющих (сейчас ${att.used}); сверх этого каждая лишняя точка снижает эффективность всех неуправляемых на 4%.</div></div>`;
@@ -392,6 +396,11 @@ function renderUnit(app, u) {
       <option value="hold" ${u.sellMode === 'hold' ? 'selected' : ''}>Только своим, не продавать</option></select></div>`;
   }
   html += row('Аренда', ownerText(app, lot)) + row('Коммунальные', `${money(monthlyUpkeep(state, u))}/мес`);
+  const cond = condition(u);
+  html += `<div class="row"><span>Состояние оборудования и интерьера</span><b class="${cond < 50 ? 'neg' : cond < 75 ? '' : 'pos'}">${num(cond)}%</b></div>
+    <div class="progress ${cond < 50 ? 'bad' : cond < 75 ? 'warn' : ''}"><span style="width:${cond.toFixed(0)}%"></span></div>
+    <div class="row"><span class="muted small">Изношенная точка теряет рейтинг, чаще ломается и дороже в обслуживании.${brand?.autoRenew ? ' Сеть обновит её сама при износе 35%.' : ''}</span>
+    ${cond <= 95 ? `<button class="mini wide" data-action="renovate" data-id="${u.id}">🛠 Обновить · ${moneyShort(renovateCost(state, u))}</button>` : ''}</div>`;
   html += '</div><div class="btn-row">';
   if (u.level < MAX_LEVEL) {
     const cost = upgradeCost(state, u);

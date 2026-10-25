@@ -2,11 +2,11 @@ import { createRng } from './rng.js';
 import { generateWorld } from './world.js';
 import { initMarket } from './market.js';
 import { unitAssetValue } from './units.js';
-import { initCountries } from './countries.js';
+import { initCountries, syncCpi } from './countries.js';
 import { initStocks, portfolioValue } from './stocks.js';
 
-export const SAVE_VERSION = 4; // 4: нефтяные регионы и АЗС (мир по сиду изменился), страны, биржа
-export const START_CASH = 50000;
+export const SAVE_VERSION = 5; // 5: аренда зависит от потока людей, инфляция и износ
+export const START_CASH = 100000;
 const START_DATE = Date.UTC(2000, 0, 1);
 
 // Режимы: solo — один игрок; coop — несколько игроков управляют одной компанией;
@@ -63,6 +63,7 @@ export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Мо�
     newsSeq: 0,
     mapVersion: 0,
   };
+  syncCpi(state);
   for (const name of companyNames) addCompany(state, name);
   return state;
 }
@@ -129,5 +130,5 @@ export function loanLimit(state, companyId) {
   const avgProfit = h.length ? h.reduce((s, m) => s + m.profit, 0) / h.length : 0;
   let assets = ownedLotsValue(state, companyId);
   for (const u of companyUnits(state, companyId)) assets += u.bookValue;
-  return Math.round(30000 + 24 * Math.max(0, avgProfit) + 0.5 * assets);
+  return Math.round(30000 + 12 * Math.max(0, avgProfit) + 0.4 * assets);
 }

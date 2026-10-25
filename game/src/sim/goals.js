@@ -27,6 +27,8 @@ export const GOALS = [
   { id: 'investor', icon: '📈', name: 'Инвестор', desc: 'Портфель акций других компаний на $500 000', progress: (c) => [c.portfolio, 500000] },
   { id: 'fifty_units', icon: '🏙️', name: 'Империя', desc: 'Владейте 50 бизнесами', progress: (c) => [c.units.length, 50] },
   { id: 'ten_million', icon: '👑', name: 'Магнат', desc: 'Капитал $10 000 000', progress: (c) => [c.worth, 1e7] },
+  { id: 'hundred_million', icon: '🏛️', name: 'Корпорация', desc: 'Капитал $100 000 000', progress: (c) => [c.worth, 1e8] },
+  { id: 'billion', icon: '🌐', name: 'Империя', desc: 'Капитал $1 000 000 000 — обычно на это уходят десятилетия', progress: (c) => [c.worth, 1e9] },
 ];
 
 export function goalContext(state, co) {
@@ -67,6 +69,7 @@ export const VICTORY_OPTIONS = [
   { id: 'none', name: 'Без цели — играем, сколько хотим', victory: null },
   { id: 'worth1m', name: 'Первым набрать капитал $1 млн', victory: { type: 'worth', target: 1e6 } },
   { id: 'worth10m', name: 'Первым набрать капитал $10 млн', victory: { type: 'worth', target: 1e7 } },
+  { id: 'worth100m', name: 'Первым набрать капитал $100 млн (долгая партия)', victory: { type: 'worth', target: 1e8 } },
   { id: 'years5', name: 'Богаче всех через 5 лет', victory: { type: 'years', years: 5 } },
   { id: 'years10', name: 'Богаче всех через 10 лет', victory: { type: 'years', years: 10 } },
 ];

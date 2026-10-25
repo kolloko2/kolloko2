@@ -143,8 +143,8 @@ test('достижения засчитываются один раз и поп�
 });
 
 test('PvP: победа по капиталу останавливает игру', () => {
-  const s = createGame({ seed: 13, mode: 'pvp', companyNames: ['А', 'Б'], victory: { type: 'worth', target: 60000 } });
-  s.companies.c2.cash = 100000;
+  const s = createGame({ seed: 13, mode: 'pvp', companyNames: ['А', 'Б'], victory: { type: 'worth', target: 150000 } });
+  s.companies.c2.cash = 200000;
   stepDays(s, 35);
   assert.equal(s.winner?.companyId, 'c2');
   assert.equal(isOver(s), true);
@@ -463,4 +463,67 @@ test('нефтяная цепочка: скважина → НПЗ → АЗС', 
   assert.ok(ref.last.produced > 0);
   assert.equal(gas.supplied.fuel, 'internal');
   assert.ok(gas.last.customers > 0 && gas.last.revenue > 0);
+});
+
+// ---------- баланс: без управления деньги не копятся ----------
+
+test('износ: точка стареет, обновление возвращает её в строй', () => {
+  const s = createGame({ seed: 16 });
+  s.companies.c1.cash = 1e6;
+  const u = open(s, 'ber', 'coffee_shop');
+  stepDays(s, 730);
+  assert.ok(u.condition < 80, `износ ${u.condition}`);
+  const q = u.quality;
+  assert.ok(applyCommand(s, { type: 'renovate', unitId: u.id }, 'c1').ok);
+  assert.equal(u.condition, 100);
+  stepDays(s, 90);
+  assert.ok(u.quality > q, 'после обновления рейтинг растёт');
+});
+
+test('инфляция: цены и зарплаты растут, а цены точки — нет, пока их не поднять', async () => {
+  const { refPrice, monthlyWage } = await import('../src/sim/index.js');
+  const { BUSINESSES } = await import('../src/data/businesses.js');
+  const s = createGame({ seed: 17 });
+  s.companies.c1.cash = 1e6;
+  const u = open(s, 'ist', 'coffee_shop');
+  const p = BUSINESSES.coffee_shop.retail.products[0];
+  const ref0 = refPrice(s.world.places.ist, p);
+  const wage0 = monthlyWage(s, u);
+  const price0 = u.prices.coffee;
+  stepDays(s, 366 * 3);
+  assert.ok(refPrice(s.world.places.ist, p) > ref0 * 1.08, 'норма цены выросла');
+  assert.ok(monthlyWage(s, u) > wage0 * 1.08, 'зарплаты выросли');
+  assert.equal(u.prices.coffee, price0, 'своя цена не меняется сама');
+});
+
+test('сеть сама пересчитывает цены по инфляции', () => {
+  const s = createGame({ seed: 18 });
+  s.companies.c1.cash = 1e6;
+  const u = open(s, 'ist', 'coffee_shop');
+  applyCommand(s, { type: 'createBrand', name: 'Сеть', businessType: 'coffee_shop', tier: 'std', unitIds: [u.id] }, 'c1');
+  const p0 = u.prices.coffee;
+  stepDays(s, 366 * 2);
+  assert.ok(u.prices.coffee > p0 * 1.05);
+});
+
+test('пассивная игра: открыл и забыл — прибыль тает', () => {
+  const s = createGame({ seed: 19 });
+  const u = open(s, 'ber', 'coffee_shop');
+  stepDays(s, 365);
+  const early = u.history.slice(-6).reduce((a, b) => a + b, 0);
+  stepDays(s, 365 * 5);
+  const late = u.history.slice(-6).reduce((a, b) => a + b, 0);
+  assert.ok(late < early * 0.5, `было ${Math.round(early)}, стало ${Math.round(late)}`);
+});
+
+test('расходы штаба растут быстрее числа бизнесов', async () => {
+  const { overhead } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 20 });
+  s.companies.c1.cash = 1e8;
+  const lots = Object.values(s.world.lots).filter((l) => buildableTypes(s, l).includes('fastfood'));
+  for (let i = 0; i < 10; i++) applyCommand(s, { type: 'openBusiness', lotId: lots[i].id, businessType: 'fastfood' }, 'c1');
+  const o10 = overhead(s, 'c1');
+  for (let i = 10; i < 40; i++) applyCommand(s, { type: 'openBusiness', lotId: lots[i].id, businessType: 'fastfood' }, 'c1');
+  const o40 = overhead(s, 'c1');
+  assert.ok(o10 > 0 && o40 / o10 > 6, `${o10} → ${o40}`);
 });

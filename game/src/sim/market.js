@@ -41,9 +41,16 @@ export function midPrice(state, good, regionId = null) {
 
 // place — где покупаем: региональная цена, а для местных товаров ещё и уровень цен в городе
 export function buyPrice(state, good, place = null, { bulk = false } = {}) {
-  const local = GOODS[good].local && place ? 0.3 + 0.7 * priceIndex(place) : 1;
+  // местные товары: и уровень цен в городе, и его инфляция относительно мировой
+  const local = GOODS[good].local && place ? (0.3 + 0.7 * priceIndex(place)) * localInflation(state, place) : 1;
   const markup = bulk ? BULK_MARKUP : MARKET_BUY_MARKUP;
   return midPrice(state, good, place ? regionOf(place) : null) * (1 + markup) * local;
+}
+
+function localInflation(state, place) {
+  const m = state.market.goods.groceries;
+  const world = m.mean / GOODS.groceries.base;
+  return (place.cpi ?? 1) / world;
 }
 
 export function sellPrice(state, good, place = null) {
@@ -65,8 +72,11 @@ export function setShock(state, good, mult, days) {
 
 export function updateMarket(state) {
   const rng = state.rng;
+  // товары дорожают вместе со средней инфляцией в мире
+  const cs = Object.values(state.countries || {});
+  const inflation = cs.length ? cs.reduce((s, c) => s + (c.inflation ?? 0.02), 0) / cs.length : 0.02;
   for (const [id, m] of Object.entries(state.market.goods)) {
-    m.mean *= 1 + 0.02 / 365; // фоновая инфляция 2% в год
+    m.mean *= 1 + inflation / 365;
     const target = m.mean * m.shock;
     m.price += 0.04 * (target - m.price) + m.price * 0.007 * randNormal(rng);
     m.price = Math.max(m.price, m.mean * 0.3);

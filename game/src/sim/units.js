@@ -35,13 +35,13 @@ export function capexFor(state, lot, type) {
 // Зарплата одного сотрудника: ставка профессии × уровень зарплат города × выбранный уровень × рынок труда
 export function monthlyWage(state, unit) {
   const place = placeOf(state, unit);
-  return BUSINESSES[unit.type].staff.wage * place.wage * wageLevel(unit) * laborFactor(state, place) * foreignFactor(state, unit);
+  return BUSINESSES[unit.type].staff.wage * place.wage * (place.cpi ?? 1) * wageLevel(unit) * laborFactor(state, place) * foreignFactor(state, unit);
 }
 
 export function monthlyUpkeep(state, unit) {
   const u = BUSINESSES[unit.type].upkeep;
   const place = placeOf(state, unit);
-  return (u.base + u.perArea * lotOf(state, unit).area) * costIndex(place) * foreignFactor(state, unit) * (unit.tierUpkeep ?? 1);
+  return (u.base + u.perArea * lotOf(state, unit).area) * costIndex(place) * foreignFactor(state, unit) * (unit.tierUpkeep ?? 1) * wearUpkeep(unit);
 }
 
 // Аренда: не платим, если помещение принадлежит своей компании.
@@ -49,6 +49,32 @@ export function monthlyUpkeep(state, unit) {
 export function monthlyRent(state, unit) {
   const lot = lotOf(state, unit);
   return lot.ownerId === unit.companyId ? 0 : lot.rent;
+}
+
+// ---------- износ ----------
+// Оборудование и интерьер стареют: ~1% в месяц (быстрее при полной загрузке). Изношенная точка
+// хуже выглядит (рейтинг), чаще ломается, медленнее производит и дороже в обслуживании. Лечится обновлением.
+export const WEAR_PER_DAY = 0.035;
+export const RENOVATE_SHARE = 0.4; // полное обновление стоит 40% вложений
+
+export const condition = (unit) => unit.condition ?? 100;
+
+export function wearQuality(unit) {
+  return (100 - condition(unit)) / 40; // 60% — минус звезда
+}
+
+export function wearEfficiency(unit) {
+  return 0.8 + 0.2 * (condition(unit) / 100);
+}
+
+export function wearUpkeep(unit) {
+  return 1 + (100 - condition(unit)) / 200;
+}
+
+export function renovateCost(state, unit) {
+  const lot = lotOf(state, unit);
+  const base = capexFor(state, lot, unit.type) * (1 + 0.5 * (unit.level - 1));
+  return Math.round(base * RENOVATE_SHARE * (100 - condition(unit)) / 100);
 }
 
 export function retailCapacity(state, unit) {
@@ -61,7 +87,7 @@ export function productionCapacity(state, unit) {
   const p = BUSINESSES[unit.type].production;
   if (!p || unit.broken > 0) return 0;
   const place = placeOf(state, unit);
-  const byStaff = unit.staff * p.perStaff * (place.productivity ?? 1) * efficiency(state, unit);
+  const byStaff = unit.staff * p.perStaff * (place.productivity ?? 1) * efficiency(state, unit) * wearEfficiency(unit);
   const cap = p.cap ? p.cap[unit.level - 1] : p.capPerArea * lotOf(state, unit).area * (1 + 0.5 * (unit.level - 1));
   return Math.min(byStaff, cap);
 }
@@ -139,7 +165,7 @@ export function defaultPrices(state, lot, type) {
 }
 
 export function baseQuality(unit) {
-  return (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1) + (unit.tierQuality ?? 0);
+  return (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1) + (unit.tierQuality ?? 0) - wearQuality(unit);
 }
 
 // Деньги: все движения кассы проходят через эти функции (для учёта и тестов).

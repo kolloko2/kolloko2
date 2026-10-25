@@ -1,12 +1,15 @@
 import { BUSINESSES } from '../data/businesses.js';
-import { districtShares, utility, refPrice, districtBeta } from './demand.js';
+import { districtShares, utility, refPrice, districtBeta, seasonFactor } from './demand.js';
 import { BRAND_TIERS, brandAwareness, presenceTarget } from './brands.js';
-import { entryFee, presenceIn, purchasingDiscount, isConsumer, FOREIGN_COST, LOCAL_TEAM_UNITS } from './expansion.js';
+import {
+  entryFee, presenceIn, purchasingDiscount, isConsumer, marginalOverhead, FOREIGN_COST, LOCAL_TEAM_UNITS,
+} from './expansion.js';
 import { buyPrice, sellPrice } from './market.js';
 import { costIndex } from './world.js';
 import { capexFor, dailyNeed } from './units.js';
 import { serviceRevenuePerStaff } from './services.js';
 import { licenseNeeded } from './countries.js';
+import { attention } from './staff.js';
 
 const FORECAST_AWARENESS = 0.35; // узнаваемость через пару месяцев при стандартной рекламе
 
@@ -48,6 +51,14 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     && presenceIn(state, companyId, place.country).consumer + 1 < LOCAL_TEAM_UNITS ? FOREIGN_COST : 1;
   r.foreign = foreign > 1;
 
+  // без управляющего точка делит внимание владельца с остальными: если его не хватает — работает медленнее
+  let eff = 1.06; // мораль новичков 65
+  if (co) {
+    const att = attention(state, companyId);
+    const excess = Math.max(0, Math.ceil(att.used + (brand ? 0.5 : 1) - att.limit));
+    eff *= Math.max(0.6, 1 - 0.04 * excess);
+    r.efficiency = eff;
+  }
   let served = 0;
   let produced = 0;
   let revenueDay = 0;
@@ -77,19 +88,21 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     }
     const u = utility(ratio, 3 + (tier?.quality ?? 0), awareness, lot.visibility, districtBeta(district));
     const sh = districtShares(state, district, def.category, { id: '__new', u });
-    const potential = sh.byUnit.__new;
-    const staff = Math.min(def.staff.max, Math.max(def.staff.min, Math.ceil(potential / def.retail.perStaff)));
+    const potential = sh.byUnit.__new / seasonFactor(state, def.category, place); // прогноз — в среднем за год, без сезона
+    const staff = Math.min(def.staff.max, Math.max(def.staff.min, Math.ceil(potential / (def.retail.perStaff * eff))));
     r.staff = staff;
-    served = Math.min(potential, staff * def.retail.perStaff, def.retail.cap[0]);
+    served = Math.min(potential, staff * def.retail.perStaff * eff, def.retail.cap[0]);
     r.customers = Math.round(served);
     r.competitors = sh.ai + Object.keys(sh.byUnit).length - 1;
     for (const p of def.retail.products) revenueDay += served * p.attach * refPrice(place, p) * (brand?.priceRatio[p.id] ?? 1);
   }
   if (def.production) {
     const p = def.production;
-    const staff = r.staff;
     const cap = p.cap ? p.cap[0] : p.capPerArea * lot.area;
-    produced = Math.min(staff * p.perStaff * (place.productivity ?? 1), cap);
+    // производство без витрины — штат под полную мощность первого уровня
+    if (!def.retail) r.staff = Math.min(def.staff.max, Math.max(def.staff.min, Math.ceil(cap / (p.perStaff * (place.productivity ?? 1)))));
+    const staff = r.staff;
+    produced = Math.min(staff * p.perStaff * (place.productivity ?? 1) * eff, cap);
     r.produced = Math.round(produced);
     const out = p.recipe.output;
     let ownUse = 0;
@@ -114,6 +127,7 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     rent: companyId && lot.ownerId === companyId ? 0 : lot.rent,
     upkeep: Math.round((def.upkeep.base + def.upkeep.perArea * lot.area) * idx * foreign * (tier?.upkeep ?? 1)),
     marketing: Math.round((brand?.marketing ?? def.marketing) * idx),
+    overhead: companyId ? Math.round(marginalOverhead(state, companyId, Boolean(brand))) : 0, // рост расходов штаба
   };
   const totalCosts = Object.values(r.costs).reduce((a, b) => a + b, 0);
   r.profit = r.revenue - totalCosts;

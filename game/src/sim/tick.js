@@ -12,13 +12,16 @@ import { updateStaff, monthlyStaffEvents, managerCost, morale } from './staff.js
 import { updateBrands } from './brands.js';
 import { runContracts } from './contracts.js';
 import { costIndex } from './world.js';
-import { countryTax, monthlyCountryEvents } from './countries.js';
+import { countryTax, monthlyCountryEvents, monthlyInflation } from './countries.js';
+import { applyBrand } from './brands.js';
+import { overhead } from './expansion.js';
 import { monthlyFranchise } from './franchise.js';
 import { updateStocks, monthlyStocks, delistCompany } from './stocks.js';
 import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
 import {
   emptyMonth, monthProfit, retailCapacity, productionCapacity, dailyNeed, invQty, takeInv, addInv,
   lotOf, placeOf, spend, earn, spendCompany, earnCompany, monthlyWage, monthlyRent, monthlyUpkeep, baseQuality,
+  WEAR_PER_DAY, condition, renovateCost, pay,
 } from './units.js';
 
 const BANKRUPT_DAYS = 45;
@@ -99,7 +102,7 @@ function updateUsage(state) {
 
 function dailyCosts(state) {
   for (const unit of Object.values(state.units)) {
-    spend(state, unit, 'wages', (unit.staff * monthlyWage(state, unit) + (unit.manager ? managerCost(placeOf(state, unit)) : 0)) / 30);
+    spend(state, unit, 'wages', (unit.staff * monthlyWage(state, unit) + (unit.manager ? managerCost(placeOf(state, unit), unit.type) : 0)) / 30);
     const rent = monthlyRent(state, unit) / 30;
     spend(state, unit, 'rent', rent);
     // помещение принадлежит другой компании — аренда идёт ей
@@ -111,6 +114,31 @@ function dailyCosts(state) {
   }
   for (const co of activeCompanies(state)) {
     if (co.loan > 0) spendCompany(state, co.id, 'interest', (co.loan * co.loanRate) / 365);
+  }
+}
+
+// Износ: чем выше загрузка, тем быстрее
+function wearAll(state) {
+  for (const unit of Object.values(state.units)) {
+    const t = unit.today;
+    let load = 0.5;
+    if (t.cap) load = (t.customers || 0) / t.cap;
+    else if (t.prodCap) load = (t.produced || 0) / t.prodCap;
+    unit.condition = Math.max(0, condition(unit) - WEAR_PER_DAY * (0.6 + 0.6 * Math.min(1, load)));
+  }
+}
+
+// Сети с автообновлением сами ремонтируют изношенные точки (если в кассе есть деньги)
+function autoRenovate(state) {
+  for (const unit of Object.values(state.units)) {
+    const brand = unit.brandId ? state.brands[unit.brandId] : null;
+    if (!brand?.autoRenew || condition(unit) > 65) continue;
+    const cost = renovateCost(state, unit);
+    if (state.companies[unit.companyId].cash < cost * 2) continue;
+    pay(state, unit.companyId, cost);
+    unit.bookValue += cost;
+    unit.condition = 100;
+    addNews(state, 'info', `Сеть «${brand.name}» обновила «${unit.name}» за $${cost.toLocaleString('ru-RU')}.`, { unitId: unit.id }, unit.companyId);
   }
 }
 
@@ -172,6 +200,7 @@ function closeCompanyMonth(state, co, units) {
     revenue += unit.last.revenue;
     profit += p;
   }
+  spendCompany(state, co.id, 'overhead', overhead(state, co.id));
   const m = co.month;
   // роялти и взносы франчайзи облагаются налогом в домашней стране
   const franchise = (m.royalty || 0) + (m.franchiseFees || 0);
@@ -180,7 +209,7 @@ function closeCompanyMonth(state, co, units) {
     if (p > 0) spendCompany(state, co.id, 'tax', p * countryTax(state, c));
   }
   // дивиденды полученные — доход; выплаченные — распределение прибыли, а не расход
-  profit += franchise + (m.dividendsIn || 0) + (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0) - (m.brandAds || 0);
+  profit += franchise + (m.dividendsIn || 0) + (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0) - (m.brandAds || 0) - (m.overhead || 0);
   co.history.push({
     label: monthLabel(state.day),
     revenue: Math.round(revenue),
@@ -189,6 +218,7 @@ function closeCompanyMonth(state, co, units) {
     tax: Math.round(m.tax || 0),
     rentIncome: Math.round(m.rentIncome || 0),
     brandAds: Math.round(m.brandAds || 0),
+    overhead: Math.round(m.overhead || 0),
     royalty: Math.round(franchise),
     dividendsIn: Math.round(m.dividendsIn || 0),
     cash: Math.round(co.cash),
@@ -199,6 +229,11 @@ function closeCompanyMonth(state, co, units) {
 }
 
 function monthEnd(state) {
+  const newYear = dateOf(state.day + 1).getUTCFullYear() !== dateOf(state.day).getUTCFullYear();
+  monthlyInflation(state, newYear);
+  // сети пересчитывают цены, рекламу по новому уровню цен
+  for (const brand of Object.values(state.brands)) applyBrand(state, brand);
+  autoRenovate(state);
   for (const unit of Object.values(state.units)) {
     unit.last = unit.month;
     unit.history.push(Math.round(monthProfit(unit.month)));
@@ -236,6 +271,7 @@ export function stepDay(state) {
   sellSurplus(state);
   spoilAll(state);
   dailyCosts(state);
+  wearAll(state);
   updateBrand(state);
   updateStaff(state);
   updateBrands(state, spendCompany);

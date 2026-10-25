@@ -19,7 +19,8 @@ function dayData(state) {
   if (c && c.day === state.day && c.version === state.mapVersion) return c;
   c = { day: state.day, version: state.mapVersion, unmanaged: {}, hired: {} };
   for (const u of Object.values(state.units)) {
-    if (!u.manager) c.unmanaged[u.companyId] = (c.unmanaged[u.companyId] || 0) + 1;
+    // точка в сети требует вдвое меньше внимания: единые стандарты, закупки и отчётность
+    if (!u.manager) c.unmanaged[u.companyId] = (c.unmanaged[u.companyId] || 0) + (u.brandId ? 0.5 : 1);
     c.hired[u.placeId] = (c.hired[u.placeId] || 0) + u.staff;
   }
   cache.set(state, c);
@@ -28,7 +29,7 @@ function dayData(state) {
 
 export function attention(state, companyId) {
   const used = dayData(state).unmanaged[companyId] || 0;
-  return { used, limit: BASE_ATTENTION, excess: Math.max(0, used - BASE_ATTENTION) };
+  return { used, limit: BASE_ATTENTION, excess: Math.max(0, Math.ceil(used - BASE_ATTENTION)) };
 }
 
 // Рынок труда: если игроки наняли заметную долю работников города, зарплаты растут для всех
@@ -48,8 +49,10 @@ export function efficiency(state, unit) {
   return e;
 }
 
-export function managerCost(place) {
-  return MANAGER_WAGE * place.wage;
+// Управляющий киоска — старший смены, управляющий завода — директор: зарплата зависит от масштаба бизнеса
+export function managerCost(place, type) {
+  const scale = Math.min(1.6, Math.max(0.35, BUSINESSES[type].capex / 120000));
+  return MANAGER_WAGE * place.wage * (place.cpi ?? 1) * scale;
 }
 
 function moraleTarget(unit) {

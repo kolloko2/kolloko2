@@ -97,6 +97,10 @@ export function generateWorld(rng) {
     }
     const id = `${district.id}-${district.lotIds.length + 1}`;
     const visibility = Math.round(randRange(rng, 0.2, 1) * 100) / 100;
+    const trafficMult = place.kind === 'city' ? 0.7 + Math.min(place.pop, 25) / 40 : 0;
+    const traffic = Math.round(randRange(rng, def.traffic[0], def.traffic[1]) * trafficMult);
+    // рынок недвижимости учитывает поток людей: проходное место стоит дороже
+    const trafficRent = def.traffic[1] > 0 ? 0.4 + 0.6 * traffic / (((def.traffic[0] + def.traffic[1]) / 2) * trafficMult) : 1;
     let area;
     let rent;
     if (def.zoning === 'farmland') {
@@ -107,9 +111,8 @@ export function generateWorld(rng) {
       rent = area * def.rent * place.rent;
     } else {
       area = randInt(rng, 7, 36) * 5; // м²
-      rent = area * def.rent * place.rent * (0.8 + 0.4 * visibility);
+      rent = area * def.rent * place.rent * (0.8 + 0.4 * visibility) * trafficRent;
     }
-    const trafficMult = place.kind === 'city' ? 0.7 + Math.min(place.pop, 25) / 40 : 0;
     const lot = {
       id,
       districtId: district.id,
@@ -118,7 +121,7 @@ export function generateWorld(rng) {
       lng: p.lng,
       zoning: def.zoning,
       area,
-      traffic: Math.round(randRange(rng, def.traffic[0], def.traffic[1]) * trafficMult),
+      traffic,
       visibility,
       rent: Math.round(rent),
       price: Math.round(rent * 110),
@@ -184,9 +187,10 @@ export function generateWorld(rng) {
 }
 
 // Индекс стоимости строительства/оборудования в месте
+// cpi — накопленная инфляция страны (см. countries.js)
 export function costIndex(place) {
-  if (place.kind === 'city') return 0.5 + 0.5 * place.rent;
-  return 0.5 + 0.5 * (place.wage + 0.3);
+  const base = place.kind === 'city' ? 0.5 + 0.5 * place.rent : 0.5 + 0.5 * (place.wage + 0.3);
+  return base * (place.cpi ?? 1);
 }
 
 // Индекс розничных цен (сколько местные готовы платить)

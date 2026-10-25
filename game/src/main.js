@@ -401,6 +401,9 @@ async function handleAction(el) {
     case 'upgrade':
       app.dispatch({ type: 'upgrade', unitId: id });
       break;
+    case 'renovate':
+      app.dispatch({ type: 'renovate', unitId: id });
+      break;
     case 'copySettings': {
       const r = await app.dispatch({ type: 'copySettings', unitId: id });
       if (r.ok) toast(`Настройки применены к ${r.count} бизнесам`);
@@ -551,6 +554,9 @@ function handleChange(el) {
       break;
     case 'brandNational':
       app.dispatch({ type: 'setBrandNational', brandId: id, country: el.dataset.country, budget: Number(el.value) });
+      break;
+    case 'setAutoRenew':
+      app.dispatch({ type: 'setAutoRenew', brandId: id, on: el.checked });
       break;
     case 'setAutoStaff':
       app.dispatch({ type: 'setAutoStaff', unitId: id, on: el.checked });

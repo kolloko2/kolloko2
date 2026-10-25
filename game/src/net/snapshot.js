@@ -1,6 +1,7 @@
 // Снимки состояния для сети. Мир (города, районы, участки) генерируется детерминированно по сиду,
 // поэтому по сети передаём только то, что меняется во время игры.
 import { createGame } from '../sim/index.js';
+import { syncCpi } from '../sim/countries.js';
 
 // Изменяемые поля верхнего уровня
 const DYNAMIC = ['day', 'rng', 'mode', 'victory', 'winner', 'companies', 'nextCompanyId', 'units', 'nextUnitId', 'market', 'mapVersion', 'newsSeq',
@@ -13,7 +14,7 @@ export function makeSnapshot(state, { lots = false, newsAfter = 0, companyId = n
   for (const k of DYNAMIC) snap[k] = state[k];
   snap.news = state.news.filter((n) => n.seq > newsAfter && (n.companyId === null || n.companyId === companyId));
   if (lots) {
-    snap.lots = Object.values(state.world.lots).map((l) => [l.id, l.ownerId, l.unitId, l.rent]);
+    snap.lots = Object.values(state.world.lots).map((l) => [l.id, l.ownerId, l.unitId, l.rent, l.price]);
     snap.ai = Object.fromEntries(Object.values(state.world.districts).map((d) => [d.id, d.ai]));
   }
   return snap;
@@ -27,14 +28,16 @@ export function applySnapshot(state, snap) {
     state.news = [...fresh, ...state.news].sort((a, b) => b.seq - a.seq).slice(0, 300);
   }
   if (snap.lots) {
-    for (const [id, ownerId, unitId, rent] of snap.lots) {
+    for (const [id, ownerId, unitId, rent, price] of snap.lots) {
       const lot = state.world.lots[id];
       lot.ownerId = ownerId;
       lot.unitId = unitId;
       lot.rent = rent;
+      lot.price = price;
     }
   }
   if (snap.ai) for (const [id, ai] of Object.entries(snap.ai)) state.world.districts[id].ai = ai;
+  if (snap.countries) syncCpi(state);
 }
 
 // Состояние на клиенте: мир по сиду + полный снимок с сервера

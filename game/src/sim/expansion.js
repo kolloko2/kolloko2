@@ -72,3 +72,28 @@ export function purchasingDiscount(state, companyId, place) {
   const n = counts(state).region[`${companyId}|${regionOf(place)}`] || 0;
   return n < 2 ? 0 : Math.min(0.04, 0.01 * Math.floor(Math.log2(n)));
 }
+
+// Управленческие расходы штаб-квартиры: бухгалтерия, юристы, IT, закупки. Растут быстрее числа бизнесов —
+// огромная сеть мелких точек себя не окупает, империи нужны крупные и прибыльные активы.
+// Точки в сети дешевле в управлении (единые стандарты), франчайзи — бесплатно.
+export const OVERHEAD_BASE = 250;
+export const OVERHEAD_POWER = 1.3;
+export function overhead(state, companyId, extra = 0) {
+  let n = 0;
+  let units = 0;
+  let cpi = 0;
+  for (const u of Object.values(state.units)) {
+    if (u.companyId !== companyId) continue;
+    n += u.brandId ? 0.75 : 1;
+    units++;
+    cpi += state.world.places[u.placeId].cpi ?? 1;
+  }
+  n += extra;
+  if (n <= 3) return 0;
+  return OVERHEAD_BASE * (n - 3) ** OVERHEAD_POWER * (units ? cpi / units : 1);
+}
+
+// Насколько вырастут расходы штаба, если открыть ещё одну точку
+export function marginalOverhead(state, companyId, branded = false) {
+  return overhead(state, companyId, branded ? 0.75 : 1) - overhead(state, companyId);
+}

@@ -4,7 +4,9 @@ import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { canBuildHere, forecast } from './forecast.js';
 import { addNews, loanLimit, companyUnits } from './state.js';
-import { emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv, pay, receive, placeOf } from './units.js';
+import {
+  emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv, pay, receive, placeOf, renovateCost, condition,
+} from './units.js';
 import { contractOffer, contractGoods, endContract, CONTRACT_MONTHS } from './contracts.js';
 import { WAGE_LEVELS } from './staff.js';
 import { COUNTRIES } from '../data/cities.js';
@@ -95,6 +97,7 @@ const handlers = {
       today: {},
       broken: 0,
       bookValue: capex,
+      condition: 100,
       wageLevel: 1,
       morale: 65,
       manager: false,
@@ -182,8 +185,30 @@ const handlers = {
     if (state.companies[companyId].cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
     pay(state, companyId, cost);
     unit.level++;
+    unit.condition = 100; // новое оборудование
     unit.bookValue += cost;
     addNews(state, 'good', `«${unit.name}» улучшен до уровня ${unit.level}.`, { unitId }, companyId);
+    return OK;
+  },
+
+  // Обновление: ремонт, новое оборудование и интерьер — износ снова 0%
+  renovate(state, { unitId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (condition(unit) > 95) return fail('Точка и так в отличном состоянии');
+    const cost = renovateCost(state, unit);
+    if (state.companies[companyId].cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
+    pay(state, companyId, cost);
+    unit.bookValue += cost;
+    unit.condition = 100;
+    addNews(state, 'good', `«${unit.name}» обновлён за ${fmt(cost)}.`, { unitId }, companyId);
+    return OK;
+  },
+
+  setAutoRenew(state, { brandId, on }, companyId) {
+    const brand = state.brands[brandId];
+    if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+    brand.autoRenew = Boolean(on);
     return OK;
   },
 

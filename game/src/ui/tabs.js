@@ -5,7 +5,7 @@ import { MARKET_REGIONS } from '../data/regions.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
 import { LICENSES } from '../data/laws.js';
 import {
-  countryState, franchiseCount, franchiseAppeal, packageCost, ROYALTIES, FRANCHISE_MIN_UNITS,
+  overhead, countryState, franchiseCount, franchiseAppeal, packageCost, ROYALTIES, FRANCHISE_MIN_UNITS,
   listingOf, controllerOf, stakeOf, ipoCheck, absorbCost, portfolioValue, fairCompanyPrice,
   IPO_MIN_WORTH, IPO_MIN_MONTHS, ABSORB_SHARE, CONTROL_SHARE, TRADE_FEE,
   BRAND_TIERS, brandAwareness, WAGE_LEVELS, presenceByCountry, hasLocalTeam, purchasingDiscount, LOCAL_TEAM_UNITS,
@@ -94,7 +94,10 @@ function renderFinance(app) {
     ${row('Капитал (активы − долг)', money(netWorth(state, app.companyId)))}
     ${row('Кредит', `${money(co.loan)} под ${pct(co.loanRate)} годовых`)}
     ${row('Банк готов выдать ещё', money(Math.max(0, limit - co.loan)))}
+    ${row('Расходы штаба', `${money(overhead(state, app.companyId))}/мес`)}
     </div>
+    <div class="muted small">Штаб (бухгалтерия, юристы, закупки) дорожает быстрее, чем растёт число бизнесов: огромная сеть мелких точек себя не окупает.
+    Точки в сетях обходятся штабу дешевле, франчайзи — бесплатно. Цены и зарплаты каждый год растут на инфляцию — следите за ценами отдельных точек.</div>
     <div class="card"><div class="row"><span>Сумма</span><span class="price-ctl"><input id="loan-amount" type="number" step="5000" min="0" value="10000"></span></div>
     <div class="btn-row"><button class="btn" data-action="takeLoan">Взять кредит</button><button class="btn ghost" data-action="repayLoan">Погасить</button></div>
     <div class="muted small">Лимит растёт с прибылью и стоимостью ваших бизнесов и недвижимости. Если касса в минусе 45 дней — банкротство.</div></div>`;
@@ -212,6 +215,7 @@ function renderBrands(app) {
         <button class="mini" data-action="brandPrice" data-id="${b.id}" data-product="${p.id}" data-step="0.05">+</button></span></div>`;
     }
     html += `<div class="row"><span>Реклама на точку, $/мес <small class="muted">(в дорогих городах больше)</small></span><span class="price-ctl"><input type="number" min="0" step="100" value="${b.marketing}" data-change="brandMarketing" data-id="${b.id}"></span></div>
+      <label class="row check"><span>🛠 Автообновление: сеть сама ремонтирует точки при износе 35% (если в кассе есть деньги)</span><input type="checkbox" data-change="setAutoRenew" data-id="${b.id}" ${b.autoRenew ? 'checked' : ''}></label>
       <div class="row"><span>Зарплаты</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${b.wageLevel === l ? 'active' : ''}" data-action="brandWage" data-id="${b.id}" data-level="${l}">${Math.round(l * 100)}%</button>`).join('')}</span></div>`;
     if (cities.length) {
       html += '<table class="tbl compact"><tr><th>Город</th><th>Точек</th><th>Узнаваемость бренда</th></tr>';
@@ -273,7 +277,7 @@ function renderCountries(app) {
   let html = `<h2>🌍 Страны</h2><p class="muted small">У каждой страны свои законы. <b>Налог на прибыль</b> берётся с прибыли ваших бизнесов в стране.
     <b>Пошлина</b> — когда вы везёте свой товар из другой страны (внутри торгового союза — бесплатно), поэтому завод часто выгоднее строить там же, где продаёте.
     <b>Бюрократия</b> делает дороже лицензии и выход на рынок. В <b>нестабильных</b> странах чаще кризисы и смена законов.</p>
-    <table class="tbl compact"><tr><th>Страна</th><th>Налог</th><th>Пошлина</th><th>Бюрокр.</th><th>Стабильность</th><th>Экономика</th><th>Ваши точки</th></tr>`;
+    <table class="tbl compact"><tr><th>Страна</th><th>Налог</th><th>Пошлина</th><th>Бюрокр.</th><th>Инфляция</th><th>Стабильность</th><th>Экономика</th><th>Ваши точки</th></tr>`;
   const list = Object.keys(COUNTRIES).sort((a, z) => (pres[z]?.any || 0) - (pres[a]?.any || 0) || COUNTRIES[a].name.localeCompare(COUNTRIES[z].name, 'ru'));
   for (const c of list) {
     const d = COUNTRIES[c];
@@ -282,7 +286,7 @@ function renderCountries(app) {
     const stab = d.stability >= 0.8 ? '<span class="pos">высокая</span>' : d.stability >= 0.6 ? 'средняя' : '<span class="neg">низкая</span>';
     const home = c === co.homeCountry ? ' 🏠' : '';
     html += `<tr><td>${d.name}${home}${d.bloc ? `<small class="muted"><br>${BLOCS[d.bloc]}</small>` : ''}</td><td>${pct(cs.tax)}</td><td>${pct(cs.tariff)}</td>
-      <td>×${d.bureaucracy.toFixed(2)}</td><td>${stab}</td><td>${econ}</td><td>${pres[c]?.any || '—'}</td></tr>`;
+      <td>×${d.bureaucracy.toFixed(2)}</td><td>${pct(cs.inflation ?? 0, 1)}</td><td>${stab}</td><td>${econ}</td><td>${pres[c]?.any || '—'}</td></tr>`;
   }
   html += '</table><h3>Лицензии</h3><table class="tbl compact"><tr><th>Лицензия</th><th>Базовая цена</th><th>Есть у вас</th></tr>';
   for (const [id, l] of Object.entries(LICENSES)) {
@@ -395,6 +399,10 @@ function renderHelp() {
     <li><b>Тир III:</b> нефтяная скважина 🛢️ → НПЗ (топливо) → АЗС ⛽ и грузоперевозки; нефтехимия (пластик) → упаковка; пищевая фабрика 🥫 делает товары для магазинов.</li>
     <li><b>Биржа</b> 📈: покупайте акции корпораций ради дивидендов, выходите на IPO за деньгами. В игре против друзей можно скупить контрольный пакет соперника и поглотить его.</li>
     <li><b>Рынки региональные:</b> во вкладке 💹 видно, где товар дешевле всего.</li>
+    <li><b>Без управления бизнес хиреет.</b> Цены и зарплаты каждый год растут на инфляцию, оборудование изнашивается 🛠, конкуренты со временем становятся сильнее,
+      спрос меняется по сезонам, а на прибыльные места приходят новые конкуренты. Поднимайте цены, обновляйте точки, подстраивайте штат, нанимайте управляющих.
+      Сети делают часть рутины сами: пересчитывают цены по инфляции и (по галочке) обновляют изношенные точки.</li>
+    <li><b>Расходы штаба</b> растут быстрее числа бизнесов: тысяча мелких киосков — не империя. Растите в крупные и прибыльные активы, цепочки, франшизу.</li>
     <li>Не хватает денег — возьмите <b>кредит</b> во вкладке 🏦. Касса в минусе 45 дней — банкротство.</li>
     <li>Время: ⏸ пауза, ▶ ⏩ ⏭ — скорость. Игра сохраняется автоматически каждый месяц.</li>
   </ol>

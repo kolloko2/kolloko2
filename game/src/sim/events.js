@@ -4,7 +4,7 @@ import { chance } from './rng.js';
 import { setShock } from './market.js';
 import { addNews } from './state.js';
 import { costIndex } from './world.js';
-import { lotOf, placeOf, spend } from './units.js';
+import { lotOf, placeOf, spend, condition } from './units.js';
 
 // Мировые события на товарных рынках (проверяются раз в месяц)
 const MARKET_EVENTS = [
@@ -53,7 +53,8 @@ export function dailyEvents(state) {
   const rng = state.rng;
   for (const unit of Object.values(state.units)) {
     const def = BUSINESSES[unit.type];
-    if (unit.broken === 0 && chance(rng, 0.0012)) {
+    // старое оборудование ломается чаще
+    if (unit.broken === 0 && chance(rng, 0.0008 * (1 + (100 - condition(unit)) / 20))) {
       unit.broken = 2;
       const cost = Math.round(def.capex * 0.03 * costIndex(placeOf(state, unit)));
       spend(state, unit, 'other', cost);

@@ -8,8 +8,40 @@ import { addNews } from './state.js';
 // Законы и экономика стран. Ставки живут в состоянии: со временем их меняют события.
 export function initCountries() {
   const out = {};
-  for (const [c, d] of Object.entries(COUNTRIES)) out[c] = { tax: d.tax, tariff: d.tariff, demand: 1, event: null, until: 0 };
+  for (const [c, d] of Object.entries(COUNTRIES)) {
+    out[c] = { tax: d.tax, tariff: d.tariff, demand: 1, event: null, until: 0, cpi: 1, cpiYear: 1, inflation: baseInflation(d) };
+  }
   return out;
+}
+
+// Инфляция: в стабильных странах ~2–3% в год, в нестабильных — до 8%
+export function baseInflation(d) {
+  return 0.02 + 0.08 * (1 - d.stability) ** 1.5;
+}
+
+// Индекс цен страны лежит и в местах (городах, регионах) — его читают costIndex, refPrice и зарплаты
+export function syncCpi(state) {
+  for (const place of Object.values(state.world.places)) place.cpi = state.countries?.[place.country]?.cpi ?? 1;
+}
+
+// Раз в месяц: цены, зарплаты и стоимость строительства растут. Раз в год аренда индексируется по инфляции.
+export function monthlyInflation(state, newYear) {
+  for (const [c, cs] of Object.entries(state.countries)) {
+    const base = baseInflation(COUNTRIES[c]);
+    cs.inflation += 0.1 * (base - cs.inflation) + 0.004 * (rand(state.rng) - 0.5);
+    cs.inflation = Math.min(0.3, Math.max(-0.01, cs.inflation));
+    cs.cpi *= 1 + cs.inflation / 12;
+  }
+  syncCpi(state);
+  if (!newYear) return;
+  for (const lot of Object.values(state.world.lots)) {
+    const cs = state.countries[state.world.places[lot.placeId].country];
+    const k = cs.cpi / cs.cpiYear;
+    lot.rent = Math.round(lot.rent * k);
+    lot.price = Math.round(lot.price * k);
+  }
+  for (const cs of Object.values(state.countries)) cs.cpiYear = cs.cpi;
+  state.mapVersion++;
 }
 
 export function countryState(state, c) {
@@ -62,6 +94,7 @@ export function monthlyCountryEvents(state) {
     const weights = pool.map((e) => (e.unstable ? 1.6 - stab : 0.4 + stab));
     let r = rand(state.rng) * weights.reduce((a, b) => a + b, 0);
     const e = pool.find((_, i) => (r -= weights[i]) < 0) || pool[0];
+    if (e.id === 'crisis') cs.inflation += 0.06; // валютный кризис разгоняет цены
     if (e.demand) {
       cs.event = e.id;
       cs.demand = e.demand;
