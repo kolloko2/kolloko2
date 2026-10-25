@@ -1,5 +1,5 @@
 import { BUSINESSES } from '../data/businesses.js';
-import { DISTRICTS } from '../data/districts.js';
+import { DISTRICTS, SEGMENTS } from '../data/districts.js';
 import { priceIndex } from './world.js';
 import { effectiveAwareness } from './brands.js';
 import { countryDemand } from './countries.js';
@@ -18,6 +18,14 @@ export const BETA_VISIBILITY = 0.5;
 export const U_OUTSIDE = 1.0;
 export const AI_AWARENESS = 0.5;
 export const BETA_ASSORTMENT = 0.08; // за каждый товар сверх основного
+export const BETA_LOYALTY = 1.0; // лояльные покупатели возвращаются, даже если рядом дешевле
+export const SHOP_LOYALTY = 0.3; // лояльность у фоновых конкурентов
+
+// Полезность для сегмента покупателей: t — слагаемые продавца (цена к норме, рейтинг, известность, видимость, бонус)
+export function segUtility(t, beta, seg) {
+  return -beta * seg.p * Math.log(Math.max(t.pr, 0.05)) + BETA_QUALITY * seg.q * (t.q - 3) + BETA_AWARENESS * t.a
+    + BETA_VISIBILITY * (t.vis - 0.5) + (t.bonus || 0);
+}
 
 export function utility(priceRatio, quality, awareness, visibility, betaPrice = BETA_PRICE) {
   return (
@@ -106,20 +114,29 @@ export function districtBeta(district) {
   return DISTRICTS[district.type].priceSensitivity ?? BETA_PRICE;
 }
 
-// Узнаваемость точки учитывает бренд сети в этом городе
-export function unitUtility(state, unit) {
+// Слагаемые полезности точки: цена к норме, рейтинг, известность (с брендом сети), видимость,
+// бонус за ассортимент и лояльность покупателей
+export function unitTerms(state, unit) {
   const lot = state.world.lots[unit.lotId];
-  const beta = districtBeta(state.world.districts[lot.districtId]);
-  // шире ассортимент — чуть больше покупателей заходят именно сюда
-  const assortment = BETA_ASSORTMENT * (activeProducts(unit).length - 1);
-  return utility(unitPriceRatio(state, unit), unit.quality, effectiveAwareness(state, unit), lot.visibility, beta) + assortment;
+  return {
+    pr: unitPriceRatio(state, unit), q: unit.quality, a: effectiveAwareness(state, unit), vis: lot.visibility,
+    bonus: BETA_ASSORTMENT * (activeProducts(unit).length - 1) + BETA_LOYALTY * (unit.loyalty ?? SHOP_LOYALTY),
+  };
 }
 
-// Распределение покупателей района между продавцами категории.
-// extra — гипотетический продавец (для прогноза): { id, u }
-/** @param {any} state @param {any} district @param {string} category @param {{ id: string, u: number }|null} [extra] */
+export function unitUtility(state, unit) {
+  const d = state.world.districts[state.world.lots[unit.lotId].districtId];
+  return segUtility(unitTerms(state, unit), districtBeta(d), SEGMENTS.mid);
+}
+
+export const shopTerms = (sh) => ({ pr: sh.p, q: sh.q, a: sh.a, vis: 0.5, bonus: BETA_LOYALTY * SHOP_LOYALTY });
+
+// Распределение покупателей района между продавцами категории — отдельно по сегментам (эконом, средний, премиум).
+// extra — гипотетический продавец (для прогноза): { id, t } (слагаемые) или { id, u }
+/** @param {any} state @param {any} district @param {string} category @param {{ id: string, t?: any, u?: number }|null} [extra] */
 export function districtShares(state, district, category, extra = null) {
   const potential = districtPotential(state, district, category);
+  /** @type {{ id: string, t?: any, u?: number }[]} */
   const sellers = [];
   for (const lotId of district.lotIds) {
     const lot = state.world.lots[lotId];
@@ -127,26 +144,40 @@ export function districtShares(state, district, category, extra = null) {
     const unit = state.units[lot.unitId];
     if (!unit || !BUSINESSES[unit.type].retail || BUSINESSES[unit.type].category !== category) continue;
     if (unit.broken > 0) continue;
-    sellers.push({ id: unit.id, u: unitUtility(state, unit) });
+    sellers.push({ id: unit.id, t: unitTerms(state, unit) });
   }
   if (extra) sellers.push(extra);
-  // фоновые конкуренты — настоящие здания со своей ценой, качеством и известностью
   const beta = districtBeta(district);
   const shops = shopsIn(state, district, category);
-  let shopTotal = 0;
-  const shopU = shops.map((sh) => {
-    const e = Math.exp(utility(sh.p, sh.q, sh.a, 0.5, beta));
-    shopTotal += e;
-    return e;
-  });
-  let total = Math.exp(U_OUTSIDE) + shopTotal;
-  for (const s of sellers) total += Math.exp(s.u);
-  const ai = shops.length;
-  const result = {
-    potential, ai, aiCustomersEach: ai ? (potential * shopTotal) / ai / total : 0, outsideShare: Math.exp(U_OUTSIDE) / total,
-    byUnit: {}, byShop: {},
-  };
-  shops.forEach((sh, i) => (result.byShop[sh.id] = (potential * shopU[i]) / total));
-  for (const s of sellers) result.byUnit[s.id] = (potential * Math.exp(s.u)) / total;
+  const shopT = shops.map(shopTerms);
+  const mix = DISTRICTS[district.type].segments || { mid: 1 };
+  const result = { potential, ai: shops.length, aiCustomersEach: 0, outsideShare: 0, byUnit: {}, byShop: {}, bySeg: {} };
+  for (const s of sellers) {
+    result.byUnit[s.id] = 0;
+    result.bySeg[s.id] = {};
+  }
+  for (const sh of shops) result.byShop[sh.id] = 0;
+  let shopSum = 0;
+  for (const [segId, share] of Object.entries(mix)) {
+    if (!share) continue;
+    const seg = SEGMENTS[segId];
+    const pot = potential * share;
+    const eOut = Math.exp(U_OUTSIDE);
+    const eShops = shopT.map((t) => Math.exp(segUtility(t, beta, seg)));
+    const eSellers = sellers.map((s) => Math.exp(s.t ? segUtility(s.t, beta, seg) : (s.u ?? 0)));
+    const total = eOut + eShops.reduce((a, b) => a + b, 0) + eSellers.reduce((a, b) => a + b, 0);
+    result.outsideShare += share * (eOut / total);
+    shops.forEach((sh, i) => {
+      const v = (pot * eShops[i]) / total;
+      result.byShop[sh.id] += v;
+      shopSum += v;
+    });
+    sellers.forEach((s, i) => {
+      const v = (pot * eSellers[i]) / total;
+      result.byUnit[s.id] += v;
+      result.bySeg[s.id][segId] = v;
+    });
+  }
+  result.aiCustomersEach = shops.length ? shopSum / shops.length : 0;
   return result;
 }

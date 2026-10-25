@@ -1,5 +1,5 @@
 import { BUSINESSES } from '../data/businesses.js';
-import { districtShares, utility, refPrice, districtBeta, seasonFactor } from './demand.js';
+import { districtShares, refPrice, seasonFactor, BETA_LOYALTY, SHOP_LOYALTY } from './demand.js';
 import { BRAND_TIERS, brandAwareness, presenceTarget, brandAds } from './brands.js';
 import {
   entryFee, presenceIn, purchasingDiscount, isConsumer, marginalOverhead, FOREIGN_COST, LOCAL_TEAM_UNITS,
@@ -108,8 +108,8 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
       r.brandAwareness = b;
     }
     const techQ = companyId ? 0.15 * techLevel(state, companyId, 'quality') : 0;
-    const u = utility(ratio, (def.baseQuality ?? 3) + (tier?.quality ?? 0) + techQ, awareness, lot.visibility, districtBeta(district));
-    const sh = districtShares(state, district, def.category, { id: '__new', u });
+    const t = { pr: ratio, q: (def.baseQuality ?? 3) + (tier?.quality ?? 0) + techQ, a: awareness, vis: lot.visibility, bonus: BETA_LOYALTY * SHOP_LOYALTY };
+    const sh = districtShares(state, district, def.category, { id: '__new', t });
     const potential = sh.byUnit.__new / seasonFactor(state, def.category, place); // прогноз — в среднем за год, без сезона
     const staff = Math.min(def.staff.max, Math.max(def.staff.min, Math.ceil(potential / (def.retail.perStaff * eff))));
     r.staff = staff;
