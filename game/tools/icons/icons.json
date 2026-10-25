@@ -85,6 +85,7 @@
     "goods/medicine": "a pill blister pack next to a small medicine bottle",
     "goods/cosmetics": "a set of cosmetic bottles and a lipstick",
     "goods/parts": "a car tire next to a brake disc and a wrench",
-    "goods/cars": "a modern compact passenger car"
+    "goods/cars": "a modern compact passenger car",
+    "ui/search": "a magnifying glass over a small map with a pin"
   }
 }

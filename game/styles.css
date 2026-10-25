@@ -502,3 +502,14 @@ label.row.check { cursor: pointer; font-weight: normal; }
   #toast { bottom: 70px; max-width: 90vw; }
 }
 @keyframes slide-up { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---------- настройки и сохранения ---------- */
+body.no-motion *, body.no-motion *::before, body.no-motion *::after { animation: none !important; transition: none !important; }
+.slots { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.slot { display: flex; gap: 6px; align-items: center; }
+.slot .btn { flex: 1; text-align: left; }
+.file-btn { cursor: pointer; }
+#settings .modal-box { max-height: 90vh; overflow-y: auto; }
+#settings h3 { margin: 14px 0 4px; }
+
+.modal-box label.row.check { flex-direction: row; justify-content: space-between; align-items: center; font-weight: 400; margin: 6px 0; }

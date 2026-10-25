@@ -144,3 +144,18 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
   r.payback = r.profit > 0 ? (r.capex + r.extra) / r.profit : Infinity;
   return r;
 }
+
+// Поиск мест: лучшие свободные участки для типа бизнеса в стране (или во всём мире) по окупаемости
+export function searchLots(state, companyId, type, country = null, limit = 15) {
+  const out = [];
+  for (const lot of Object.values(state.world.lots)) {
+    if (lot.unitId || (lot.ownerId && lot.ownerId !== companyId)) continue;
+    const place = state.world.places[lot.placeId];
+    if (country && place.country !== country) continue;
+    if (!canBuildHere(state, lot, type)) continue;
+    const f = forecast(state, lot.id, type, companyId);
+    if (f.profit <= 0) continue;
+    out.push({ lotId: lot.id, placeId: lot.placeId, districtId: lot.districtId, profit: f.profit, payback: f.payback, cost: f.capex + f.extra, locked: f.locked });
+  }
+  return out.sort((a, b) => a.payback - b.payback).slice(0, limit);
+}

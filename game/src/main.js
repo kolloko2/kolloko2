@@ -1,12 +1,14 @@
 import { loadIcons, uiIcon } from './ui/icons.js';
-import { createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, SAVE_VERSION, VICTORY_OPTIONS } from './sim/index.js';
+import {
+  createGame, formatDate, netWorth, newsFor, isOver, attention, companyAlerts, searchLots, SAVE_VERSION, VICTORY_OPTIONS,
+} from './sim/index.js';
 import { renderTutorial, restartTutorial, skipTutorial, advisorAction, hideHint, resetHints } from './ui/tutorial.js';
-import { LocalSession, RemoteSession, SPEEDS } from './net/session.js';
+import { LocalSession, RemoteSession, SPEEDS, setDayScale } from './net/session.js';
 import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot } from './ui/map.js';
 import { renderPanel } from './ui/panels.js';
 import { renderDrawer, TABS, filteredUnits } from './ui/tabs.js';
 import { money, moneyShort, signClass, esc } from './ui/format.js';
-import { play, toggleSound, soundOn } from './ui/sound.js';
+import { play, toggleSound, soundOn, setVolume } from './ui/sound.js';
 
 const SAVE_KEY = 'magnat-save-v3';
 
@@ -60,10 +62,15 @@ const app = {
 };
 
 // ---------- сохранения (соло) ----------
+// Три слота; первый — по старому ключу, чтобы не потерять прежние сохранения
+const SLOTS = [1, 2, 3];
+const slotKey = (n) => (n === 1 ? SAVE_KEY : `${SAVE_KEY}:${n}`);
+let slot = 1;
+
 function save(silent = false) {
   if (!app.started || app.session.multiplayer) return;
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(app.state));
+    localStorage.setItem(slotKey(slot), JSON.stringify(app.state));
     if (!silent) toast('Игра сохранена');
   } catch {
     if (!silent) toast('Не удалось сохранить (хранилище браузера недоступно)', 'bad');
@@ -86,9 +93,38 @@ function writeJson(key, value) {
   }
 }
 
-function loadSolo() {
-  const s = readJson(SAVE_KEY);
+function loadSolo(n = slot) {
+  const s = readJson(slotKey(n));
   return s && s.version === SAVE_VERSION ? s : null;
+}
+
+function freeSlot() {
+  return SLOTS.find((n) => !loadSolo(n)) ?? null;
+}
+
+// Скачать текущую игру файлом
+function exportSave() {
+  if (app.session.multiplayer) return toast('В мультиплеере игра хранится на сервере', 'bad');
+  const blob = new Blob([JSON.stringify(app.state)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `magnat-${app.company.name.replace(/[^\wа-яё]+/gi, '_')}-${app.state.day}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function importSave(file) {
+  try {
+    const s = JSON.parse(await file.text());
+    if (s?.version !== SAVE_VERSION) throw new Error('Файл от другой версии игры');
+    slot = freeSlot() ?? 1;
+    if (loadSolo(slot) && !confirm(`Все слоты заняты. Записать поверх слота ${slot}?`)) return;
+    localStorage.setItem(slotKey(slot), JSON.stringify(s));
+    hideLobby();
+    resumeSolo(s);
+  } catch (err) {
+    document.getElementById('lobby-error').textContent = `Не удалось загрузить: ${err.message}`;
+  }
 }
 
 // ---------- HUD ----------
@@ -159,6 +195,47 @@ function checkWinner() {
   play('win');
 }
 
+// ---------- настройки ----------
+const SETTINGS_KEY = 'magnat-settings';
+const settings = {
+  volume: 0.8, dayScale: 1, uiScale: 1, noMotion: false, pauseBad: false, pauseOffer: true, pauseCash: true,
+  ...(readJson(SETTINGS_KEY) || {}),
+};
+
+function applySettings() {
+  setVolume(settings.volume);
+  setDayScale(settings.dayScale);
+  document.documentElement.style.setProperty('--ui-scale', String(settings.uiScale));
+  /** @type {any} */ (document.body.style).zoom = settings.uiScale === 1 ? '' : String(settings.uiScale);
+  document.body.classList.toggle('no-motion', settings.noMotion);
+  writeJson(SETTINGS_KEY, settings);
+}
+
+function bindSettings() {
+  const modal = document.getElementById('settings');
+  const fields = { 'set-volume': 'volume', 'set-day': 'dayScale', 'set-scale': 'uiScale', 'set-motion': 'noMotion', 'set-pause-bad': 'pauseBad', 'set-pause-offer': 'pauseOffer', 'set-pause-cash': 'pauseCash' };
+  const fill = () => {
+    $in('set-volume').value = String(Math.round(settings.volume * 100));
+    $in('set-day').value = String(settings.dayScale);
+    $in('set-scale').value = String(settings.uiScale);
+    for (const [id, k] of Object.entries(fields)) if (typeof settings[k] === 'boolean') $in(id).checked = settings[k];
+  };
+  document.getElementById('btn-settings').addEventListener('click', () => {
+    fill();
+    modal.classList.add('open');
+  });
+  document.getElementById('settings-close').addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('change', (e) => {
+    const k = fields[target(e).id];
+    if (!k) return;
+    const el = target(e);
+    settings[k] = el.type === 'checkbox' ? el.checked : k === 'volume' ? Number(el.value) / 100 : Number(el.value);
+    applySettings();
+  });
+  document.getElementById('set-export').addEventListener('click', exportSave);
+  applySettings();
+}
+
 // ---------- анимации ----------
 // Прибыль месяца всплывает над кассой
 function floatMoney(amount) {
@@ -208,6 +285,14 @@ function announceNews() {
   if (fresh.length && lastNewsSeq > 0) {
     const n = fresh[0];
     if (n.kind === 'bad' || n.kind === 'warn' || n.kind === 'good') toast(n.text, n.kind);
+    // пауза по важным событиям (настройки)
+    const stop = fresh.find((x) => (settings.pauseBad && x.kind === 'bad') || (settings.pauseOffer && x.text.startsWith('📨'))
+      || (settings.pauseCash && x.text.startsWith('Касса ушла в минус')));
+    const mine = app.session.multiplayer ? app.session.mySpeed() : app.session.speed;
+    if (stop && mine !== 0) {
+      setSpeed(0);
+      toast(`⏸ Пауза: ${stop.text}`, stop.kind === 'good' ? 'good' : 'warn');
+    }
     play(n.kind === 'bad' ? 'bad' : n.kind === 'good' ? 'good' : 'click');
   }
   if (news.length) lastNewsSeq = Math.max(lastNewsSeq, news[0].seq);
@@ -278,6 +363,7 @@ function useSession(session) {
 }
 
 function startSolo(companyName) {
+  slot = freeSlot() ?? 1;
   const seed = Math.floor(Math.random() * 2 ** 31);
   const session = new LocalSession(createGame({ seed, companyNames: [companyName || 'Моя компания'] }));
   app.started = true;
@@ -320,7 +406,13 @@ function renderLobby() {
   $all('#lobby-form [data-field]').forEach((el) => (el.hidden = !cfg.fields.includes(el.dataset.field)));
   document.getElementById('lobby-submit').textContent = cfg.submit;
   const resume = [];
-  if (loadSolo()) resume.push('<button type="button" class="btn ghost" data-resume="solo">▶ Продолжить одиночную игру</button>');
+  for (const n of SLOTS) {
+    const s = loadSolo(n);
+    if (!s) continue;
+    const co = Object.values(s.companies).find((c) => !c.ai);
+    resume.push(`<div class="slot"><button type="button" class="btn ghost" data-resume="solo" data-slot="${n}">▶ ${esc(co?.name ?? 'Игра')} · ${formatDate(s.day)}${co?.history?.length ? ` · ${moneyShort(co.history.at(-1).netWorth)}` : ''}</button>
+      <button type="button" class="mini" data-delete-slot="${n}" title="Удалить сохранение">🗑</button></div>`);
+  }
   const mp = readJson(MP_KEY);
   if (mp?.code) resume.push(`<button type="button" class="btn ghost" data-resume="mp">↩ Вернуться в комнату ${esc(mp.code)}</button>`);
   document.getElementById('lobby-resume').innerHTML = resume.join('');
@@ -350,11 +442,20 @@ function bindLobby() {
     renderLobby();
   });
   document.getElementById('lobby-resume').addEventListener('click', async (e) => {
+    const del = closestEl(e, '[data-delete-slot]');
+    if (del) {
+      if (confirm('Удалить это сохранение навсегда?')) {
+        localStorage.removeItem(slotKey(Number(del.dataset.deleteSlot)));
+        renderLobby();
+      }
+      return;
+    }
     const b = closestEl(e, '[data-resume]');
     if (!b) return;
     if (b.dataset.resume === 'solo') {
+      slot = Number(b.dataset.slot) || 1;
       hideLobby();
-      resumeSolo(loadSolo());
+      resumeSolo(loadSolo(slot));
       return;
     }
     const saved = readJson(MP_KEY);
@@ -373,7 +474,7 @@ function bindLobby() {
     const errorEl = document.getElementById('lobby-error');
     errorEl.textContent = '';
     if (lobbyMode === 'solo') {
-      if (loadSolo() && !confirm('Начать новую одиночную игру? Сохранение будет перезаписано.')) return;
+      if (!freeSlot() && !confirm('Все три слота заняты. Начать новую игру поверх слота 1?')) return;
       hideLobby();
       startSolo(companyName);
       return;
@@ -436,7 +537,7 @@ async function handleAction(el) {
       if (warn.length && !confirm(`${warn.join('\n\n')}\n\nВсё равно открыть?`)) break;
       const brand = el.dataset.brand;
       const brandId = brand === 'none' ? null : brand || undefined;
-      const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type, brandId: brandId ?? null });
+      const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type, brandId: brandId ?? null, templateId: el.dataset.template });
       if (r.ok) {
         play('coin');
         app.select({ kind: 'unit', id: r.unitId });
@@ -513,6 +614,21 @@ async function handleAction(el) {
     case 'buyTruce':
       if (confirm('Заплатить корпорации за перемирие?')) app.dispatch({ type: 'buyTruce', rivalId: id });
       break;
+    case 'saveTemplate': {
+      const name = prompt('Название шаблона', `Как «${state.units[id].name}»`);
+      if (name === null) break;
+      const r = await app.dispatch({ type: 'saveTemplate', unitId: id, name });
+      if (r.ok) toast('Шаблон сохранён: он появится на карточках участков для этого типа бизнеса', 'good');
+      break;
+    }
+    case 'search': {
+      app.search = { type: $in('search-type').value, country: $in('search-country').value };
+      toast('Ищу лучшие места…');
+      await new Promise((r) => setTimeout(r, 30));
+      app.searchResults = searchLots(state, app.companyId, app.search.type, app.search.country || null, 15);
+      renderDrawer(app);
+      break;
+    }
     case 'trainStaff':
       app.dispatch({ type: 'trainStaff', unitId: id });
       break;
@@ -675,6 +791,12 @@ function handleChange(el) {
     case 'brandAds':
       app.dispatch({ type: 'updateBrand', brandId: id, ads: { [el.dataset.channel]: Number(el.value) } });
       break;
+    case 'rules': {
+      const k = el.dataset.key;
+      const value = k === 'reserve' || k === 'closeAfter' ? Number(el.value) : /** @type {HTMLInputElement} */ (el).checked;
+      app.dispatch({ type: 'setRules', [k]: value });
+      break;
+    }
     case 'setDelivery':
       app.dispatch({ type: 'setDelivery', unitId: id, mode: el.value });
       break;
@@ -791,6 +913,12 @@ async function boot() {
   app.session = new LocalSession(createGame({ seed: 1 }));
   bindUi();
   bindLobby();
+  bindSettings();
+  document.getElementById('lobby-import').addEventListener('change', (e) => {
+    const f = target(e).files?.[0];
+    if (f) importSave(f);
+    target(e).value = '';
+  });
   document.getElementById('tutorial').addEventListener('click', (e) => {
     if (closestEl(e, '[data-tutorial="skip"]')) {
       skipTutorial();

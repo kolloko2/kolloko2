@@ -21,6 +21,7 @@
     <div class="stat"><small>Дата</small><b id="hud-date"></b></div>
     <div id="speed"></div>
     <button id="btn-sound" class="icon-btn" title="Звук">🔊</button>
+    <button id="btn-settings" class="icon-btn" title="Настройки">⚙️</button>
     <button id="btn-save" class="icon-btn" title="Сохранить">💾</button>
     <button id="btn-new" class="icon-btn" title="Выйти в меню">🚪</button>
   </header>
@@ -32,6 +33,26 @@
   <div id="toast"></div>
   <div id="fx"></div>
   <div id="tutorial" hidden></div>
+
+  <div id="settings" class="modal">
+    <div class="modal-box">
+      <h2>⚙️ Настройки</h2>
+      <label>Громкость <input id="set-volume" type="range" min="0" max="100" step="5"></label>
+      <label>Длина игрового дня (одиночная игра)
+        <select id="set-day"><option value="0.5">Быстрее ×2</option><option value="1">Обычная</option><option value="2">Медленнее ×2</option></select></label>
+      <label>Размер интерфейса
+        <select id="set-scale"><option value="0.9">Мельче</option><option value="1">Обычный</option><option value="1.15">Крупнее</option><option value="1.3">Очень крупный</option></select></label>
+      <label class="row check"><span>Без анимаций</span><input id="set-motion" type="checkbox"></label>
+      <h3>Ставить на паузу, когда…</h3>
+      <label class="row check"><span>плохая новость (поломка, кризис, скандал)</span><input id="set-pause-bad" type="checkbox"></label>
+      <label class="row check"><span>пришло предложение корпорации</span><input id="set-pause-offer" type="checkbox"></label>
+      <label class="row check"><span>касса ушла в минус</span><input id="set-pause-cash" type="checkbox"></label>
+      <h3>Сохранения</h3>
+      <div class="btn-row"><button id="set-export" class="btn ghost" type="button">⬇ Скачать сохранение</button></div>
+      <p class="muted small">Файл можно загрузить в меню («Загрузить из файла») — на этом или другом компьютере.</p>
+      <div class="btn-row"><button id="settings-close" class="btn" type="button">Готово</button></div>
+    </div>
+  </div>
 
   <div id="winner" class="modal">
     <div class="modal-box winner-box">
@@ -59,7 +80,8 @@
       <label data-field="victory">Условие победы <select id="lobby-victory"></select></label>
       <p id="lobby-error" class="neg small"></p>
       <button id="lobby-submit" class="btn" type="submit">Начать</button>
-      <div id="lobby-resume" class="btn-row"></div>
+      <div id="lobby-resume" class="slots"></div>
+      <div class="btn-row"><label class="btn ghost file-btn">📂 Загрузить из файла<input id="lobby-import" type="file" accept=".json,application/json" hidden></label></div>
       <p class="muted small">Мультиплеер работает, когда игра запущена через <code>npm start</code>: друзья открывают тот же адрес и вводят код комнаты.</p>
     </form>
   </div>

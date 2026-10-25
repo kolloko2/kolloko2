@@ -5,7 +5,7 @@ export {
 export { stepDay, stepDays, isOver } from './tick.js';
 export { applyCommand, upgradeCost, COMMAND_TYPES } from './commands.js';
 export { GOALS, goalContext, VICTORY_OPTIONS, victoryText } from './goals.js';
-export { forecast, buildableTypes, canBuildHere } from './forecast.js';
+export { forecast, buildableTypes, canBuildHere, searchLots } from './forecast.js';
 export { buyPrice, sellPrice, midPrice, regionOf } from './market.js';
 export { contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS } from './contracts.js';
 export { leadDays, inTransit } from './logistics.js';
@@ -33,7 +33,7 @@ export {
   IPO_MIN_WORTH, IPO_MIN_MONTHS, CONTROL_SHARE, ABSORB_SHARE, TRADE_FEE, COMPANY_SHARES,
 } from './stocks.js';
 export {
-  companyAlerts, ALERT_KINDS, directorCost, DIRECTOR_WAGE, WORN,
+  companyAlerts, ALERT_KINDS, directorCost, DIRECTOR_WAGE, WORN, companyReport, defaultRules,
 } from './management.js';
 export {
   ARCHETYPES, rivalUnitPrice, truceCost, isAi, TRUCE_MONTHS, offerText, bidForUnit, rivalWants,

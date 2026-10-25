@@ -10,6 +10,10 @@ let enabled = (() => {
 })();
 
 export const soundOn = () => enabled;
+let volume = 1;
+export function setVolume(v) {
+  volume = Math.max(0, Math.min(1, v));
+}
 
 export function toggleSound() {
   enabled = !enabled;
@@ -42,7 +46,7 @@ function tone(freq, start, dur, { type = 'sine', gain = 0.12, slide = 0 } = {}) 
   o.frequency.setValueAtTime(freq, t);
   if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, t + dur);
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0001, gain * volume), t + 0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g).connect(a.destination);
   o.start(t);

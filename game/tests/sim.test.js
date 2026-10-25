@@ -679,3 +679,67 @@ test('советник и предложения корпораций', async ()
   assert.equal(u.companyId, raider.id);
   assert.ok(s.companies.c1.cash > before);
 });
+
+// ---------- новые бизнесы, механики и удобство ----------
+
+test('шаблон точки переносит настройки в другой город', () => {
+  const s = createGame({ seed: 27, rivals: 0 });
+  s.companies.c1.cash = 1e6;
+  const a = open(s, 'ber', 'coffee_shop');
+  applyCommand(s, { type: 'setPrice', unitId: a.id, productId: 'coffee', price: a.prices.coffee * 1.2 }, 'c1');
+  applyCommand(s, { type: 'setAds', unitId: a.id, channel: 'radio', budget: 800 }, 'c1');
+  applyCommand(s, { type: 'setDelivery', unitId: a.id, mode: 'aggregator' }, 'c1');
+  const t = applyCommand(s, { type: 'saveTemplate', unitId: a.id, name: 'Премиум-точка' }, 'c1');
+  assert.ok(t.ok);
+  const lot = firstLot(s, 'mad', 'coffee_shop');
+  const r = applyCommand(s, { type: 'openBusiness', lotId: lot.id, businessType: 'coffee_shop', brandId: null, templateId: t.templateId }, 'c1');
+  const b = s.units[r.unitId];
+  assert.ok(b.prices.coffee > a.prices.coffee * 0.3 && b.ads.radio > 0 && b.delivery === 'aggregator');
+});
+
+test('автопилот гасит кредит и закрывает убыточные точки; поиск мест и отчёт', async () => {
+  const { searchLots, companyReport } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 28, rivals: 0 });
+  s.companies.c1.cash = 2e6;
+  applyCommand(s, { type: 'takeLoan', amount: 20000 }, 'c1');
+  const top = searchLots(s, 'c1', 'fastfood', 'US', 5);
+  assert.ok(top.length === 5 && top[0].payback <= top[4].payback);
+  open(s, 'chi', 'fastfood');
+  assert.ok(applyCommand(s, { type: 'setRules', reserve: 100000, autoRepay: true, closeAfter: 3 }, 'c1').ok);
+  stepDays(s, 40);
+  assert.equal(s.companies.c1.loan, 0, 'кредит погашен излишком');
+  const rep = companyReport(s, 'c1');
+  assert.ok(rep.country.US && rep.type.fastfood);
+});
+
+test('доставка добавляет заказы за комиссию; обучение ускоряет персонал', async () => {
+  const { efficiency } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 29, rivals: 0 });
+  s.companies.c1.cash = 1e6;
+  const u = open(s, 'nyc', 'coffee_shop');
+  u.staff = 12;
+  stepDays(s, 35);
+  const before = u.last.customers;
+  applyCommand(s, { type: 'setDelivery', unitId: u.id, mode: 'aggregator' }, 'c1');
+  stepDays(s, 31);
+  assert.ok(u.last.customers > before * 1.1, `${before} → ${u.last.customers}`);
+  assert.ok(u.last.commission > 0);
+  const e0 = efficiency(s, u);
+  assert.ok(applyCommand(s, { type: 'trainStaff', unitId: u.id }, 'c1').ok);
+  assert.ok(efficiency(s, u) > e0);
+});
+
+test('недвижимость стабильна, застройщик растит город, электростанция снижает коммунальные', async () => {
+  const { monthlyUpkeep } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 30, rivals: 0 });
+  s.companies.c1.cash = 3e7;
+  const bc = open(s, 'nyc', 'business_center');
+  const shop = open(s, 'nyc', 'fastfood');
+  const up0 = monthlyUpkeep(s, shop);
+  open(s, 'chi', 'power_plant');
+  assert.ok(monthlyUpkeep(s, shop) < up0, 'своя электростанция в регионе');
+  open(s, 'nyc', 'developer');
+  stepDays(s, 400);
+  assert.ok(bc.last.revenue > 0 && bc.today.occupancy > 0.3);
+  assert.ok(s.growth.nyc > 1, 'город растёт');
+});

@@ -1,6 +1,8 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { COUNTRIES, CITIES } from '../data/cities.js';
 import { refPrice, unitPriceRatio } from './demand.js';
+import { costIndex as costIndexOf } from './world.js';
+import { setAds as setAdsOf } from './ads.js';
 import { addNews, companyUnits } from './state.js';
 import { attention, autoStaff, efficiency, managerCost } from './staff.js';
 import {
@@ -171,4 +173,91 @@ export function bulk(state, companyId, op, unitIds, opts = {}) {
 
 export function countryName(c) {
   return COUNTRIES[c]?.name ?? c;
+}
+
+// ---------- шаблоны точек ----------
+// Шаблон запоминает настройки точки так, чтобы их можно было перенести в любой город:
+// цены — в долях от местной нормы, реклама — при индексе цен 1.
+export function makeTemplate(state, unit, name) {
+  const def = BUSINESSES[unit.type];
+  const place = placeOf(state, unit);
+  const idx = costIndexOf(place);
+  /** @type {Record<string, number>} */
+  const priceRatio = {};
+  if (def.retail) for (const p of def.retail.products) priceRatio[p.id] = Math.round((unit.prices[p.id] / refPrice(place, p)) * 100) / 100;
+  /** @type {Record<string, number>} */
+  const ads = {};
+  for (const [ch, b] of Object.entries(unit.ads || {})) ads[ch] = Math.round(b / idx);
+  return {
+    name, type: unit.type, priceRatio, ads, wageLevel: unit.wageLevel ?? 1, brandId: unit.brandId ?? null,
+    delivery: unit.delivery ?? 'none', manager: Boolean(unit.manager), sellMode: unit.sellMode,
+  };
+}
+
+export function applyTemplate(state, unit, t) {
+  const def = BUSINESSES[unit.type];
+  const place = placeOf(state, unit);
+  if (!unit.brandId && def.retail) {
+    for (const p of def.retail.products) unit.prices[p.id] = Math.round(refPrice(place, p) * (t.priceRatio[p.id] ?? 1) * 100) / 100;
+    setAdsOf(unit, Object.fromEntries(Object.entries(t.ads).map(([ch, b]) => [ch, b * costIndexOf(place)])));
+    unit.wageLevel = t.wageLevel;
+  }
+  unit.delivery = t.delivery;
+  unit.sellMode = t.sellMode ?? unit.sellMode;
+  if (t.manager) {
+    unit.manager = true;
+    unit.autoStaff = true;
+  }
+}
+
+// ---------- автопилот компании ----------
+// rules: { reserve — держать в кассе, autoRepay — гасить кредит излишком, closeAfter — закрывать после N месяцев убытка (0 — нет),
+//          autoRenovate — обновлять изношенные точки, если касса выше резерва }
+export function defaultRules() {
+  return { reserve: 50000, autoRepay: false, closeAfter: 0, autoRenovate: false };
+}
+
+export function monthlyRules(state) {
+  for (const co of Object.values(state.companies)) {
+    const r = co.rules;
+    if (!r || co.bankrupt || co.ai) continue;
+    for (const u of companyUnits(state, co.id)) {
+      if (r.closeAfter > 0 && u.history.length >= r.closeAfter && u.history.slice(-r.closeAfter).every((p) => p < 0)) {
+        closeUnit(state, u);
+        addNews(state, 'info', `Автопилот закрыл «${u.name}»: ${r.closeAfter} мес. подряд в убытке.`, null, co.id);
+        continue;
+      }
+      if (r.autoRenovate && condition(u) < WORN) {
+        const cost = renovateCost(state, u);
+        if (co.cash - cost > r.reserve) renovateUnit(state, u, cost);
+      }
+    }
+    if (r.autoRepay && co.loan > 0 && co.cash > r.reserve) {
+      const a = Math.min(co.loan, co.cash - r.reserve);
+      co.loan -= a;
+      pay(state, co.id, a);
+    }
+  }
+}
+
+// ---------- отчёты ----------
+// Прибыль прошлого месяца по странам, сетям и типам бизнеса + самые убыточные точки
+export function companyReport(state, companyId) {
+  /** @type {Record<string, Record<string, { n: number, revenue: number, profit: number }>>} */
+  const by = { country: {}, brand: {}, type: {} };
+  const units = companyUnits(state, companyId).filter((u) => u.last);
+  for (const u of units) {
+    const place = placeOf(state, u);
+    const p = monthProfit(u.last);
+    const keys = { country: place.country, brand: u.brandId ? state.brands[u.brandId]?.name ?? '—' : 'без сети', type: u.type };
+    for (const [k, key] of Object.entries(keys)) {
+      const g = (by[k][key] ||= { n: 0, revenue: 0, profit: 0 });
+      g.n++;
+      g.revenue += u.last.revenue + u.last.revInternal;
+      g.profit += p;
+    }
+  }
+  const worst = units.map((u) => ({ id: u.id, profit: monthProfit(u.last) })).sort((a, b) => a.profit - b.profit).slice(0, 5);
+  const best = units.map((u) => ({ id: u.id, profit: monthProfit(u.last) })).sort((a, b) => b.profit - a.profit).slice(0, 5);
+  return { country: by.country, brand: by.brand, type: by.type, worst, best };
 }

@@ -11,6 +11,12 @@ export const SPEEDS = [
   { ms: 120, icon: '⏭', title: 'Очень быстро (3)' },
 ];
 
+// Множитель длины игрового дня в соло (настройки: 0.5 — быстрее, 2 — медленнее)
+let dayScale = 1;
+export function setDayScale(k) {
+  dayScale = k;
+}
+
 class Emitter {
   constructor() {
     this.handlers = {};
@@ -50,7 +56,7 @@ export class LocalSession extends Emitter {
 
   // Вызывается каждый кадр: прокручивает игровые дни по выбранной скорости
   update(dt) {
-    const ms = SPEEDS[this.speed].ms;
+    const ms = SPEEDS[this.speed].ms * dayScale;
     if (!Number.isFinite(ms) || isOver(this.state)) return;
     this.acc += dt;
     let steps = 0;

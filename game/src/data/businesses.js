@@ -258,14 +258,14 @@ export const BUSINESSES = {
   hotel: {
     name: 'Отель', icon: '🏨', zoning: 'commercial', category: 'hotel', tier: 3, minArea: 120,
     description: 'Номера для туристов: чем туристичнее город, тем больше гостей. Летом аншлаг, зимой пусто. Дорого, но надолго.',
-    capex: 1600000, renovPerM2: 500,
+    capex: 2400000, renovPerM2: 500,
     upkeep: { base: 7000, perArea: 25 },
     staff: { role: 'Персонал отеля', wage: 2400, min: 8, max: 80, def: 20 },
     marketing: 3000,
     retail: {
       perStaff: 3, cap: [60, 120, 200],
       products: [
-        { id: 'room', name: 'Номер на ночь', ref: 95, attach: 1, tradable: 0.3, recipe: { groceries: 1.5 } },
+        { id: 'room', name: 'Номер на ночь', ref: 90, attach: 1, tradable: 0.3, recipe: { groceries: 1.5 } },
         { id: 'hmeal', name: 'Ресторан отеля', ref: 25, attach: 0.5, recipe: { groceries: 3, meat: 0.1 } },
       ],
     },

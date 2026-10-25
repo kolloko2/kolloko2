@@ -102,6 +102,9 @@
  * @property {Record<string, number>} [truces]
  * @property {{ archetype: string, home: string }} [ai] есть у ИИ-корпораций
  * @property {string} [absorbedBy]
+ * @property {Record<string, any>} [templates] шаблоны точек
+ * @property {number} [nextTemplateId]
+ * @property {{ reserve: number, autoRepay: boolean, closeAfter: number, autoRenovate: boolean }} [rules] автопилот
  */
 
 /**

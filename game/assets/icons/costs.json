@@ -262,5 +262,77 @@
   "business/billboards": {
     "model": "meta/muse-image",
     "cost": 0.01
+  },
+  "business/hotel": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/fitness": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/beauty_salon": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/pharmacy": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/pharma_plant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/car_dealer": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/auto_service": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/shopping_mall": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/business_center": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/developer": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/power_plant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/port": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/courier": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/medicine": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/cosmetics": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/parts": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/cars": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/search": {
+    "model": "meta/muse-image",
+    "cost": 0.01
   }
 }

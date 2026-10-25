@@ -17,7 +17,7 @@ import { runContracts } from './contracts.js';
 import { countryTax, monthlyCountryEvents, monthlyInflation } from './countries.js';
 import { applyBrand } from './brands.js';
 import { overhead } from './expansion.js';
-import { runDirectors } from './management.js';
+import { runDirectors, monthlyRules } from './management.js';
 import { monthlyRivals } from './rivals.js';
 import { runResearch, techLevel, taxBreak } from './research.js';
 import { loanRate } from './state.js';
@@ -289,6 +289,7 @@ function monthEnd(state) {
   monthlyViral(state);
   monthlyLuck(state);
   monthlyServiceMood(state);
+  monthlyRules(state);
   if (newYear) yearlyGrowth(state);
   monthlyEvents(state);
   monthlyStaffEvents(state);

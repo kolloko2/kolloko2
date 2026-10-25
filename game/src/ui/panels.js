@@ -167,12 +167,17 @@ function renderLot(app, lot) {
       <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="${f.brandId ?? ''}" data-profit="${def.storage ? 0 : f.profit}" data-capex="${cost}"
         data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>
         ${f.locked ? 'Нужна технология' : afford ? `Открыть${f.brandId ? ' в сети' : ''} за ${moneyShort(cost)}` : `Не хватает ${moneyShort(cost - app.company.cash)}`}</button>
+      ${templatesFor(app, f.type).map(([tid, t]) => `<button class="btn ghost" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-template="${tid}" data-brand="${t.brandId ?? 'none'}" data-profit="${f.profit}" data-capex="${cost}" data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>📋 По шаблону «${esc(t.name)}»</button>`).join('')}
       ${f.brandId && afford ? `<button class="btn ghost" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="none" data-profit="${f.profit}" data-capex="${cost}" data-costs="${f.revenue - f.profit}">Отдельно</button>` : ''}
       </div>
     </div>`;
   }
   html += `<p class="muted small">Прогноз примерный: реальный результат зависит от цен, рекламы, качества и конкурентов. ${esc(place.name)}.</p>`;
   return html;
+}
+
+function templatesFor(app, type) {
+  return Object.entries(app.company.templates || {}).filter(([, t]) => t.type === type);
 }
 
 function ownerText(app, lot) {
@@ -447,6 +452,7 @@ function renderUnit(app, u) {
   }
   if (!lot.ownerId) html += lotOwnershipButtons(app, lot);
   html += `<button class="btn ghost" data-action="copySettings" data-id="${u.id}" title="Те же цены (относительно местной нормы), реклама и сбыт">📋 Применить настройки ко всем «${def.name}»</button>`;
+  html += `<button class="btn ghost" data-action="saveTemplate" data-id="${u.id}" title="Цены в % нормы, реклама, зарплаты, сеть, доставка, управляющий — для новых точек">💾 Сохранить как шаблон</button>`;
   html += `<button class="btn danger" data-action="close" data-id="${u.id}">✖ Закрыть бизнес</button></div>`;
   const buyers = Object.values(state.companies).filter((c) => c.ai && !c.bankrupt && rivalWants(state, c, u));
   if (buyers.length) {

@@ -1,5 +1,6 @@
 import { bizIcon, goodIcon } from './icons.js';
 import { BUSINESSES } from '../data/businesses.js';
+import { DISTRICTS } from '../data/districts.js';
 import { GOODS } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
 import { COUNTRIES, BLOCS } from '../data/cities.js';
@@ -9,7 +10,7 @@ import { AD_CHANNELS } from '../data/ads.js';
 import {
   ARCHETYPES, truceCost, TRUCE_MONTHS, offerText, techLevel, techCost, techLocked, researchSpeed, lobbyCost, lobbyChance, employees, taxBreak,
   LOBBY_GOALS, LOBBY_COOLDOWN, BIG_EMPLOYER, loanRate,
-  companyAlerts, ALERT_KINDS, directorCost, condition,
+  companyAlerts, ALERT_KINDS, directorCost, condition, companyReport, defaultRules,
   overhead, countryState, franchiseCount, franchiseAppeal, packageCost, ROYALTIES, FRANCHISE_MIN_UNITS,
   listingOf, controllerOf, stakeOf, ipoCheck, absorbCost, portfolioValue, fairCompanyPrice,
   IPO_MIN_WORTH, IPO_MIN_MONTHS, ABSORB_SHARE, CONTROL_SHARE, TRADE_FEE,
@@ -23,6 +24,7 @@ import { money, moneyShort, num, pct, stars, esc, signClass, sparkline, bars, li
 export const TABS = [
   { id: 'units', icon: '🏢', img: 'city', name: 'Бизнесы' },
   { id: 'tasks', icon: '⚠️', img: 'tasks', name: 'Задачи' },
+  { id: 'search', icon: '🔍', img: 'search', name: 'Поиск мест' },
   { id: 'market', icon: '💹', img: 'market', name: 'Рынок' },
   { id: 'finance', icon: '🏦', img: 'finance', name: 'Финансы' },
   { id: 'news', icon: '📰', img: 'news', name: 'Новости' },
@@ -80,6 +82,27 @@ function renderUnits(app) {
   }
   html += `<tr class="total"><td></td><td>Итого (${units.length})</td><td></td><td></td><td class="${signClass(total)}">${moneyShort(total)}</td></tr></table>`;
   return html;
+}
+
+// Поиск мест: лучшие участки для выбранного бизнеса (считается по кнопке — это долго)
+function renderSearch(app) {
+  const { state } = app;
+  const q = app.search || { type: 'coffee_shop', country: '' };
+  const types = Object.entries(BUSINESSES).filter(([, d]) => !d.storage);
+  let html = `<h2>🔍 Поиск мест</h2><p class="muted small">Лучшие свободные участки по окупаемости для выбранного бизнеса. Прогноз — примерный: учтены спрос, конкуренты, аренда, сборы и лицензии.</p>
+    <div class="filters"><select id="search-type">${types.map(([id, d]) => `<option value="${id}" ${q.type === id ? 'selected' : ''}>${d.icon} ${d.name}</option>`).join('')}</select>
+    <select id="search-country"><option value="">Весь мир</option>${Object.entries(COUNTRIES).sort((a, z) => a[1].name.localeCompare(z[1].name, 'ru')).map(([c, d]) => `<option value="${c}" ${q.country === c ? 'selected' : ''}>${d.name}</option>`).join('')}</select></div>
+    <button class="btn" data-action="search">Найти</button>`;
+  const res = app.searchResults;
+  if (!res) return html;
+  if (!res.length) return `${html}<p class="muted">Подходящих мест с прибылью не нашлось.</p>`;
+  html += '<table class="tbl hover compact"><tr><th>Где</th><th>Прибыль/мес</th><th>Окупаемость</th><th>Вложения</th></tr>';
+  for (const r of res) {
+    const d = state.world.districts[r.districtId];
+    html += `<tr data-action="selectLot" data-id="${r.lotId}"><td>${esc(state.world.places[r.placeId].name)}<small class="muted"><br>${esc(DISTRICTS[d.type].name)}</small></td>
+      <td class="pos">${moneyShort(r.profit)}</td><td>${r.payback < 1000 ? `${Math.round(r.payback)} мес.` : '—'}</td><td>${moneyShort(r.cost)}${r.locked ? ' 🔬' : ''}</td></tr>`;
+  }
+  return `${html}</table>`;
 }
 
 // Задачи: что требует внимания, с исправлением в один клик
@@ -177,7 +200,7 @@ function renderFinance(app) {
     <div class="card"><div class="row"><span>Сумма</span><span class="price-ctl"><input id="loan-amount" type="number" step="5000" min="0" value="10000"></span></div>
     <div class="btn-row"><button class="btn" data-action="takeLoan">Взять кредит</button><button class="btn ghost" data-action="repayLoan">Погасить</button></div>
     <div class="muted small">Лимит растёт с прибылью и стоимостью ваших бизнесов и недвижимости. Если касса в минусе 45 дней — банкротство.</div></div>`;
-  html += renderPresence(app);
+  html += renderRules(app) + renderReport(app) + renderPresence(app);
   if (h.length) {
     const hist = co.history.slice(-36);
     html += `<h3>Капитал и касса</h3>${lineChart([
@@ -251,6 +274,38 @@ function renderRoom(app) {
   for (const m of app.chat) html += `<div class="chat-msg"><b style="color:${m.color || 'inherit'}">${esc(m.from)}:</b>${esc(m.text)}</div>`;
   html += '</div><form id="chat-form"><input maxlength="300" placeholder="Сообщение…" autocomplete="off"><button class="btn" type="submit">➤</button></form>';
   return html;
+}
+
+// Автопилот компании
+function renderRules(app) {
+  const r = app.company.rules || defaultRules();
+  return `<h3>🤖 Автопилот</h3><div class="card">
+    <div class="row"><span>Держать в кассе не меньше, $</span><span class="price-ctl"><input type="number" min="0" step="10000" value="${r.reserve}" data-change="rules" data-key="reserve"></span></div>
+    <label class="row check"><span>Гасить кредит всем, что выше резерва</span><input type="checkbox" data-change="rules" data-key="autoRepay" ${r.autoRepay ? 'checked' : ''}></label>
+    <label class="row check"><span>Обновлять изношенные точки (если касса выше резерва)</span><input type="checkbox" data-change="rules" data-key="autoRenovate" ${r.autoRenovate ? 'checked' : ''}></label>
+    <div class="row"><span>Закрывать точку после убытка</span><select data-change="rules" data-key="closeAfter">${[0, 3, 6, 12].map((m) => `<option value="${m}" ${r.closeAfter === m ? 'selected' : ''}>${m ? `${m} мес. подряд` : 'никогда'}</option>`).join('')}</select></div>
+    <div class="muted small">Правила срабатывают в конце каждого месяца.</div></div>`;
+}
+
+// Отчёты: где компания зарабатывает и где теряет
+function renderReport(app) {
+  const { state } = app;
+  const rep = companyReport(state, app.companyId);
+  const table = (title, groups, name) => {
+    const rows = Object.entries(groups).sort((a, b) => b[1].profit - a[1].profit);
+    if (!rows.length) return '';
+    return `<h3>${title}</h3><table class="tbl compact"><tr><th></th><th>Точек</th><th>Выручка</th><th>Прибыль</th><th>На точку</th></tr>${rows.map(([k, g]) => `<tr><td>${esc(name(k))}</td><td>${g.n}</td><td>${moneyShort(g.revenue)}</td>
+      <td class="${signClass(g.profit)}">${moneyShort(g.profit)}</td><td class="${signClass(g.profit)}">${moneyShort(g.profit / g.n)}</td></tr>`).join('')}</table>`;
+  };
+  const list = (title, items) => (items.length ? `<h3>${title}</h3><div class="list">${items.map((x) => {
+    const u = state.units[x.id];
+    return `<button class="list-item" data-action="selectUnit" data-fly="1" data-id="${x.id}"><span class="li-icon">${bizIcon(u.type)}</span><span class="li-main">${esc(u.name)}<small>${esc(state.world.places[u.placeId].name)} · <span class="${signClass(x.profit)}">${moneyShort(x.profit)}</span></small></span></button>`;
+  }).join('')}</div>` : '');
+  return table('📊 Прибыль по странам (прошлый месяц)', rep.country, (c) => COUNTRIES[c].name)
+    + table('По сетям', rep.brand, (b) => b)
+    + table('По типам бизнеса', rep.type, (t) => BUSINESSES[t].name)
+    + list('🏆 Лучшие точки', rep.best.filter((x) => x.profit > 0))
+    + list('🕳 Худшие точки', rep.worst.filter((x) => x.profit < 0));
 }
 
 // Где работает компания: домашняя страна, местные команды, оптовые скидки
@@ -582,7 +637,7 @@ export function renderDrawer(app) {
   const chatDraft = active?.closest('#chat-form') ? active.value : null;
   if (active?.tagName === 'INPUT' && chatDraft === null) return; // не мешаем вводу суммы кредита и т.п.
   const render = {
-    units: renderUnits, tasks: renderTasks, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands,
+    units: renderUnits, tasks: renderTasks, search: renderSearch, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands,
     countries: renderCountries, stocks: renderStocks, rivals: renderRivals, research: renderResearch, goals: renderGoals, room: renderRoom, help: renderHelp,
   }[app.tab];
   const scroll = el.scrollTop;

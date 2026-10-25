@@ -13,7 +13,9 @@ import { COUNTRIES } from '../data/cities.js';
 import { BRAND_TIERS, newBrand, applyBrand, detachFromBrand, brandUnits } from './brands.js';
 import { entryFee, LOCAL_TEAM_UNITS } from './expansion.js';
 import { licenseNeeded, grantLicense } from './countries.js';
-import { bulk, closeUnit, newDirector, directorCost } from './management.js';
+import {
+  bulk, closeUnit, newDirector, directorCost, makeTemplate, applyTemplate, defaultRules,
+} from './management.js';
 import {
   buyRivalUnit, rivalUnitPrice, truceCost, TRUCE_MONTHS, acceptOffer, offerText, bidForUnit, rivalWants, transferUnit,
 } from './rivals.js';
@@ -50,7 +52,7 @@ function ownUnit(state, id, companyId) {
 /** @type {Record<string, (state: State, cmd: any, companyId: string) => any>} */
 const handlers = {
   // brandId — открыть сразу в составе сети (undefined — в первой сети этого типа, null — отдельно)
-  openBusiness(state, { lotId, businessType, brandId }, companyId) {
+  openBusiness(state, { lotId, businessType, brandId, templateId }, companyId) {
     const lot = state.world.lots[lotId];
     const def = BUSINESSES[businessType];
     const co = state.companies[companyId];
@@ -128,6 +130,15 @@ const handlers = {
     if (brand) {
       unit.name = `${brand.name} · ${place.name}`;
       applyBrand(state, brand);
+    }
+    const tpl = templateId ? co.templates?.[templateId] : null;
+    if (tpl && tpl.type === businessType) {
+      if (tpl.brandId && state.brands[tpl.brandId]?.companyId === companyId && !unit.brandId) {
+        unit.brandId = tpl.brandId;
+        unit.name = `${state.brands[tpl.brandId].name} · ${place.name}`;
+        applyBrand(state, state.brands[tpl.brandId]);
+      }
+      applyTemplate(state, unit, tpl);
     }
     state.mapVersion++;
     addNews(state, 'good', `Открыт бизнес «${unit.name}» — ${place.name}. Вложено ${fmt(capex)}.`, { unitId: id }, companyId);
@@ -428,6 +439,41 @@ const handlers = {
     if (unit.brandId) return fail('Зарплаты в точках сети задаёт сеть');
     if (!WAGE_LEVELS.includes(level)) return fail('Уровень зарплаты: 80%, 100%, 120% или 150%');
     unit.wageLevel = level;
+    return OK;
+  },
+
+  saveTemplate(state, { unitId, name }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    const n = String(name || '').trim().slice(0, 30) || `Как «${unit.name}»`;
+    const co = state.companies[companyId];
+    co.templates ||= {};
+    co.nextTemplateId = (co.nextTemplateId || 0) + 1;
+    const id = `t${co.nextTemplateId}`;
+    co.templates[id] = makeTemplate(state, unit, n);
+    return { ok: true, templateId: id };
+  },
+
+  deleteTemplate(state, { templateId }, companyId) {
+    const co = state.companies[companyId];
+    if (!co.templates?.[templateId]) return fail('Нет такого шаблона');
+    delete co.templates[templateId];
+    return OK;
+  },
+
+  setRules(state, { reserve, autoRepay, closeAfter, autoRenovate }, companyId) {
+    const co = state.companies[companyId];
+    co.rules ||= defaultRules();
+    if (reserve !== undefined) {
+      if (!(reserve >= 0 && reserve <= 1e9)) return fail('Недопустимый резерв');
+      co.rules.reserve = Math.round(reserve);
+    }
+    if (autoRepay !== undefined) co.rules.autoRepay = Boolean(autoRepay);
+    if (autoRenovate !== undefined) co.rules.autoRenovate = Boolean(autoRenovate);
+    if (closeAfter !== undefined) {
+      if (![0, 3, 6, 12].includes(closeAfter)) return fail('Закрывать после 3, 6 или 12 месяцев убытка (0 — никогда)');
+      co.rules.closeAfter = closeAfter;
+    }
     return OK;
   },
 
