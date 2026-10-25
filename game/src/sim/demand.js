@@ -107,6 +107,7 @@ export function unitUtility(state, unit) {
 
 // Распределение покупателей района между продавцами категории.
 // extra — гипотетический продавец (для прогноза): { id, u }
+/** @param {any} state @param {any} district @param {string} category @param {{ id: string, u: number }|null} [extra] */
 export function districtShares(state, district, category, extra = null) {
   const potential = districtPotential(state, district, category);
   const sellers = [];

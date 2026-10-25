@@ -140,7 +140,6 @@ function expand(state, co) {
 }
 
 function manage(state, co) {
-  const arch = ARCHETYPES[co.ai.archetype];
   const units = companyUnits(state, co.id);
   // все точки продаж — в сеть своего типа
   for (const u of units) {

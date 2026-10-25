@@ -36,6 +36,7 @@ export function forecastBrand(state, companyId, type, brandId) {
 }
 
 // Прогноз месячной экономики бизнеса типа type на участке lot.
+/** @param {any} state @param {string} lotId @param {string} type @param {string|null} [companyId] @param {string|null} [brandId] */
 export function forecast(state, lotId, type, companyId = null, brandId = undefined) {
   const lot = state.world.lots[lotId];
   const def = BUSINESSES[type];

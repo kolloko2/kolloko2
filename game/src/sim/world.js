@@ -69,6 +69,7 @@ const RING = {
 };
 
 function cityDistrictTypes(pop) {
+  /** @type {string[]} */
   const types = ['cbd', 'historic', 'residential', 'student', 'industrial'];
   if (pop >= 4) types.push('mall', 'premium');
   if (pop >= 9) types.push('residential', 'mall');
@@ -91,7 +92,7 @@ export function generateWorld(rng) {
   const addLot = (district, place, type, [minDist, maxDist]) => {
     const def = DISTRICTS[type];
     // участок — только на суше (несколько попыток)
-    let p;
+    let p = { lat: district.lat, lng: district.lng };
     for (let t = 0; t < 30; t++) {
       const distance = randRange(rng, minDist, maxDist);
       const angle = rand(rng) * Math.PI * 2;
@@ -136,7 +137,7 @@ export function generateWorld(rng) {
   };
 
   for (const c of CITIES) {
-    const place = { ...c, kind: 'city', districtIds: [] };
+    const place = { ...c, kind: 'city', districtIds: /** @type {string[]} */ ([]) };
     places[c.id] = place;
     const types = cityDistrictTypes(c.pop);
     const baseAngle = rand(rng) * Math.PI * 2;
@@ -144,7 +145,7 @@ export function generateWorld(rng) {
       const def = DISTRICTS[type];
       const ring = RING[type];
       // центр района: на суше, в основном окружён сушей и не наезжает на соседние районы
-      let center;
+      let center = { lat: c.lat, lng: c.lng };
       let best = -1;
       for (let t = 0; t < 40; t++) {
         const spread = 1 + t / 15; // если долго не выходит — ищем дальше и под любым углом
@@ -176,7 +177,7 @@ export function generateWorld(rng) {
   }
 
   for (const r of REGIONS) {
-    const place = { ...r, kind: 'region', districtIds: [] };
+    const place = { ...r, kind: 'region', districtIds: /** @type {string[]} */ ([]) };
     places[r.id] = place;
     const id = `${r.id}:1`;
     const district = { id, placeId: r.id, type: 'rural', lat: r.lat, lng: r.lng, radius: 20000, lotIds: [], ai: {} };

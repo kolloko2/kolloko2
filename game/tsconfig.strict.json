@@ -1,0 +1,11 @@
+{
+  // Строгая проверка ядра экономики и сети: npm run typecheck:strict
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true
+  },
+  "include": ["src/sim/*.js", "src/net/*.js", "src/types/*.d.ts"]
+}

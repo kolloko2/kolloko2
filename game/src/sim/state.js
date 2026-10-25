@@ -118,6 +118,7 @@ export function monthLabel(day) {
 }
 
 // companyId = null — новость для всех (мировые события)
+/** @param {any} state @param {string} kind @param {string} text @param {Record<string, any>|null} [ref] @param {string|null} [companyId] */
 export function addNews(state, kind, text, ref = null, companyId = null) {
   state.news.unshift({ seq: ++state.newsSeq, day: state.day, kind, text, ref, companyId });
   if (state.news.length > 300) state.news.length = 300;

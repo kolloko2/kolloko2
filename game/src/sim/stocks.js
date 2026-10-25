@@ -40,7 +40,8 @@ export function initStocks(rng) {
   return { listings };
 }
 
-const corpDef = (id) => CORPS.find((c) => c.id === id);
+/** @param {string} id */
+const corpDef = (id) => /** @type {typeof CORPS[number]} */ (CORPS.find((c) => c.id === id));
 
 export function listingOf(state, companyId) {
   return state.stocks?.listings[companyId] || null;

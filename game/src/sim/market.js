@@ -31,6 +31,7 @@ function impact(flow, depth) {
 }
 
 // Средняя цена: мировая, либо в регионе (regionId)
+/** @param {any} state @param {string} good @param {string|null} [regionId] */
 export function midPrice(state, good, regionId = null) {
   const m = state.market.goods[good];
   const world = m.price * (1 + impact(m.flow, GOODS[good].depth));
@@ -40,6 +41,7 @@ export function midPrice(state, good, regionId = null) {
 }
 
 // place — где покупаем: региональная цена, а для местных товаров ещё и уровень цен в городе
+/** @param {any} state @param {string} good @param {any} [place] @param {{ bulk?: boolean }} [opts] */
 export function buyPrice(state, good, place = null, { bulk = false } = {}) {
   // местные товары: и уровень цен в городе, и его инфляция относительно мировой
   const local = GOODS[good].local && place ? (0.3 + 0.7 * priceIndex(place)) * localInflation(state, place) : 1;
@@ -53,11 +55,13 @@ function localInflation(state, place) {
   return (place.cpi ?? 1) / world;
 }
 
+/** @param {any} state @param {string} good @param {any} [place] */
 export function sellPrice(state, good, place = null) {
   return midPrice(state, good, place ? regionOf(place) : null) * (1 - MARKET_SELL_DISCOUNT);
 }
 
 // qtySold > 0 — продажа рынку, < 0 — покупка
+/** @param {any} state @param {string} good @param {number} qtySold @param {any} [place] */
 export function recordTrade(state, good, qtySold, place = null) {
   const m = state.market.goods[good];
   m.today += qtySold;
