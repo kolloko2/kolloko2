@@ -16,8 +16,9 @@ function bestOpportunity() {
     if (lot.unitId) continue;
     for (const type of buildableTypes(state, lot)) {
       const f = forecast(state, lot.id, type, ME);
-      if (f.profit <= 0 || f.capex > co.cash - 10000) continue;
-      const score = f.profit / f.capex;
+      const cost = f.capex + (f.entryFee || 0);
+      if (f.profit <= 0 || cost > co.cash - 10000) continue;
+      const score = f.profit / cost;
       if (!best || score > best.score) best = { lot, type, f, score };
     }
   }
@@ -31,13 +32,13 @@ for (let month = 0; month < years * 12; month++) {
     if (op) {
       const r = applyCommand(state, { type: 'openBusiness', lotId: op.lot.id, businessType: op.type }, ME);
       // после 5 точек бот нанимает управляющих, чтобы не терять эффективность
-      if (r.ok && Object.keys(state.units).length > 5) applyCommand(state, { type: 'hireManager', unitId: r.unitId }, ME);
+      if (r.ok && Object.values(state.units).filter((u) => u.companyId === ME).length > 5) applyCommand(state, { type: 'hireManager', unitId: r.unitId }, ME);
     }
   }
   stepDays(state, 30);
   if (co.bankrupt) break;
   if (month % 12 === 11) {
-    const units = Object.values(state.units);
+    const units = Object.values(state.units).filter((u) => u.companyId === ME);
     const byType = {};
     for (const u of units) byType[BUSINESSES[u.type].icon] = (byType[BUSINESSES[u.type].icon] || 0) + 1;
     const h = co.history.at(-1);
