@@ -6,7 +6,7 @@ import { COUNTRIES } from '../data/cities.js';
 import { GOODS } from '../data/goods.js';
 import {
   gridOf, cellInfo, lotAtCell, cellBuildable, makeCellLot, capexFor, canBuildHere, missingTech, entryFee, licenseNeeded, allowedRecipes,
-  countryState,
+  countryState, districtEventOf,
 } from '../sim/index.js';
 import { bizIcon, districtIcon } from './icons.js';
 import { money, moneyShort, num, pct, esc } from './format.js';
@@ -21,6 +21,8 @@ export const BUILD_GROUPS = [
 ];
 
 const WATER = '#a9d3ec';
+// События в районах (фестиваль, ремонт дороги…) — значок у названия района
+const EVENT_ICONS = { festival: '🎉', roadworks: '🚧', metro: '🚇', office: '🏢', closure: '🏚️' };
 
 // Состояние экрана города живёт в app.city: { placeId, build: тип|null, recipe, menu, hover }
 export function openCity(app, placeId) {
@@ -166,7 +168,9 @@ function grid(app, place) {
   const labels = place.districtIds.map((id) => {
     const d = state.world.districts[id];
     const [x, y] = nearestCell(state, place, d);
-    return `<text x="${x + 0.5}" y="${y - 0.25}" class="dlabel" text-anchor="middle">${DISTRICTS[d.type].icon} ${DISTRICTS[d.type].name}</text>`;
+    const ev = districtEventOf(state, d.id);
+    const badge = ev ? ` ${EVENT_ICONS[ev.kind] ?? '❗'}` : '';
+    return `<text x="${x + 0.5}" y="${y - 0.25}" class="dlabel" text-anchor="middle">${DISTRICTS[d.type].icon} ${DISTRICTS[d.type].name}${badge}</text>`;
   }).join('');
   return `<svg id="city-svg" viewBox="-0.5 -0.5 ${n + 1} ${n + 1}" preserveAspectRatio="xMidYMid meet" class="${build ? 'building' : ''}">
     <g>${cells}</g><path d="${streets}" class="street"/><g>${deco}</g><path d="${lines}" class="dborder"/>${sel}<g>${marks}</g><g>${labels}</g></svg>`;

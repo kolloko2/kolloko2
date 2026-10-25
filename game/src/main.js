@@ -6,7 +6,7 @@ import {
 } from './sim/index.js';
 import { renderTutorial, restartTutorial, skipTutorial, advisorAction, hideHint, resetHints } from './ui/tutorial.js';
 import { LocalSession, RemoteSession, SPEEDS, setDayScale } from './net/session.js';
-import { initMap, refreshMap, refreshWarnings, resetMap, flyToDistrict, flyToLot } from './ui/map.js';
+import { initMap, refreshMap, refreshWarnings, resetMap, zoomOutFrom } from './ui/map.js';
 import { renderPanel } from './ui/panels.js';
 import { renderDrawer, TABS, filteredUnits } from './ui/tabs.js';
 import { openCity, closeCity, renderCity, startBuild, cancelBuild, cellFacts } from './ui/city.js';
@@ -602,18 +602,19 @@ async function handleAction(el) {
   const { action, id } = el.dataset;
   const { state } = app;
   switch (action) {
+    // районы, участки и бизнесы показываем на плане их города
     case 'selectDistrict':
+      showOnPlan(state.world.districts[id].placeId);
       app.select({ kind: 'district', id });
-      flyToDistrict(state.world.districts[id]);
       break;
     case 'selectLot':
+      showOnPlan(state.world.lots[id].placeId);
       app.select({ kind: 'lot', id });
-      flyToLot(state.world.lots[id]);
       break;
     case 'selectUnit':
       if (!state.units[id]) return;
+      if (el.dataset.fly) showOnPlan(state.units[id].placeId);
       app.select({ kind: 'unit', id });
-      if (el.dataset.fly) flyToLot(state.world.lots[state.units[id].lotId]);
       break;
     case 'deselect':
       app.select(null);
@@ -938,6 +939,10 @@ function handleChange(el) {
       break;
     default:
   }
+}
+
+function showOnPlan(placeId) {
+  if (app.city?.placeId !== placeId) openCity(app, placeId);
 }
 
 // Постройка: окно с фактами (вложения, аренда, зарплаты, содержание) — без прогноза прибыли
