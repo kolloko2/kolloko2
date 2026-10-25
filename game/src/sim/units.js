@@ -4,6 +4,7 @@ import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { itCapacityBoost } from './bonuses.js';
 import { efficiency, laborFactor, wageLevel } from './staff.js';
+import { foreignFactor } from './expansion.js';
 
 export function emptyMonth() {
   return {
@@ -34,13 +35,13 @@ export function capexFor(state, lot, type) {
 // Зарплата одного сотрудника: ставка профессии × уровень зарплат города × выбранный уровень × рынок труда
 export function monthlyWage(state, unit) {
   const place = placeOf(state, unit);
-  return BUSINESSES[unit.type].staff.wage * place.wage * wageLevel(unit) * laborFactor(state, place);
+  return BUSINESSES[unit.type].staff.wage * place.wage * wageLevel(unit) * laborFactor(state, place) * foreignFactor(state, unit);
 }
 
 export function monthlyUpkeep(state, unit) {
   const u = BUSINESSES[unit.type].upkeep;
   const place = placeOf(state, unit);
-  return (u.base + u.perArea * lotOf(state, unit).area) * costIndex(place);
+  return (u.base + u.perArea * lotOf(state, unit).area) * costIndex(place) * foreignFactor(state, unit) * (unit.tierUpkeep ?? 1);
 }
 
 // Аренда: не платим, если помещение принадлежит своей компании.
@@ -138,7 +139,7 @@ export function defaultPrices(state, lot, type) {
 }
 
 export function baseQuality(unit) {
-  return (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1);
+  return (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1) + (unit.tierQuality ?? 0);
 }
 
 // Деньги: все движения кассы проходят через эти функции (для учёта и тестов).

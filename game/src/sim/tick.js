@@ -10,6 +10,7 @@ import { receiveDeliveries } from './logistics.js';
 import { runServices } from './services.js';
 import { marketingBoost } from './bonuses.js';
 import { updateStaff, monthlyStaffEvents, managerCost, morale } from './staff.js';
+import { updateBrands } from './brands.js';
 import { runContracts } from './contracts.js';
 import { costIndex } from './world.js';
 import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
@@ -137,6 +138,7 @@ function liquidate(state, co) {
   }
   for (const lot of Object.values(state.world.lots)) if (lot.ownerId === co.id) lot.ownerId = null;
   state.contracts = state.contracts.filter((c) => c.companyId !== co.id);
+  for (const b of Object.values(state.brands)) if (b.companyId === co.id) delete state.brands[b.id];
   state.shipments = state.shipments.filter((s) => s.companyId !== co.id);
   state.mapVersion++;
   const others = state.mode === 'pvp' ? null : co.id;
@@ -171,7 +173,7 @@ function closeCompanyMonth(state, co, units) {
     if (p > 0) spendCompany(state, co.id, 'tax', p * COUNTRIES[c].tax);
   }
   const m = co.month;
-  profit += (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0);
+  profit += (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0) - (m.brandAds || 0);
   co.history.push({
     label: monthLabel(state.day),
     revenue: Math.round(revenue),
@@ -179,6 +181,7 @@ function closeCompanyMonth(state, co, units) {
     interest: Math.round(m.interest || 0),
     tax: Math.round(m.tax || 0),
     rentIncome: Math.round(m.rentIncome || 0),
+    brandAds: Math.round(m.brandAds || 0),
     cash: Math.round(co.cash),
     netWorth: Math.round(netWorth(state, co.id)),
   });
@@ -222,6 +225,7 @@ export function stepDay(state) {
   dailyCosts(state);
   updateBrand(state);
   updateStaff(state);
+  updateBrands(state, spendCompany);
   dailyEvents(state);
   checkSolvency(state);
   checkGoals(state);

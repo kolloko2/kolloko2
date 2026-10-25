@@ -275,3 +275,56 @@ test('управляющий подбирает штат под спрос', () 
   stepDays(s, 15);
   assert.ok(shop.staff < 12, `штат ${shop.staff}`);
 });
+
+function berlinLots(s, type, n) {
+  return Object.values(s.world.lots).filter((l) => l.placeId === 'ber' && !l.unitId && buildableTypes(s, l).includes(type)).slice(0, n);
+}
+
+test('сеть: точки одной сети в городе получают больше клиентов, чем такие же независимые', () => {
+  const run = (withBrand) => {
+    const s = createGame({ seed: 31 });
+    s.companies.c1.cash = 2000000;
+    const ids = berlinLots(s, 'coffee_shop', 5).map((l) => applyCommand(s, { type: 'openBusiness', lotId: l.id, businessType: 'coffee_shop', brandId: null }, 'c1').unitId);
+    if (withBrand) assert.ok(applyCommand(s, { type: 'createBrand', name: 'Бин', businessType: 'coffee_shop', tier: 'std', unitIds: ids }, 'c1').ok);
+    stepDays(s, 150);
+    return ids.reduce((sum, id) => sum + s.units[id].last.customers, 0);
+  };
+  const solo = run(false);
+  const chain = run(true);
+  assert.ok(chain > solo * 1.08, `сеть ${chain} vs отдельные ${solo}`);
+});
+
+test('сеть: цена меняется во всех точках и подстраивается под город', () => {
+  const s = createGame({ seed: 32 });
+  s.companies.c1.cash = 3000000;
+  const a = open(s, 'ber', 'coffee_shop');
+  const b = open(s, 'msk', 'coffee_shop');
+  const r = applyCommand(s, { type: 'createBrand', name: 'Премиум', businessType: 'coffee_shop', tier: 'std', unitIds: [a.id, b.id] }, 'c1');
+  assert.ok(r.ok, r.error);
+  assert.ok(applyCommand(s, { type: 'updateBrand', brandId: r.brandId, priceRatio: { coffee: 1.3 } }, 'c1').ok);
+  assert.ok(a.prices.coffee > b.prices.coffee, 'в Берлине норма выше, чем в Москве');
+  assert.ok(Math.abs(a.prices.coffee / b.prices.coffee - s.units[a.id].prices.coffee / s.units[b.id].prices.coffee) < 1e-9);
+  assert.equal(applyCommand(s, { type: 'setPrice', unitId: a.id, productId: 'coffee', price: 2 }, 'c1').ok, false, 'цены точки сети — только через сеть');
+});
+
+test('расширение: сбор за выход в новую страну и надбавка без местной команды', async () => {
+  const { foreignFactor, purchasingDiscount } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 33 });
+  s.companies.c1.cash = 3000000;
+  const home = open(s, 'msk', 'fastfood');
+  assert.equal(s.companies.c1.homeCountry, 'RU');
+  const before = s.companies.c1.cash;
+  const lot = firstLot(s, 'ber', 'fastfood');
+  const capex = (await import('../src/sim/index.js')).capexFor(s, lot, 'fastfood');
+  const r = applyCommand(s, { type: 'openBusiness', lotId: lot.id, businessType: 'fastfood' }, 'c1');
+  assert.ok(before - s.companies.c1.cash > capex, 'заплачен сбор за выход на рынок');
+  const abroad = s.units[r.unitId];
+  stepDays(s, 1);
+  assert.equal(foreignFactor(s, home), 1);
+  assert.ok(foreignFactor(s, abroad) > 1, 'без местной команды дороже');
+  open(s, 'ber', 'fastfood');
+  open(s, 'ber', 'fastfood');
+  stepDays(s, 1);
+  assert.equal(foreignFactor(s, abroad), 1, 'с 3 точками в стране — своя команда');
+  assert.ok(purchasingDiscount(s, 'c1', s.world.places.ber) > 0, 'оптовая скидка в регионе');
+});

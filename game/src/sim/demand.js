@@ -1,6 +1,7 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { DISTRICTS } from '../data/districts.js';
 import { priceIndex } from './world.js';
+import { effectiveAwareness } from './brands.js';
 
 // Логит-модель выбора покупателя:
 //   U = −βp·ln(цена/норма) + βq·(качество − 3) + βa·узнаваемость + βv·(видимость − 0.5)
@@ -12,9 +13,9 @@ export const BETA_VISIBILITY = 0.5;
 export const U_OUTSIDE = 1.0;
 export const AI_AWARENESS = 0.5;
 
-export function utility(priceRatio, quality, awareness, visibility) {
+export function utility(priceRatio, quality, awareness, visibility, betaPrice = BETA_PRICE) {
   return (
-    -BETA_PRICE * Math.log(Math.max(priceRatio, 0.05)) +
+    -betaPrice * Math.log(Math.max(priceRatio, 0.05)) +
     BETA_QUALITY * (quality - 3) +
     BETA_AWARENESS * awareness +
     BETA_VISIBILITY * (visibility - 0.5)
@@ -54,9 +55,15 @@ export function unitPriceRatio(state, unit) {
   return num / den;
 }
 
+export function districtBeta(district) {
+  return DISTRICTS[district.type].priceSensitivity ?? BETA_PRICE;
+}
+
+// Узнаваемость точки учитывает бренд сети в этом городе
 export function unitUtility(state, unit) {
   const lot = state.world.lots[unit.lotId];
-  return utility(unitPriceRatio(state, unit), unit.quality, unit.awareness, lot.visibility);
+  const beta = districtBeta(state.world.districts[lot.districtId]);
+  return utility(unitPriceRatio(state, unit), unit.quality, effectiveAwareness(state, unit), lot.visibility, beta);
 }
 
 // Распределение покупателей района между продавцами категории.

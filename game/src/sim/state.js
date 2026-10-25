@@ -25,6 +25,7 @@ function newCompany(id, name, color) {
     negativeDays: 0,
     bankrupt: false,
     totals: { in: 0, out: 0 },
+    homeCountry: null, // страна первого бизнеса — там компания «своя»
   };
 }
 
@@ -50,6 +51,8 @@ export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Мо�
     nextShipmentId: 1,
     contracts: [],
     nextContractId: 1,
+    brands: {}, // сети компаний
+    nextBrandId: 1,
     news: [],
     newsSeq: 0,
     mapVersion: 0,

@@ -2,7 +2,9 @@ import { bizIcon, goodIcon } from './icons.js';
 import { BUSINESSES } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
+import { COUNTRIES } from '../data/cities.js';
 import {
+  BRAND_TIERS, brandAwareness, WAGE_LEVELS, presenceByCountry, hasLocalTeam, purchasingDiscount, LOCAL_TEAM_UNITS,
   regionOf, midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits, GOALS, goalContext, victoryText,
 } from '../sim/index.js';
 import { SPEEDS } from '../net/session.js';
@@ -13,6 +15,7 @@ export const TABS = [
   { id: 'market', icon: '💹', img: 'market', name: 'Рынок' },
   { id: 'finance', icon: '🏦', img: 'finance', name: 'Финансы' },
   { id: 'news', icon: '📰', img: 'news', name: 'Новости' },
+  { id: 'brands', icon: '🏷️', img: 'city', name: 'Сети' },
   { id: 'goals', icon: '🏆', img: 'capital', name: 'Цели' },
   { id: 'room', icon: '👥', img: 'loan', name: 'Игроки' },
   { id: 'help', icon: '❓', img: 'help', name: 'Как играть' },
@@ -89,6 +92,7 @@ function renderFinance(app) {
     <div class="card"><div class="row"><span>Сумма</span><span class="price-ctl"><input id="loan-amount" type="number" step="5000" min="0" value="10000"></span></div>
     <div class="btn-row"><button class="btn" data-action="takeLoan">Взять кредит</button><button class="btn ghost" data-action="repayLoan">Погасить</button></div>
     <div class="muted small">Лимит растёт с прибылью и стоимостью ваших бизнесов и недвижимости. Если касса в минусе 45 дней — банкротство.</div></div>`;
+  html += renderPresence(app);
   if (h.length) {
     const hist = co.history.slice(-36);
     html += `<h3>Капитал и касса</h3>${lineChart([
@@ -164,6 +168,69 @@ function renderRoom(app) {
   return html;
 }
 
+// Где работает компания: домашняя страна, местные команды, оптовые скидки
+function renderPresence(app) {
+  const { state } = app;
+  const co = app.company;
+  const pres = presenceByCountry(state, app.companyId);
+  const list = Object.entries(pres);
+  if (!list.length) return '';
+  let html = `<h3>Присутствие по странам</h3><table class="tbl compact"><tr><th>Страна</th><th>Точек</th><th>Команда</th><th>Опт. скидка</th></tr>`;
+  for (const [c, n] of list) {
+    const place = Object.values(state.world.places).find((p) => p.country === c);
+    const team = c === co.homeCountry ? '🏠 домашняя' : hasLocalTeam(state, app.companyId, c) ? '✓ своя' : `нет (${n.consumer}/${LOCAL_TEAM_UNITS}) · +10%`;
+    html += `<tr><td>${COUNTRIES[c].name}</td><td>${n.any}</td><td>${team}</td><td>${pct(purchasingDiscount(state, app.companyId, place))}</td></tr>`;
+  }
+  return `${html}</table><div class="muted small">В новой стране — разовый сбор за выход на рынок и +10% к зарплатам и содержанию точек, пока их меньше ${LOCAL_TEAM_UNITS}.
+    Чем больше точек в регионе, тем больше оптовая скидка у поставщиков. Сырьё и производство продаются на весь мир без надбавок.</div>`;
+}
+
+function renderBrands(app) {
+  const { state } = app;
+  const brands = Object.values(state.brands).filter((b) => b.companyId === app.companyId);
+  const mine = companyUnits(state, app.companyId);
+  let html = `<h2>🏷️ Сети</h2><p class="muted small">Объедините точки одного типа в сеть: общие цены (в % от местной нормы — сами подстраиваются под город),
+    реклама и зарплаты. Точки одной сети в городе поднимают узнаваемость бренда друг другу — сеть получает больше клиентов, чем отдельные точки.
+    Сделайте эконом-сеть для спальных районов и премиум-сеть для центра.</p>`;
+  for (const b of brands) {
+    const def = BUSINESSES[b.type];
+    const units = mine.filter((u) => u.brandId === b.id);
+    const cities = [...new Set(units.map((u) => u.placeId))];
+    const countries = [...new Set(units.map((u) => state.world.places[u.placeId].country))];
+    html += `<div class="card brand"><div class="row"><span>${bizIcon(b.type, 'inline')} <b>${esc(b.name)}</b> <small class="muted">${def.name} · ${units.length} точек</small></span>
+      <span class="chips tight">${Object.entries(BRAND_TIERS).map(([id, t]) => `<button class="chip ${b.tier === id ? 'active' : ''}" data-action="brandTier" data-id="${b.id}" data-tier="${id}">${t.name}</button>`).join('')}</span></div>`;
+    for (const p of def.retail.products) {
+      const r = b.priceRatio[p.id] ?? 1;
+      html += `<div class="row"><span>${p.name}: <b>${Math.round(r * 100)}%</b> от местной нормы</span>
+        <span class="price-ctl"><button class="mini" data-action="brandPrice" data-id="${b.id}" data-product="${p.id}" data-step="-0.05">−</button>
+        <button class="mini" data-action="brandPrice" data-id="${b.id}" data-product="${p.id}" data-step="0.05">+</button></span></div>`;
+    }
+    html += `<div class="row"><span>Реклама на точку, $/мес <small class="muted">(в дорогих городах больше)</small></span><span class="price-ctl"><input type="number" min="0" step="100" value="${b.marketing}" data-change="brandMarketing" data-id="${b.id}"></span></div>
+      <div class="row"><span>Зарплаты</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${b.wageLevel === l ? 'active' : ''}" data-action="brandWage" data-id="${b.id}" data-level="${l}">${Math.round(l * 100)}%</button>`).join('')}</span></div>`;
+    if (cities.length) {
+      html += '<table class="tbl compact"><tr><th>Город</th><th>Точек</th><th>Узнаваемость бренда</th></tr>';
+      for (const pid of cities) {
+        const n = units.filter((u) => u.placeId === pid).length;
+        html += `<tr><td>${esc(state.world.places[pid].name)}</td><td>${n}</td><td>${pct(brandAwareness(b, pid))}</td></tr>`;
+      }
+      html += '</table>';
+    }
+    for (const c of countries) {
+      html += `<div class="row"><span>Национальная реклама: ${COUNTRIES[c].name}, $/мес</span><span class="price-ctl"><input type="number" min="0" step="1000" value="${b.national[c] || 0}" data-change="brandNational" data-id="${b.id}" data-country="${c}"></span></div>`;
+    }
+    const free = mine.filter((u) => u.type === b.type && u.brandId !== b.id);
+    html += `<div class="btn-row">${free.length ? `<button class="btn ghost" data-action="brandAddAll" data-id="${b.id}">➕ Добавить мои «${def.name}» (${free.length})</button>` : ''}
+      <button class="btn danger" data-action="deleteBrand" data-id="${b.id}">Распустить сеть</button></div></div>`;
+  }
+  const retailTypes = Object.entries(BUSINESSES).filter(([, d]) => d.retail);
+  html += `<h3>Новая сеть</h3><div class="card"><div class="row"><span>Название</span><span class="price-ctl"><input id="brand-name" maxlength="30" placeholder="Например, Bean Express" style="width:180px;text-align:left"></span></div>
+    <div class="row"><span>Тип точек</span><select id="brand-type">${retailTypes.map(([id, d]) => `<option value="${id}">${d.name}</option>`).join('')}</select></div>
+    <div class="row"><span>Позиционирование</span><select id="brand-tier">${Object.entries(BRAND_TIERS).map(([id, t]) => `<option value="${id}" ${id === 'std' ? 'selected' : ''}>${t.name} — цены ${Math.round(t.price * 100)}%${t.quality ? `, качество ${t.quality > 0 ? '+' : ''}${t.quality}` : ''}</option>`).join('')}</select></div>
+    <label class="row check"><span>Сразу включить мои точки этого типа, которые не в сети</span><input id="brand-all" type="checkbox" checked></label>
+    <button class="btn" data-action="createBrand">Создать сеть</button></div>`;
+  return html;
+}
+
 function renderGoals(app) {
   const { state } = app;
   const co = app.company;
@@ -196,6 +263,7 @@ function renderHelp() {
     <li><b>Связывайте бизнесы в цепочки:</b> плантация 🌳 → обжарка 🔥 → кофейни; ферма 🌾 → мельница ⚙️ → пекарни и фастфуд; скот 🐂 → мясокомбинат → рестораны; молочная ферма 🐄 → молокозавод 🧀 → супермаркеты. Своё везётся, только если с доставкой дешевле рынка. Линии цепочек видны на карте.</li>
     <li><b>Склад</b> 🏗️ держит запас для точек рядом, закупает оптом и получает дальние партии по оптовому тарифу. <b>Контракты</b> в панели бизнеса фиксируют цену на 3–12 месяцев.</li>
     <li><b>Услуги</b> дают бонус всей компании: грузоперевозки 🚚 — дешёвая доставка в регионе, рекламное агентство 📣 — реклама эффективнее, IT-студия 💻 — +10% мощности точек.</li>
+    <li><b>Сети</b> 🏷️: объединяйте точки одного типа — общие цены в % от местной нормы, реклама и зарплаты. Несколько точек одной сети в городе поднимают узнаваемость бренда: сеть получает больше клиентов, чем отдельные точки. Расширяйтесь как в жизни: город → страна → другие страны (выход на новый рынок стоит денег, без 3 точек в стране нет своей команды).</li>
     <li><b>Рынки региональные:</b> во вкладке 💹 видно, где товар дешевле всего.</li>
     <li>Не хватает денег — возьмите <b>кредит</b> во вкладке 🏦. Касса в минусе 45 дней — банкротство.</li>
     <li>Время: ⏸ пауза, ▶ ⏩ ⏭ — скорость. Игра сохраняется автоматически каждый месяц.</li>
@@ -215,7 +283,7 @@ export function renderDrawer(app) {
   const active = el.contains(document.activeElement) ? document.activeElement : null;
   const chatDraft = active?.closest('#chat-form') ? active.value : null;
   if (active?.tagName === 'INPUT' && chatDraft === null) return; // не мешаем вводу суммы кредита и т.п.
-  const render = { units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, goals: renderGoals, room: renderRoom, help: renderHelp }[app.tab];
+  const render = { units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands, goals: renderGoals, room: renderRoom, help: renderHelp }[app.tab];
   const scroll = el.scrollTop;
   el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${render(app)}`;
   el.scrollTop = scroll;

@@ -4,6 +4,7 @@ import { buyPrice, sellPrice, recordTrade } from './market.js';
 import { distanceKm } from './world.js';
 import { leadDays, transportCost, deliver, inTransit } from './logistics.js';
 import { freightFactor } from './bonuses.js';
+import { purchasingDiscount } from './expansion.js';
 import {
   inputGoods, outputGood, invQty, takeInv, coverDays, lotOf, placeOf, spend, earn, pay,
 } from './units.js';
@@ -112,7 +113,7 @@ function buyOnMarket(state, unit, good) {
   const want = capRoom(state, unit, good, orderQty(state, unit, good, 1));
   if (want <= (unit.usage[good] || 0) * 0.2) return;
   const place = placeOf(state, unit);
-  const price = buyPrice(state, good, place, { bulk: isWarehouse(unit) });
+  const price = buyPrice(state, good, place, { bulk: isWarehouse(unit) }) * (1 - purchasingDiscount(state, unit.companyId, place));
   const q = Math.min(want, Math.max(0, state.companies[unit.companyId].cash) / price);
   if (q <= 0) {
     unit.supplied[good] = 'nocash';

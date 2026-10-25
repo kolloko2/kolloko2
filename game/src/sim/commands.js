@@ -7,6 +7,13 @@ import { addNews, loanLimit, companyUnits } from './state.js';
 import { emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, takeInv, pay, receive, placeOf } from './units.js';
 import { contractOffer, contractGoods, endContract, CONTRACT_MONTHS } from './contracts.js';
 import { WAGE_LEVELS } from './staff.js';
+import { COUNTRIES } from '../data/cities.js';
+import { BRAND_TIERS, newBrand, applyBrand, detachFromBrand, brandUnits } from './brands.js';
+import { entryFee, LOCAL_TEAM_UNITS } from './expansion.js';
+
+function companyBrands(state, companyId) {
+  return Object.values(state.brands).filter((b) => b.companyId === companyId);
+}
 
 // Все действия игрока — команды. applyCommand(state, cmd, companyId) возвращает { ok } или { ok: false, error }.
 // companyId — от чьего имени действие: в соло его подставляет локальная сессия, в мультиплеере — сервер
@@ -22,7 +29,8 @@ function ownUnit(state, id, companyId) {
 }
 
 const handlers = {
-  openBusiness(state, { lotId, businessType }, companyId) {
+  // brandId — открыть сразу в составе сети (undefined — в первой сети этого типа, null — отдельно)
+  openBusiness(state, { lotId, businessType, brandId }, companyId) {
     const lot = state.world.lots[lotId];
     const def = BUSINESSES[businessType];
     const co = state.companies[companyId];
@@ -30,11 +38,21 @@ const handlers = {
     if (lot.unitId) return fail('Участок уже занят');
     if (lot.ownerId && lot.ownerId !== companyId) return fail(`Помещение принадлежит компании «${state.companies[lot.ownerId].name}»`);
     if (!canBuildHere(state, lot, businessType)) return fail('Здесь нельзя открыть такой бизнес');
-    const capex = capexFor(state, lot, businessType);
-    if (co.cash < capex) return fail(`Не хватает денег: нужно ${fmt(capex)}`);
     const place = state.world.places[lot.placeId];
+    const fee = entryFee(state, companyId, place, businessType);
+    const capex = capexFor(state, lot, businessType);
+    if (co.cash < capex + fee) return fail(`Не хватает денег: нужно ${fmt(capex + fee)}${fee ? ` (в т.ч. выход на рынок страны ${fmt(fee)})` : ''}`);
+    let brand = null;
+    if (brandId) {
+      brand = state.brands[brandId];
+      if (!brand || brand.companyId !== companyId || brand.type !== businessType) return fail('Неподходящая сеть');
+    } else if (brandId === undefined) {
+      brand = companyBrands(state, companyId).find((b) => b.type === businessType) || null;
+    }
     const fc = forecast(state, lotId, businessType, companyId);
-    pay(state, companyId, capex);
+    pay(state, companyId, capex + fee);
+    if (!co.homeCountry) co.homeCountry = place.country;
+    if (fee) addNews(state, 'info', `Выход на рынок страны ${COUNTRIES[place.country].name}: регистрация и юристы — ${fmt(fee)}. Пока у вас меньше ${LOCAL_TEAM_UNITS} точек здесь, своей команды нет: зарплаты и содержание на 10% дороже.`, null, companyId);
     const sameType = companyUnits(state, companyId).filter((u) => u.type === businessType).length;
     const id = `u${state.nextUnitId++}`;
     const unit = {
@@ -69,9 +87,14 @@ const handlers = {
       autoStaff: false,
     };
     if (def.storage) unit.coverDays = def.storage.defaultCover;
+    unit.brandId = brand?.id ?? null;
     unit.usage = dailyNeed(unit, fc.customers, def.production ? productionCapacity(state, unit) : 0);
     state.units[id] = unit;
     lot.unitId = id;
+    if (brand) {
+      unit.name = `${brand.name} · ${place.name}`;
+      applyBrand(state, brand);
+    }
     state.mapVersion++;
     addNews(state, 'good', `Открыт бизнес «${unit.name}» — ${place.name}. Вложено ${fmt(capex)}.`, { unitId: id }, companyId);
     return { ok: true, unitId: id };
@@ -102,6 +125,7 @@ const handlers = {
   setPrice(state, { unitId, productId, price }, companyId) {
     const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
+    if (unit.brandId) return fail('Цены этой точки задаёт сеть — меняйте их во вкладке «Сети»');
     const product = BUSINESSES[unit.type].retail?.products.find((p) => p.id === productId);
     if (!product) return fail('Нет такого продукта');
     const ref = refPrice(state.world.places[unit.placeId], product);
@@ -122,6 +146,7 @@ const handlers = {
   setMarketing(state, { unitId, budget }, companyId) {
     const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
+    if (unit.brandId) return fail('Рекламу этой точки задаёт сеть');
     if (!(budget >= 0) || budget > 1e6) return fail('Недопустимый бюджет');
     unit.marketing = Math.round(budget);
     return OK;
@@ -220,6 +245,7 @@ const handlers = {
   setWage(state, { unitId, level }, companyId) {
     const unit = ownUnit(state, unitId, companyId);
     if (!unit) return fail('Нет такого бизнеса');
+    if (unit.brandId) return fail('Зарплаты в точках сети задаёт сеть');
     if (!WAGE_LEVELS.includes(level)) return fail('Уровень зарплаты: 80%, 100%, 120% или 150%');
     unit.wageLevel = level;
     return OK;
@@ -251,6 +277,94 @@ const handlers = {
     if (!unit) return fail('Нет такого бизнеса');
     if (!unit.manager) return fail('Автоподбор штата делает управляющий — сначала наймите его');
     unit.autoStaff = Boolean(on);
+    return OK;
+  },
+
+  // ---------- сети ----------
+  createBrand(state, { name, businessType, tier, unitIds = [] }, companyId) {
+    const def = BUSINESSES[businessType];
+    if (!def?.retail) return fail('Сеть можно создать только для точек продаж (кофейни, рестораны, магазины…)');
+    if (!BRAND_TIERS[tier]) return fail('Позиционирование: эконом, стандарт или премиум');
+    const n = String(name || '').trim().slice(0, 30);
+    if (!n) return fail('Придумайте название сети');
+    if (companyBrands(state, companyId).some((b) => b.name === n)) return fail('Сеть с таким названием уже есть');
+    const brand = newBrand(state, companyId, { name: n, businessType, tier });
+    for (const id of unitIds) {
+      const u = ownUnit(state, id, companyId);
+      if (u && u.type === businessType) {
+        u.brandId = brand.id;
+        u.name = `${brand.name} · ${state.world.places[u.placeId].name}`;
+      }
+    }
+    applyBrand(state, brand);
+    addNews(state, 'good', `Создана сеть «${n}» (${BRAND_TIERS[tier].name.toLowerCase()}).`, null, companyId);
+    return { ok: true, brandId: brand.id };
+  },
+
+  joinBrand(state, { unitId, brandId }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (!brandId) {
+      detachFromBrand(unit);
+      return OK;
+    }
+    const brand = state.brands[brandId];
+    if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+    if (brand.type !== unit.type) return fail(`В сеть «${brand.name}» входят только «${BUSINESSES[brand.type].name}»`);
+    unit.brandId = brand.id;
+    unit.name = `${brand.name} · ${state.world.places[unit.placeId].name}`;
+    applyBrand(state, brand);
+    return OK;
+  },
+
+  updateBrand(state, { brandId, priceRatio, marketing, wageLevel, tier, name }, companyId) {
+    const brand = state.brands[brandId];
+    if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+    if (priceRatio) {
+      for (const [p, r] of Object.entries(priceRatio)) {
+        if (!(p in brand.priceRatio)) return fail('Нет такого продукта');
+        if (!(r >= 0.3 && r <= 3)) return fail('Цена сети: от 30% до 300% местной нормы');
+        brand.priceRatio[p] = Math.round(r * 100) / 100;
+      }
+    }
+    if (marketing !== undefined) {
+      if (!(marketing >= 0 && marketing <= 1e5)) return fail('Недопустимый бюджет');
+      brand.marketing = Math.round(marketing);
+    }
+    if (wageLevel !== undefined) {
+      if (!WAGE_LEVELS.includes(wageLevel)) return fail('Уровень зарплаты: 80%, 100%, 120% или 150%');
+      brand.wageLevel = wageLevel;
+    }
+    if (tier !== undefined) {
+      if (!BRAND_TIERS[tier]) return fail('Неизвестное позиционирование');
+      brand.tier = tier;
+    }
+    if (name !== undefined) {
+      const n = String(name).trim().slice(0, 30);
+      if (!n) return fail('Пустое название');
+      for (const u of brandUnits(state, brand)) u.name = u.name.replace(brand.name, n);
+      brand.name = n;
+    }
+    applyBrand(state, brand);
+    return OK;
+  },
+
+  // Национальная реклама сети в стране (в месяц)
+  setBrandNational(state, { brandId, country, budget }, companyId) {
+    const brand = state.brands[brandId];
+    if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+    if (!COUNTRIES[country]) return fail('Нет такой страны');
+    if (!(budget >= 0 && budget <= 1e7)) return fail('Недопустимый бюджет');
+    if (budget > 0) brand.national[country] = Math.round(budget);
+    else delete brand.national[country];
+    return OK;
+  },
+
+  deleteBrand(state, { brandId }, companyId) {
+    const brand = state.brands[brandId];
+    if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+    for (const u of brandUnits(state, brand)) detachFromBrand(u);
+    delete state.brands[brandId];
     return OK;
   },
 

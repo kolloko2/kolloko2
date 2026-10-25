@@ -6,6 +6,7 @@ import { GOODS } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
 import {
   attention, efficiency, morale, wageLevel, managerCost, WAGE_LEVELS, BASE_ATTENTION,
+  BRAND_TIERS, brandAwareness, effectiveAwareness, LOCAL_TEAM_UNITS,
   regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
@@ -130,7 +131,7 @@ function renderLot(app, lot) {
   const forecasts = types.map((t) => forecast(state, lot.id, t, app.companyId)).sort((a, b) => b.profit - a.profit);
   for (const f of forecasts) {
     const def = BUSINESSES[f.type];
-    const afford = app.company.cash >= f.capex;
+    const afford = app.company.cash >= f.capex + f.entryFee;
     let activity;
     if (def.retail) activity = `${num(f.customers)} клиентов/день${f.competitors ? ` · конкурентов: ${f.competitors}` : ''}`;
     else if (def.production) activity = `${num(f.produced)} ${GOODS[f.output].unit}/день ${goodIcon(f.output, 'inline')}`;
@@ -147,9 +148,14 @@ function renderLot(app, lot) {
         <span>Прибыль/мес</span><b class="${signClass(f.profit)}">${money(f.profit)}</b>
         <span>Окупаемость</span><b>${months(f.payback)}</b>
       </div>
-      <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-profit="${def.storage ? 0 : f.profit}" data-capex="${f.capex}"
+      ${f.entryFee ? `<div class="note warn">🌍 Новая страна: выход на рынок ${money(f.entryFee)} (разово)${f.foreign ? `, без местной команды зарплаты и содержание +10% (пока меньше ${LOCAL_TEAM_UNITS} точек)` : ''}.</div>` : f.foreign ? `<div class="note warn">Пока у вас меньше ${LOCAL_TEAM_UNITS} точек в этой стране — зарплаты и содержание +10%.</div>` : ''}
+      ${f.brandId ? `<div class="note">🏷️ В сети «${esc(state.brands[f.brandId].name)}»: узнаваемость бренда здесь ~${pct(f.brandAwareness)}, цены сети.</div>` : ''}
+      <div class="btn-row">
+      <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="${f.brandId ?? ''}" data-profit="${def.storage ? 0 : f.profit}" data-capex="${f.capex + f.entryFee}"
         data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>
-        ${afford ? `Открыть за ${moneyShort(f.capex)}` : `Не хватает ${moneyShort(f.capex - app.company.cash)}`}</button>
+        ${afford ? `Открыть${f.brandId ? ' в сети' : ''} за ${moneyShort(f.capex + f.entryFee)}` : `Не хватает ${moneyShort(f.capex + f.entryFee - app.company.cash)}`}</button>
+      ${f.brandId && afford ? `<button class="btn ghost" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="none" data-profit="${f.profit}" data-capex="${f.capex + f.entryFee}" data-costs="${f.revenue - f.profit}">Отдельно</button>` : ''}
+      </div>
     </div>`;
   }
   html += `<p class="muted small">Прогноз примерный: реальный результат зависит от цен, рекламы, качества и конкурентов. ${esc(place.name)}.</p>`;
@@ -297,7 +303,8 @@ function renderStaff(app, u) {
   let html = `<h3>Персонал</h3><div class="card">
     <div class="row"><span>${def.staff.role}: <b>${u.staff}</b><small class="muted"> · ${money(monthlyWage(state, u))}/мес каждый</small></span>
       <span class="price-ctl"><button class="mini" data-action="staff" data-id="${u.id}" data-delta="-1">−</button><button class="mini" data-action="staff" data-id="${u.id}" data-delta="1">+</button></span></div>
-    <div class="row"><span>Зарплата</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${wageLevel(u) === l ? 'active' : ''}" data-action="setWage" data-id="${u.id}" data-level="${l}">${Math.round(l * 100)}%</button>`).join('')}</span></div>
+    ${u.brandId ? row('Зарплата', `${Math.round(wageLevel(u) * 100)}% <small class="muted">· задаёт сеть</small>`) : ''}
+    <div class="row" ${u.brandId ? 'hidden' : ''}><span>Зарплата</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${wageLevel(u) === l ? 'active' : ''}" data-action="setWage" data-id="${u.id}" data-level="${l}">${Math.round(l * 100)}%</button>`).join('')}</span></div>
     <div class="row"><span>Мораль: ${moodText}</span><b>${num(m)} / 100</b></div>
     <div class="progress ${m < 35 ? 'bad' : m < 50 ? 'warn' : ''}"><span style="width:${m.toFixed(0)}%"></span></div>
     ${row('Производительность', `<span class="${signClass(eff - 1)}">${pct(eff)}</span>`)}`;
@@ -311,6 +318,16 @@ function renderStaff(app, u) {
   html += `<div class="muted small">Мораль растёт от зарплаты выше рынка и управляющего, падает от перегрузки. Ниже 35 — увольнения, ниже 25 — забастовки.
     Вы лично ведёте до ${BASE_ATTENTION} точек без управляющих (сейчас ${att.used}); сверх этого каждая лишняя точка снижает эффективность всех неуправляемых на 4%.</div></div>`;
   return html;
+}
+
+// Выбор сети для точки и узнаваемость бренда в городе
+function renderBrandRow(app, u, brand) {
+  const { state } = app;
+  const options = Object.values(state.brands).filter((b) => b.companyId === app.companyId && b.type === u.type);
+  const aw = brand ? brandAwareness(brand, u.placeId) : 0;
+  return `<div class="card"><div class="row"><span>🏷️ Сеть</span><select data-change="joinBrand" data-id="${u.id}">
+    <option value="">— отдельная точка —</option>${options.map((b) => `<option value="${b.id}" ${b.id === u.brandId ? 'selected' : ''}>${esc(b.name)} (${BRAND_TIERS[b.tier].name.toLowerCase()})</option>`).join('')}</select></div>
+    ${brand ? row('Узнаваемость бренда в городе', pct(aw)) + row('Итоговая узнаваемость точки', pct(effectiveAwareness(state, u))) : `<div class="muted small">${options.length ? 'Добавьте точку в сеть — она получит узнаваемость бренда.' : 'Создайте сеть во вкладке «Сети», чтобы управлять похожими точками вместе и наращивать узнаваемость.'}</div>`}</div>`;
 }
 
 function renderUnit(app, u) {
@@ -327,7 +344,7 @@ function renderUnit(app, u) {
   if (def.retail) {
     html += `<div class="kpi"><small>Клиентов сегодня</small><b>${num(t.customers ?? 0)}</b><small>спрос ${num(t.potential ?? 0)} · мощность ${num(retailCapacity(state, u))}</small></div>
       <div class="kpi"><small>Рейтинг</small><b class="stars">${stars(u.quality)}</b><small>${num(u.quality, 1)} из 5</small></div>
-      <div class="kpi"><small>Узнаваемость</small><b>${pct(u.awareness)}</b><small>реклама ${money(u.marketing)}/мес</small></div>`;
+      <div class="kpi"><small>Узнаваемость</small><b>${pct(effectiveAwareness(state, u))}</b><small>реклама ${money(u.marketing)}/мес</small></div>`;
   }
   if (def.production) {
     const out = GOODS[def.production.recipe.output];
@@ -341,7 +358,12 @@ function renderUnit(app, u) {
   html += '</div>';
   if (def.service) html += `<div class="card small">🎁 <b>Бонус компании:</b> ${def.service.bonus}.</div>`;
 
-  if (def.retail) {
+  const brand = u.brandId ? state.brands[u.brandId] : null;
+  if (def.retail) html += renderBrandRow(app, u, brand);
+  if (def.retail && brand) {
+    html += `<h3>Цены</h3><div class="card">${def.retail.products.map((p) => row(p.name, `${money(u.prices[p.id], { cents: true })} <small class="muted">· ${Math.round((brand.priceRatio[p.id] ?? 1) * 100)}% нормы</small>`)).join('')}
+      <div class="muted small">Цены, рекламу и зарплаты задаёт сеть «${esc(brand.name)}» — <a href="#" data-action="openTab" data-tab="brands">настроить сеть</a>.</div></div>`;
+  } else if (def.retail) {
     html += '<h3>Цены</h3><div class="card">';
     for (const p of def.retail.products) {
       const ref = refPrice(place, p);
@@ -355,7 +377,7 @@ function renderUnit(app, u) {
 
   html += renderStaff(app, u);
   html += '<h3>Управление</h3><div class="card">';
-  if (def.retail) {
+  if (def.retail && !brand) {
     html += `<div class="row"><span>Реклама, $/мес</span><span class="price-ctl"><input type="number" step="100" min="0" value="${u.marketing}" data-change="setMarketing" data-id="${u.id}"></span></div>`;
   }
   if (def.production) {

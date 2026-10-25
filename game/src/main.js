@@ -377,7 +377,9 @@ async function handleAction(el) {
       if (profit < 0) warn.push(`По прогнозу бизнес убыточен (${money(profit)} в месяц).`);
       if (left < Number(el.dataset.costs)) warn.push(`После открытия в кассе останется ${money(left)} — меньше месячных расходов. Пока точка раскручивается, деньги могут кончиться (через 45 дней в минусе — банкротство).`);
       if (warn.length && !confirm(`${warn.join('\n\n')}\n\nВсё равно открыть?`)) break;
-      const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type });
+      const brand = el.dataset.brand;
+      const brandId = brand === 'none' ? null : brand || undefined;
+      const r = await app.dispatch({ type: 'openBusiness', lotId: el.dataset.lot, businessType: el.dataset.type, brandId: brandId ?? null });
       if (r.ok) app.select({ kind: 'unit', id: r.unitId });
       break;
     }
@@ -438,6 +440,42 @@ async function handleAction(el) {
       app.marketRegion = el.dataset.region;
       renderDrawer(app);
       break;
+    case 'openTab':
+      app.tab = el.dataset.tab;
+      renderDrawer(app);
+      break;
+    case 'createBrand': {
+      const businessType = document.getElementById('brand-type').value;
+      const unitIds = document.getElementById('brand-all').checked
+        ? Object.values(state.units).filter((u) => u.companyId === app.companyId && u.type === businessType && !u.brandId).map((u) => u.id)
+        : [];
+      const r = await app.dispatch({ type: 'createBrand', name: document.getElementById('brand-name').value, businessType, tier: document.getElementById('brand-tier').value, unitIds });
+      if (r.ok) toast('Сеть создана', 'good');
+      break;
+    }
+    case 'brandPrice': {
+      const b = state.brands[id];
+      const p = el.dataset.product;
+      app.dispatch({ type: 'updateBrand', brandId: id, priceRatio: { [p]: Math.round(((b.priceRatio[p] ?? 1) + Number(el.dataset.step)) * 100) / 100 } });
+      break;
+    }
+    case 'brandTier':
+      app.dispatch({ type: 'updateBrand', brandId: id, tier: el.dataset.tier });
+      break;
+    case 'brandWage':
+      app.dispatch({ type: 'updateBrand', brandId: id, wageLevel: Number(el.dataset.level) });
+      break;
+    case 'brandAddAll': {
+      const b = state.brands[id];
+      for (const u of Object.values(state.units)) {
+        if (u.companyId === app.companyId && u.type === b.type && u.brandId !== id) await app.session.dispatch({ type: 'joinBrand', unitId: u.id, brandId: id });
+      }
+      render();
+      break;
+    }
+    case 'deleteBrand':
+      if (confirm('Распустить сеть? Точки станут отдельными (настройки сохранятся).')) app.dispatch({ type: 'deleteBrand', brandId: id });
+      break;
     case 'restartTutorial':
       restartTutorial();
       app.tab = null;
@@ -462,6 +500,15 @@ function handleChange(el) {
       break;
     case 'setSellMode':
       app.dispatch({ type: 'setSellMode', unitId: id, mode: el.value });
+      break;
+    case 'joinBrand':
+      app.dispatch({ type: 'joinBrand', unitId: id, brandId: el.value || null });
+      break;
+    case 'brandMarketing':
+      app.dispatch({ type: 'updateBrand', brandId: id, marketing: Number(el.value) });
+      break;
+    case 'brandNational':
+      app.dispatch({ type: 'setBrandNational', brandId: id, country: el.dataset.country, budget: Number(el.value) });
       break;
     case 'setAutoStaff':
       app.dispatch({ type: 'setAutoStaff', unitId: id, on: el.checked });
