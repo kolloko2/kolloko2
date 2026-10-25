@@ -10,6 +10,11 @@ import { WAGE_LEVELS } from './staff.js';
 import { COUNTRIES } from '../data/cities.js';
 import { BRAND_TIERS, newBrand, applyBrand, detachFromBrand, brandUnits } from './brands.js';
 import { entryFee, LOCAL_TEAM_UNITS } from './expansion.js';
+import { licenseNeeded, grantLicense } from './countries.js';
+import { ROYALTIES, FRANCHISE_MIN_UNITS, packageCost } from './franchise.js';
+import {
+  ipoCheck, doIpo, trade, controllerOf, stakeOf, absorb, absorbCost, ABSORB_SHARE,
+} from './stocks.js';
 
 function companyBrands(state, companyId) {
   return Object.values(state.brands).filter((b) => b.companyId === companyId);
@@ -41,7 +46,12 @@ const handlers = {
     const place = state.world.places[lot.placeId];
     const fee = entryFee(state, companyId, place, businessType);
     const capex = capexFor(state, lot, businessType);
-    if (co.cash < capex + fee) return fail(`Не хватает денег: нужно ${fmt(capex + fee)}${fee ? ` (в т.ч. выход на рынок страны ${fmt(fee)})` : ''}`);
+    const license = licenseNeeded(state, companyId, place, businessType);
+    const extra = fee + (license?.cost ?? 0);
+    if (co.cash < capex + extra) {
+      const parts = [fee && `выход на рынок страны ${fmt(fee)}`, license && `${license.name.toLowerCase()} ${fmt(license.cost)}`].filter(Boolean);
+      return fail(`Не хватает денег: нужно ${fmt(capex + extra)}${parts.length ? ` (в т.ч. ${parts.join(', ')})` : ''}`);
+    }
     let brand = null;
     if (brandId) {
       brand = state.brands[brandId];
@@ -50,8 +60,12 @@ const handlers = {
       brand = companyBrands(state, companyId).find((b) => b.type === businessType) || null;
     }
     const fc = forecast(state, lotId, businessType, companyId);
-    pay(state, companyId, capex + fee);
+    pay(state, companyId, capex + extra);
     if (!co.homeCountry) co.homeCountry = place.country;
+    if (license) {
+      grantLicense(state, companyId, place, license.id);
+      addNews(state, 'info', `Получена ${license.name.toLowerCase()} в стране ${COUNTRIES[place.country].name}: ${fmt(license.cost)}.`, null, companyId);
+    }
     if (fee) addNews(state, 'info', `Выход на рынок страны ${COUNTRIES[place.country].name}: регистрация и юристы — ${fmt(fee)}. Пока у вас меньше ${LOCAL_TEAM_UNITS} точек здесь, своей команды нет: зарплаты и содержание на 10% дороже.`, null, companyId);
     const sameType = companyUnits(state, companyId).filter((u) => u.type === businessType).length;
     const id = `u${state.nextUnitId++}`;
@@ -360,6 +374,88 @@ const handlers = {
     return OK;
   },
 
+  // ---------- франшиза ----------
+  setRoyalty(state, { brandId, royalty }, companyId) {
+    const brand = state.brands[brandId];
+    if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+    if (!ROYALTIES.includes(royalty)) return fail('Роялти: 3, 5, 7, 9 или 12%');
+    brand.royalty = royalty;
+    return OK;
+  },
+
+  // Начать продавать франшизу в стране: разовая «упаковка» (юристы, стандарты, обучение)
+  openFranchise(state, { brandId, country }, companyId) {
+    const brand = state.brands[brandId];
+    if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+    if (!COUNTRIES[country]) return fail('Нет такой страны');
+    brand.franchise ||= {};
+    if (brand.franchise[country]) return fail('Франшиза здесь уже продаётся');
+    if (brandUnits(state, brand).length < FRANCHISE_MIN_UNITS) return fail(`Сначала откройте хотя бы ${FRANCHISE_MIN_UNITS} свои точки сети — франчайзи покупают проверенную модель`);
+    const cost = packageCost(country);
+    if (state.companies[companyId].cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
+    pay(state, companyId, cost);
+    brand.franchise[country] = true;
+    addNews(state, 'good', `🏷️ «${brand.name}» продаёт франшизу в стране ${COUNTRIES[country].name}. Ждите заявок франчайзи.`, null, companyId);
+    return OK;
+  },
+
+  closeFranchise(state, { brandId, country }, companyId) {
+    const brand = state.brands[brandId];
+    if (!brand || brand.companyId !== companyId || !brand.franchise?.[country]) return fail('Франшиза здесь не продаётся');
+    delete brand.franchise[country];
+    for (const pid of Object.keys(brand.franchisees || {})) {
+      if (state.world.places[pid].country === country) delete brand.franchisees[pid];
+    }
+    return OK;
+  },
+
+  // ---------- биржа ----------
+  ipo(state, { share }, companyId) {
+    if (!(share >= 0.1 && share <= 0.49)) return fail('На IPO можно продать от 10 до 49% акций');
+    const why = ipoCheck(state, companyId);
+    if (why) return fail(why);
+    const r = doIpo(state, companyId, share);
+    addNews(state, 'good', `🔔 IPO: «${state.companies[companyId].name}» вышла на биржу по $${r.price.toFixed(2)} за акцию и привлекла ${fmt(r.cash)}.`);
+    return { ok: true, ...r };
+  },
+
+  tradeShares(state, { listingId, qty }, companyId) {
+    const l = state.stocks.listings[listingId];
+    if (!l) return fail('Нет такой бумаги');
+    if (l.kind === 'company' && listingId !== companyId && state.companies[listingId]?.bankrupt) return fail('Компания ушла с биржи');
+    const before = controllerOf(state, l);
+    const r = trade(state, companyId, listingId, qty);
+    if (!r.ok) return r;
+    const after = controllerOf(state, l);
+    if (l.kind === 'company' && after !== before && after) {
+      addNews(state, 'warn', `🦈 Компания «${state.companies[after].name}» получила контрольный пакет «${l.name}» (${Math.round(stakeOf(l, after) * 100)}%).`);
+    }
+    return r;
+  },
+
+  // Доля прибыли на дивиденды: решает контролирующий акционер, а если его нет — сама компания
+  setPayout(state, { listingId, payout }, companyId) {
+    const issuer = listingId || companyId;
+    const co = state.companies[issuer];
+    if (!co) return fail('Нет такой компании');
+    if (!(payout >= 0 && payout <= 1)) return fail('Дивиденды: от 0 до 100% прибыли');
+    const l = state.stocks.listings[issuer];
+    const ctrl = l ? controllerOf(state, l) : null;
+    if (ctrl ? ctrl !== companyId : issuer !== companyId) return fail(ctrl ? 'Дивиденды решает контролирующий акционер' : 'Это не ваша компания');
+    co.payout = Math.round(payout * 100) / 100;
+    return OK;
+  },
+
+  absorbCompany(state, { targetId }, companyId) {
+    const l = state.stocks.listings[targetId];
+    if (!l || l.kind !== 'company' || targetId === companyId) return fail('Поглотить можно только другую компанию на бирже');
+    if (stakeOf(l, companyId) < ABSORB_SHARE) return fail(`Нужно не меньше ${ABSORB_SHARE * 100}% акций`);
+    const cost = absorbCost(state, companyId, targetId);
+    if (state.companies[companyId].cash < cost) return fail(`Нужно ${fmt(cost)}, чтобы выкупить акции остальных акционеров`);
+    absorb(state, companyId, targetId);
+    return OK;
+  },
+
   deleteBrand(state, { brandId }, companyId) {
     const brand = state.brands[brandId];
     if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
@@ -417,6 +513,7 @@ export const COMMAND_TYPES = Object.keys(handlers);
 export function applyCommand(state, cmd, companyId) {
   const co = state.companies[companyId];
   if (!co) return fail('Нет такой компании');
+  if (co.absorbedBy) return fail(`Компанию поглотила «${state.companies[co.absorbedBy].name}»`);
   if (co.bankrupt) return fail('Компания обанкротилась');
   const h = handlers[cmd?.type];
   if (!h) return fail(`Неизвестная команда ${cmd?.type}`);

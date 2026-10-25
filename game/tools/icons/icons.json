@@ -49,6 +49,15 @@
     "goods/cheese": "a wheel of yellow cheese with a cut wedge",
     "goods/cattle": "a brown beef bull standing",
     "goods/plastic": "a pile of small white plastic pellets with a sack",
-    "goods/fuel": "a red metal jerrycan of diesel fuel"
+    "goods/fuel": "a red metal jerrycan of diesel fuel",
+    "business/food_factory": "a modern food factory building with a conveyor of packaged goods and a small silo",
+    "business/gas_station": "a modern gas station with a canopy roof and two fuel pumps",
+    "business/oil_well": "an oil pumpjack (nodding donkey) on a small patch of desert ground",
+    "business/refinery": "an oil refinery with distillation towers, pipes and a flare stack",
+    "business/chemical_plant": "a petrochemical plant with spherical tanks and pipes",
+    "goods/oil": "a steel oil barrel with a drop of black crude oil",
+    "ui/stocks": "a stock exchange ticker board with green and red candlestick chart",
+    "ui/globe": "a small globe on a stand with continents and a few pins",
+    "ui/franchise": "a handshake over a small shop storefront with a brand sign"
   }
 }

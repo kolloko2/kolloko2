@@ -2,8 +2,12 @@ import { bizIcon, goodIcon } from './icons.js';
 import { BUSINESSES } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
-import { COUNTRIES } from '../data/cities.js';
+import { COUNTRIES, BLOCS } from '../data/cities.js';
+import { LICENSES } from '../data/laws.js';
 import {
+  countryState, franchiseCount, franchiseAppeal, packageCost, ROYALTIES, FRANCHISE_MIN_UNITS,
+  listingOf, controllerOf, stakeOf, ipoCheck, absorbCost, portfolioValue, fairCompanyPrice,
+  IPO_MIN_WORTH, IPO_MIN_MONTHS, ABSORB_SHARE, CONTROL_SHARE, TRADE_FEE,
   BRAND_TIERS, brandAwareness, WAGE_LEVELS, presenceByCountry, hasLocalTeam, purchasingDiscount, LOCAL_TEAM_UNITS,
   regionOf, midPrice, buyPrice, sellPrice, monthProfit, netWorth, loanLimit, formatDate, newsFor, companyUnits, GOALS, goalContext, victoryText,
 } from '../sim/index.js';
@@ -15,7 +19,9 @@ export const TABS = [
   { id: 'market', icon: '💹', img: 'market', name: 'Рынок' },
   { id: 'finance', icon: '🏦', img: 'finance', name: 'Финансы' },
   { id: 'news', icon: '📰', img: 'news', name: 'Новости' },
-  { id: 'brands', icon: '🏷️', img: 'city', name: 'Сети' },
+  { id: 'brands', icon: '🏷️', img: 'franchise', name: 'Сети' },
+  { id: 'countries', icon: '🌍', img: 'globe', name: 'Страны' },
+  { id: 'stocks', icon: '📈', img: 'stocks', name: 'Биржа' },
   { id: 'goals', icon: '🏆', img: 'capital', name: 'Цели' },
   { id: 'room', icon: '👥', img: 'loan', name: 'Игроки' },
   { id: 'help', icon: '❓', img: 'help', name: 'Как играть' },
@@ -103,10 +109,10 @@ function renderFinance(app) {
       { values: hist.map((m) => m.revenue), color: '#e8590c', label: 'Выручка' },
       { values: hist.map((m) => m.profit), color: '#ae3ec9', label: 'Прибыль' },
     ])}
-      <table class="tbl"><tr><th>Месяц</th><th>Выручка</th><th>Прибыль</th><th>Налог</th><th>Проценты</th><th>Касса</th></tr>`;
+      <table class="tbl"><tr><th>Месяц</th><th>Выручка</th><th>Прибыль</th><th>Налог</th><th>Проценты</th><th>Роялти и дивиденды</th><th>Касса</th></tr>`;
     for (const m of h) {
       html += `<tr><td>${m.label}</td><td>${moneyShort(m.revenue)}</td><td class="${signClass(m.profit)}">${moneyShort(m.profit)}</td>
-        <td>${moneyShort(m.tax)}</td><td>${moneyShort(m.interest)}</td><td>${moneyShort(m.cash)}</td></tr>`;
+        <td>${moneyShort(m.tax)}</td><td>${moneyShort(m.interest)}</td><td>${moneyShort((m.royalty || 0) + (m.dividendsIn || 0))}</td><td>${moneyShort(m.cash)}</td></tr>`;
     }
     html += '</table>';
   } else {
@@ -218,6 +224,7 @@ function renderBrands(app) {
     for (const c of countries) {
       html += `<div class="row"><span>Национальная реклама: ${COUNTRIES[c].name}, $/мес</span><span class="price-ctl"><input type="number" min="0" step="1000" value="${b.national[c] || 0}" data-change="brandNational" data-id="${b.id}" data-country="${c}"></span></div>`;
     }
+    html += renderFranchise(app, b, units.length);
     const free = mine.filter((u) => u.type === b.type && u.brandId !== b.id);
     html += `<div class="btn-row">${free.length ? `<button class="btn ghost" data-action="brandAddAll" data-id="${b.id}">➕ Добавить мои «${def.name}» (${free.length})</button>` : ''}
       <button class="btn danger" data-action="deleteBrand" data-id="${b.id}">Распустить сеть</button></div></div>`;
@@ -229,6 +236,125 @@ function renderBrands(app) {
     <label class="row check"><span>Сразу включить мои точки этого типа, которые не в сети</span><input id="brand-all" type="checkbox" checked></label>
     <button class="btn" data-action="createBrand">Создать сеть</button></div>`;
   return html;
+}
+
+// Франшиза сети: страны продаж, роялти, франчайзи
+function renderFranchise(app, b, ownCount) {
+  const { state } = app;
+  const fr = b.franchise || {};
+  const total = franchiseCount(b);
+  let html = `<h3>🤝 Франшиза</h3>`;
+  if (ownCount < FRANCHISE_MIN_UNITS && !Object.keys(fr).length) {
+    return `${html}<div class="muted small">Франшизу можно продавать, когда у сети будет ${FRANCHISE_MIN_UNITS} свои точки (сейчас ${ownCount}).
+      Франчайзи сами открывают точки под вашей маркой в выбранных странах, платят взнос и роялти с выручки — без сбора за выход на рынок и своей команды.</div>`;
+  }
+  html += `<div class="row"><span>Роялти с выручки франчайзи</span><span class="chips tight">${ROYALTIES.map((r) => `<button class="chip ${b.royalty === r ? 'active' : ''}" data-action="setRoyalty" data-id="${b.id}" data-royalty="${r}">${Math.round(r * 100)}%</button>`).join('')}</span></div>
+    <div class="muted small">Чем выше роялти, тем меньше желающих и тем чаще франчайзи закрываются. Франчайзи поднимают узнаваемость бренда и вашим точкам.</div>`;
+  if (Object.keys(fr).length) {
+    html += '<table class="tbl compact"><tr><th>Страна</th><th>Франчайзи</th><th>Шанс нового в месяц</th><th></th></tr>';
+    for (const c of Object.keys(fr)) {
+      const n = Object.entries(b.franchisees || {}).filter(([pid]) => state.world.places[pid].country === c).reduce((s, [, k]) => s + k, 0);
+      html += `<tr><td>${COUNTRIES[c].name}</td><td>${n}</td><td>${ownCount >= FRANCHISE_MIN_UNITS ? pct(franchiseAppeal(state, b, c)) : 'нужно 3 свои точки'}</td>
+        <td><button class="mini wide" data-action="closeFranchise" data-id="${b.id}" data-country="${c}">Закрыть</button></td></tr>`;
+    }
+    html += `</table><div class="muted small">Всего франчайзи: ${total}. Роялти за прошлый месяц: ${money(b.lastRoyalty || 0)}.</div>`;
+  }
+  const options = Object.keys(COUNTRIES).filter((c) => !fr[c]).sort((a, z) => COUNTRIES[a].name.localeCompare(COUNTRIES[z].name, 'ru'));
+  html += `<div class="row"><select id="fr-country-${b.id}">${options.map((c) => `<option value="${c}">${COUNTRIES[c].name} — ${moneyShort(packageCost(c))}</option>`).join('')}</select>
+    <button class="mini wide" data-action="openFranchise" data-id="${b.id}">Продавать франшизу</button></div>`;
+  return html;
+}
+
+// Страны: законы, налоги, пошлины и состояние экономики
+function renderCountries(app) {
+  const { state } = app;
+  const co = app.company;
+  const pres = presenceByCountry(state, app.companyId);
+  let html = `<h2>🌍 Страны</h2><p class="muted small">У каждой страны свои законы. <b>Налог на прибыль</b> берётся с прибыли ваших бизнесов в стране.
+    <b>Пошлина</b> — когда вы везёте свой товар из другой страны (внутри торгового союза — бесплатно), поэтому завод часто выгоднее строить там же, где продаёте.
+    <b>Бюрократия</b> делает дороже лицензии и выход на рынок. В <b>нестабильных</b> странах чаще кризисы и смена законов.</p>
+    <table class="tbl compact"><tr><th>Страна</th><th>Налог</th><th>Пошлина</th><th>Бюрокр.</th><th>Стабильность</th><th>Экономика</th><th>Ваши точки</th></tr>`;
+  const list = Object.keys(COUNTRIES).sort((a, z) => (pres[z]?.any || 0) - (pres[a]?.any || 0) || COUNTRIES[a].name.localeCompare(COUNTRIES[z].name, 'ru'));
+  for (const c of list) {
+    const d = COUNTRIES[c];
+    const cs = countryState(state, c);
+    const econ = cs.demand < 1 ? `<span class="tag bad">спад ${pct(cs.demand - 1)}</span>` : cs.demand > 1 ? `<span class="tag good">подъём +${pct(cs.demand - 1)}</span>` : '<small class="muted">норма</small>';
+    const stab = d.stability >= 0.8 ? '<span class="pos">высокая</span>' : d.stability >= 0.6 ? 'средняя' : '<span class="neg">низкая</span>';
+    const home = c === co.homeCountry ? ' 🏠' : '';
+    html += `<tr><td>${d.name}${home}${d.bloc ? `<small class="muted"><br>${BLOCS[d.bloc]}</small>` : ''}</td><td>${pct(cs.tax)}</td><td>${pct(cs.tariff)}</td>
+      <td>×${d.bureaucracy.toFixed(2)}</td><td>${stab}</td><td>${econ}</td><td>${pres[c]?.any || '—'}</td></tr>`;
+  }
+  html += '</table><h3>Лицензии</h3><table class="tbl compact"><tr><th>Лицензия</th><th>Базовая цена</th><th>Есть у вас</th></tr>';
+  for (const [id, l] of Object.entries(LICENSES)) {
+    const have = (co.licenses || []).filter((x) => x.endsWith(`:${id}`)).map((x) => COUNTRIES[x.split(':')[0]].name);
+    html += `<tr><td>${l.name}</td><td>${moneyShort(l.cost)}</td><td>${have.length ? have.join(', ') : '—'}</td></tr>`;
+  }
+  return `${html}</table><div class="muted small">Лицензия покупается один раз на страну при открытии первого такого бизнеса. Цена × уровень цен × бюрократия страны.</div>`;
+}
+
+function stockRow(app, l) {
+  const { state } = app;
+  const mine = l.holders[app.companyId] || 0;
+  const prev = l.hist.length > 4 ? l.hist[l.hist.length - 5] : l.hist[0];
+  const ch = l.price / prev - 1;
+  const own = l.id === app.companyId;
+  const color = l.kind === 'company' ? `<span class="swatch" style="background:${state.companies[l.id]?.color}"></span>` : '';
+  // доходность: у корпораций — 40% прибыли, у компаний игроков — последние дивиденды
+  const div = l.kind === 'corp' ? l.eps * 0.4 : l.div;
+  const yieldY = l.price > 0 ? (div * 12) / l.price : 0;
+  return `<tr><td>${color}<b>${esc(l.name)}</b>${own ? ' (вы)' : ''}<small class="muted"><br>${esc(l.sector)}</small><br>${sparkline(l.hist, 90, 18)}</td>
+    <td>${money(l.price, { cents: true })}<br><small class="${signClass(ch)}">${ch >= 0 ? '▲ +' : '▼ '}${pct(ch, 1)} за 4 нед.</small><br><small class="muted">див. ${pct(yieldY, 1)} в год</small></td>
+    <td>${mine ? `${num(mine)}<small class="muted"><br>${pct(mine / l.shares, 1)} · ${moneyShort(mine * l.price)}</small>` : '—'}</td>
+    <td class="trade-btns"><button class="mini wide" data-action="trade" data-id="${l.id}" data-side="1" title="Купить на сумму из поля выше">Купить</button>
+    <button class="mini wide" data-action="trade" data-id="${l.id}" data-side="-1" ${mine ? '' : 'disabled'} title="Продать на сумму из поля выше">Продать</button></td></tr>`;
+}
+
+// Биржа: акции корпораций и компаний игроков, IPO, контроль и поглощения
+function renderStocks(app) {
+  const { state } = app;
+  const co = app.company;
+  const me = listingOf(state, app.companyId);
+  const listings = Object.values(state.stocks?.listings || {});
+  let html = `<h2>📈 Биржа</h2><p class="muted small">Покупайте акции корпораций ради роста и дивидендов. Выйдите на биржу сами (IPO), чтобы привлечь деньги.
+    Но осторожно: купивший больше ${CONTROL_SHARE * 100}% ваших акций решает, сколько прибыли уходит на дивиденды, а от ${ABSORB_SHARE * 100}% может поглотить компанию целиком.</p>
+    <div class="card">${row('Портфель (чужие акции)', money(portfolioValue(state, app.companyId)))}
+    <div class="row"><span>Сумма сделки, $</span><span class="price-ctl"><input id="trade-amount" type="number" min="0" step="10000" value="50000"></span></div>
+    <div class="muted small">Комиссия брокера ${pct(TRADE_FEE, 1)}. Крупные сделки двигают цену.</div></div>`;
+  // своя компания
+  html += '<h3>Ваша компания</h3><div class="card">';
+  if (!me) {
+    const why = ipoCheck(state, app.companyId);
+    const est = fairCompanyPrice(state, app.companyId) * 0.9;
+    html += `${row('Оценка за акцию (при IPO, со скидкой 10%)', money(est, { cents: true }))}${row('Вся компания', moneyShort(est * 1e6))}`;
+    if (why) html += `<div class="muted small">Выйти на биржу пока нельзя: ${esc(why)}. Условия: капитал от ${moneyShort(IPO_MIN_WORTH)} и ${IPO_MIN_MONTHS} месяцев отчётности.</div>`;
+    else {
+      html += `<div class="row"><span>Продать публике</span><select id="ipo-share">${[0.1, 0.2, 0.3, 0.4, 0.49].map((s) => `<option value="${s}" ${s === 0.2 ? 'selected' : ''}>${Math.round(s * 100)}% — около ${moneyShort(est * 1e6 * s * 0.95)}</option>`).join('')}</select></div>
+        <button class="btn" data-action="ipo">🔔 Выйти на биржу</button>
+        <div class="muted small">Деньги получает компания (минус 5% андеррайтерам). Оставьте себе больше 50%, чтобы не потерять контроль.</div>`;
+    }
+  } else {
+    const ctrl = controllerOf(state, me);
+    const self = stakeOf(me, app.companyId);
+    html += row('Цена акции', money(me.price, { cents: true })) + row('Стоимость компании', moneyShort(me.price * me.shares)) +
+      row('Ваш пакет', `${pct(self, 1)}${self <= CONTROL_SHARE ? ' <span class="neg">— нет контроля!</span>' : ''}`) + row('У публики', pct(me.float / me.shares, 1));
+    const others = Object.entries(me.holders).filter(([id]) => id !== app.companyId);
+    for (const [id, n] of others) html += row(`Акционер «${esc(state.companies[id]?.name ?? id)}»`, `<span class="${n / me.shares > 0.25 ? 'neg' : ''}">${pct(n / me.shares, 1)}</span>`);
+    if (ctrl) html += `<div class="note warn">🦈 Контроль у «${esc(state.companies[ctrl].name)}»: дивиденды решает он.</div>`;
+    html += `<div class="row"><span>Дивиденды, доля прибыли</span><span class="chips tight">${[0, 0.25, 0.5, 0.75, 1].map((p) => `<button class="chip ${co.payout === p ? 'active' : ''}" data-action="setPayout" data-id="${app.companyId}" data-payout="${p}" ${ctrl ? 'disabled' : ''}>${Math.round(p * 100)}%</button>`).join('')}</span></div>
+      <div class="muted small">Свои акции можно докупить (выкуп у публики) или продать (допэмиссия: деньги — компании) кнопками в таблице ниже.</div>`;
+  }
+  html += '</div>';
+  // компании, которые вы контролируете
+  for (const l of listings.filter((x) => x.kind === 'company' && x.id !== app.companyId && controllerOf(state, x) === app.companyId)) {
+    const target = state.companies[l.id];
+    html += `<div class="card"><b>🦈 Вы контролируете «${esc(l.name)}»</b> (${pct(stakeOf(l, app.companyId), 1)})
+      <div class="row"><span>Её дивиденды</span><span class="chips tight">${[0, 0.25, 0.5, 0.75, 1].map((p) => `<button class="chip ${target.payout === p ? 'active' : ''}" data-action="setPayout" data-id="${l.id}" data-payout="${p}">${Math.round(p * 100)}%</button>`).join('')}</span></div>
+      ${stakeOf(l, app.companyId) >= ABSORB_SHARE ? `<button class="btn danger" data-action="absorb" data-id="${l.id}">Поглотить — выкупить остальных за ${moneyShort(absorbCost(state, app.companyId, l.id))}</button>` : `<div class="muted small">С ${ABSORB_SHARE * 100}% акций можно поглотить компанию со всеми бизнесами.</div>`}</div>`;
+  }
+  html += '<h3>Котировки</h3><table class="tbl compact"><tr><th>Бумага</th><th>Цена</th><th>У вас</th><th></th></tr>';
+  for (const l of listings.filter((x) => x.kind === 'company')) html += stockRow(app, l);
+  for (const l of listings.filter((x) => x.kind === 'corp')) html += stockRow(app, l);
+  return `${html}</table>`;
 }
 
 function renderGoals(app) {
@@ -264,12 +390,16 @@ function renderHelp() {
     <li><b>Склад</b> 🏗️ держит запас для точек рядом, закупает оптом и получает дальние партии по оптовому тарифу. <b>Контракты</b> в панели бизнеса фиксируют цену на 3–12 месяцев.</li>
     <li><b>Услуги</b> дают бонус всей компании: грузоперевозки 🚚 — дешёвая доставка в регионе, рекламное агентство 📣 — реклама эффективнее, IT-студия 💻 — +10% мощности точек.</li>
     <li><b>Сети</b> 🏷️: объединяйте точки одного типа — общие цены в % от местной нормы, реклама и зарплаты. Несколько точек одной сети в городе поднимают узнаваемость бренда: сеть получает больше клиентов, чем отдельные точки. Расширяйтесь как в жизни: город → страна → другие страны (выход на новый рынок стоит денег, без 3 точек в стране нет своей команды).</li>
+    <li><b>Страны</b> 🌍: свои налоги, пошлины на ввоз (внутри союзов вроде ЕС — без пошлин), лицензии для ресторанов, АЗС, заводов и нефти. Бывают кризисы и подъёмы — следите за новостями.</li>
+    <li><b>Франшиза</b> 🤝: когда у сети 3 свои точки, продавайте франшизу в любых странах — франчайзи откроют точки под вашей маркой и будут платить роялти.</li>
+    <li><b>Тир III:</b> нефтяная скважина 🛢️ → НПЗ (топливо) → АЗС ⛽ и грузоперевозки; нефтехимия (пластик) → упаковка; пищевая фабрика 🥫 делает товары для магазинов.</li>
+    <li><b>Биржа</b> 📈: покупайте акции корпораций ради дивидендов, выходите на IPO за деньгами. В игре против друзей можно скупить контрольный пакет соперника и поглотить его.</li>
     <li><b>Рынки региональные:</b> во вкладке 💹 видно, где товар дешевле всего.</li>
     <li>Не хватает денег — возьмите <b>кредит</b> во вкладке 🏦. Касса в минусе 45 дней — банкротство.</li>
     <li>Время: ⏸ пауза, ▶ ⏩ ⏭ — скорость. Игра сохраняется автоматически каждый месяц.</li>
   </ol>
   <button class="btn ghost" data-action="restartTutorial">🎓 Пройти обучение заново</button>
-  <p class="muted small">Прототип (см. docs/PLAN.md). Дальше: контракты, склады и логистика, новые бизнесы, персонал.</p>`;
+  <p class="muted small">Прототип (см. docs/PLAN.md).</p>`;
 }
 
 export function renderDrawer(app) {
@@ -283,7 +413,10 @@ export function renderDrawer(app) {
   const active = el.contains(document.activeElement) ? document.activeElement : null;
   const chatDraft = active?.closest('#chat-form') ? active.value : null;
   if (active?.tagName === 'INPUT' && chatDraft === null) return; // не мешаем вводу суммы кредита и т.п.
-  const render = { units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands, goals: renderGoals, room: renderRoom, help: renderHelp }[app.tab];
+  const render = {
+    units: renderUnits, market: renderMarket, finance: renderFinance, news: renderNews, brands: renderBrands,
+    countries: renderCountries, stocks: renderStocks, goals: renderGoals, room: renderRoom, help: renderHelp,
+  }[app.tab];
   const scroll = el.scrollTop;
   el.innerHTML = `<button class="close-x" data-action="closeTab" title="Закрыть">×</button>${render(app)}`;
   el.scrollTop = scroll;

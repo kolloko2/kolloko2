@@ -1,6 +1,7 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { regionOf } from './market.js';
 import { costIndex } from './world.js';
+import { COUNTRIES } from '../data/cities.js';
 
 // Расширение «как в жизни»: домашняя страна, выход на новые рынки, местная команда, оптовые скидки.
 // Касается точек для людей (розница, услуги); сырьё и производство продаются на весь мир без ограничений.
@@ -58,12 +59,12 @@ export function foreignFactor(state, unit) {
   return hasLocalTeam(state, unit.companyId, state.world.places[unit.placeId].country) ? 1 : FOREIGN_COST;
 }
 
-// Разовый сбор за выход на рынок страны (регистрация, юристы, лицензии)
+// Разовый сбор за выход на рынок страны (регистрация, юристы); в бюрократичных странах дороже
 export function entryFee(state, companyId, place, type) {
   const co = state.companies[companyId];
   if (!co.homeCountry || co.homeCountry === place.country) return 0;
   if (presenceIn(state, companyId, place.country).any > 0) return 0;
-  return Math.round((isConsumer(type) ? ENTRY_FEE.consumer : ENTRY_FEE.other) * costIndex(place));
+  return Math.round((isConsumer(type) ? ENTRY_FEE.consumer : ENTRY_FEE.other) * costIndex(place) * COUNTRIES[place.country].bureaucracy);
 }
 
 // Оптовая скидка у поставщиков региона: 2 точки — 1%, 4 — 2%, 8 — 3%, 16+ — 4%

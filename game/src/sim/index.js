@@ -1,5 +1,5 @@
 export {
-  createGame, addCompany, companyUnits, activeCompanies, formatDate, monthLabel, dateOf, netWorth, loanLimit,
+  createGame, addCompany, companyUnits, activeCompanies, formatDate, monthLabel, dateOf, netWorth, coreWorth, loanLimit,
   addNews, newsFor, SAVE_VERSION, MODES, COMPANY_COLORS,
 } from './state.js';
 export { stepDay, stepDays, isOver } from './tick.js';
@@ -20,3 +20,13 @@ export { attention, efficiency, morale, wageLevel, managerCost, laborFactor, WAG
 export { districtShares, districtPotential, refPrice } from './demand.js';
 export { distanceKm, costIndex, priceIndex } from './world.js';
 export * from './units.js';
+export {
+  countryState, countryTax, countryDemand, tariffRate, sameBloc, licenseNeeded,
+} from './countries.js';
+export {
+  franchiseCount, franchiseRevenue, franchiseAppeal, packageCost, cityCap, ROYALTIES, FRANCHISE_MIN_UNITS,
+} from './franchise.js';
+export {
+  listingOf, portfolioValue, controllerOf, stakeOf, fairCompanyPrice, ipoCheck, absorbCost,
+  IPO_MIN_WORTH, IPO_MIN_MONTHS, CONTROL_SHARE, ABSORB_SHARE, TRADE_FEE, COMPANY_SHARES,
+} from './stocks.js';

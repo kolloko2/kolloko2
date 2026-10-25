@@ -29,5 +29,6 @@ export const REGION_BIAS = {
   cheese: { eu: 0.92, oc: 0.9, na: 0.98, la: 1.05, asia: 1.2, mea: 1.15, cis: 1.05 },
   cattle: { la: 0.78, oc: 0.85, na: 0.9, cis: 0.95, eu: 1.1, asia: 1.15, mea: 1.1 },
   plastic: { asia: 0.9, mea: 0.88, na: 0.95, eu: 1.08, la: 1.05, cis: 1.0, oc: 1.12 },
+  oil: { mea: 0.8, cis: 0.85, na: 0.92, la: 0.95, eu: 1.1, asia: 1.1, oc: 1.08 },
   fuel: { mea: 0.7, cis: 0.8, na: 0.88, la: 0.95, asia: 1.05, eu: 1.2, oc: 1.1 },
 };

@@ -476,6 +476,48 @@ async function handleAction(el) {
     case 'deleteBrand':
       if (confirm('Распустить сеть? Точки станут отдельными (настройки сохранятся).')) app.dispatch({ type: 'deleteBrand', brandId: id });
       break;
+    case 'setRoyalty':
+      app.dispatch({ type: 'setRoyalty', brandId: id, royalty: Number(el.dataset.royalty) });
+      break;
+    case 'openFranchise': {
+      const country = document.getElementById(`fr-country-${id}`).value;
+      const r = await app.dispatch({ type: 'openFranchise', brandId: id, country });
+      if (r.ok) toast('Франшиза выставлена на продажу', 'good');
+      break;
+    }
+    case 'closeFranchise':
+      if (confirm('Перестать продавать франшизу в этой стране? Франчайзи там закроются.')) app.dispatch({ type: 'closeFranchise', brandId: id, country: el.dataset.country });
+      break;
+    case 'ipo': {
+      const share = Number(document.getElementById('ipo-share').value);
+      if (!confirm(`Продать публике ${Math.round(share * 100)}% акций компании? Вернуть их можно только выкупом по рыночной цене.`)) break;
+      const r = await app.dispatch({ type: 'ipo', share });
+      if (r.ok) toast(`IPO состоялось: привлечено ${money(r.cash)}`, 'good');
+      break;
+    }
+    case 'trade': {
+      const l = state.stocks.listings[id];
+      const amount = Number(document.getElementById('trade-amount').value);
+      const side = Number(el.dataset.side);
+      let qty = Math.floor(amount / l.price);
+      if (side < 0) qty = Math.min(qty, l.holders[app.companyId] || 0);
+      if (!(qty > 0)) {
+        toast('Укажите сумму сделки', 'bad');
+        break;
+      }
+      const r = await app.dispatch({ type: 'tradeShares', listingId: id, qty: side * qty });
+      if (r.ok) toast(`${side > 0 ? 'Куплено' : 'Продано'} ${qty.toLocaleString('ru-RU')} акций «${l.name}» на ${money(Math.abs(r.total))}`, 'good');
+      break;
+    }
+    case 'setPayout':
+      app.dispatch({ type: 'setPayout', listingId: id, payout: Number(el.dataset.payout) });
+      break;
+    case 'absorb':
+      if (confirm('Поглотить компанию? Вы выкупите акции остальных акционеров по рынку, а все её бизнесы, долги и деньги перейдут вам.')) {
+        const r = await app.dispatch({ type: 'absorbCompany', targetId: id });
+        if (r.ok) toast('Компания поглощена', 'good');
+      }
+      break;
     case 'restartTutorial':
       restartTutorial();
       app.tab = null;

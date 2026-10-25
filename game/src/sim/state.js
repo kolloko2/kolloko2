@@ -2,8 +2,10 @@ import { createRng } from './rng.js';
 import { generateWorld } from './world.js';
 import { initMarket } from './market.js';
 import { unitAssetValue } from './units.js';
+import { initCountries } from './countries.js';
+import { initStocks, portfolioValue } from './stocks.js';
 
-export const SAVE_VERSION = 3; // 3: районы и участки только на суше (мир по сиду изменился)
+export const SAVE_VERSION = 4; // 4: нефтяные регионы и АЗС (мир по сиду изменился), страны, биржа
 export const START_CASH = 50000;
 const START_DATE = Date.UTC(2000, 0, 1);
 
@@ -26,6 +28,8 @@ function newCompany(id, name, color) {
     bankrupt: false,
     totals: { in: 0, out: 0 },
     homeCountry: null, // страна первого бизнеса — там компания «своя»
+    licenses: [], // 'страна:лицензия'
+    payout: 0.3, // доля прибыли на дивиденды (если компания на бирже)
   };
 }
 
@@ -53,6 +57,8 @@ export function createGame({ seed = 12345, mode = 'solo', companyNames = ['Мо�
     nextContractId: 1,
     brands: {}, // сети компаний
     nextBrandId: 1,
+    countries: initCountries(), // налоги, пошлины, состояние экономики стран
+    stocks: initStocks(rng), // биржа: ИИ-корпорации и компании игроков после IPO
     news: [],
     newsSeq: 0,
     mapVersion: 0,
@@ -105,11 +111,16 @@ function ownedLotsValue(state, companyId) {
   return sum;
 }
 
-export function netWorth(state, companyId) {
+// Капитал без ценных бумаг (по нему биржа оценивает компанию — так нет замкнутого круга при перекрёстном владении)
+export function coreWorth(state, companyId) {
   const co = state.companies[companyId];
   let assets = co.cash + ownedLotsValue(state, companyId);
   for (const u of companyUnits(state, companyId)) assets += unitAssetValue(state, u);
   return assets - co.loan;
+}
+
+export function netWorth(state, companyId) {
+  return coreWorth(state, companyId) + portfolioValue(state, companyId);
 }
 
 export function loanLimit(state, companyId) {

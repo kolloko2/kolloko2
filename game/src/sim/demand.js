@@ -2,6 +2,7 @@ import { BUSINESSES } from '../data/businesses.js';
 import { DISTRICTS } from '../data/districts.js';
 import { priceIndex } from './world.js';
 import { effectiveAwareness } from './brands.js';
+import { countryDemand } from './countries.js';
 
 // Логит-модель выбора покупателя:
 //   U = −βp·ln(цена/норма) + βq·(качество − 3) + βa·узнаваемость + βv·(видимость − 0.5)
@@ -33,12 +34,13 @@ export function districtPotential(state, district, category) {
   const incomeFactor = 0.5 + 0.5 * Math.min(place.income ?? 0.5, 1.2);
   let traffic = 0;
   for (const lotId of district.lotIds) traffic += state.world.lots[lotId].traffic;
-  return traffic * rate * incomeFactor;
+  return traffic * rate * incomeFactor * countryDemand(state, place.country);
 }
 
 // Норма цены продукта в месте
 export function refPrice(place, product) {
-  return Math.round(product.ref * priceIndex(place) * 100) / 100;
+  const t = product.tradable ?? 0;
+  return Math.round(product.ref * (t + (1 - t) * priceIndex(place)) * 100) / 100;
 }
 
 // Взвешенное отношение цен юнита к местной норме

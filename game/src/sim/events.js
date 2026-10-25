@@ -15,7 +15,8 @@ const MARKET_EVENTS = [
   { good: 'wheat', chance: 0.025, mult: 0.75, days: 150, kind: 'good', text: 'Богатый урожай пшеницы — цены падают.' },
   { good: 'meat', chance: 0.015, mult: 1.35, days: 120, kind: 'bad', text: 'Эпидемия у скота: мясо подорожало.' },
   { good: 'sugar', chance: 0.015, mult: 1.3, days: 120, kind: 'bad', text: 'Неурожай тростника — сахар дорожает.' },
-  { good: 'cups', chance: 0.01, mult: 1.25, days: 90, kind: 'bad', text: 'Нефть подорожала — пластиковая упаковка тоже.' },
+  { good: 'oil', chance: 0.015, mult: 1.6, days: 150, kind: 'bad', linked: { fuel: 0.6, plastic: 0.4, cups: 0.25 }, text: 'Нефтяные страны сократили добычу — нефть, топливо и пластик дорожают.' },
+  { good: 'oil', chance: 0.015, mult: 0.65, days: 150, kind: 'good', linked: { fuel: 0.6, plastic: 0.4, cups: 0.25 }, text: 'Избыток нефти на рынке — нефть и топливо дешевеют.' },
 ];
 
 export function monthlyEvents(state) {
@@ -24,6 +25,7 @@ export function monthlyEvents(state) {
     if (state.market.goods[e.good].shockDays > 0) continue;
     if (chance(rng, e.chance)) {
       setShock(state, e.good, e.mult, e.days);
+      for (const [g, k] of Object.entries(e.linked || {})) setShock(state, g, 1 + (e.mult - 1) * k, e.days);
       addNews(state, e.kind, `${GOODS[e.good].icon} ${e.text}`);
     }
   }

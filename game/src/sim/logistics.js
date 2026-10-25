@@ -14,7 +14,7 @@ export function leadDays(km) {
 
 export function transportCost(good, qty, km, { bulk = false } = {}) {
   const rate = TRANSPORT_PER_KG_KM * (bulk ? BULK_FREIGHT : 1);
-  return qty * GOODS[good].weight * (km * rate + TRANSPORT_HANDLING_PER_KG);
+  return qty * GOODS[good].weight * (GOODS[good].freight ?? 1) * (km * rate + TRANSPORT_HANDLING_PER_KG);
 }
 
 // Отправить товар бизнесу. Груз на 1 день лежит в unit.incoming, дольше — в state.shipments

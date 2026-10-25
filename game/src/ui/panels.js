@@ -1,19 +1,19 @@
 import { bizIcon, districtIcon, goodIcon } from './icons.js';
 import { BUSINESSES, MAX_LEVEL } from '../data/businesses.js';
 import { DISTRICTS, ZONING_NAMES } from '../data/districts.js';
-import { COUNTRIES } from '../data/cities.js';
+import { COUNTRIES, BLOCS } from '../data/cities.js';
 import { GOODS } from '../data/goods.js';
 import { MARKET_REGIONS } from '../data/regions.js';
 import {
   attention, efficiency, morale, wageLevel, managerCost, WAGE_LEVELS, BASE_ATTENTION,
   BRAND_TIERS, brandAwareness, effectiveAwareness, LOCAL_TEAM_UNITS,
-  regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
+  countryState, regionOf, inTransit, contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS, storageCapacity, storedKg, servedBy,
   forecast, buildableTypes, districtShares, refPrice, upgradeCost, monthProfit, monthlyWage, monthlyRent,
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
-const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка', restaurant: '🍽️ Рестораны' };
+const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка', restaurant: '🍽️ Рестораны', fuel: '⛽ АЗС' };
 const SUPPLY_LABEL = { internal: '🔗 своё', warehouse: '🏗️ склад', contract: '📝 контракт', market: '💹 рынок', nocash: '⛔ нет денег' };
 
 function row(label, value, cls = '') {
@@ -33,14 +33,16 @@ function renderPlace(app, place) {
   const { state } = app;
   const country = COUNTRIES[place.country];
   const units = Object.values(state.units).filter((u) => u.placeId === place.id && u.companyId === app.companyId);
-  let html = `<h2>${place.kind === 'city' ? '🏙️' : '🌾'} ${esc(place.name)}</h2>
-    <div class="sub">${country.name} · налог на прибыль ${pct(country.tax)}</div><div class="card">`;
+  const cs = countryState(state, place.country);
+  const econ = cs.demand < 1 ? `<span class="tag bad">спад ${pct(cs.demand - 1)}</span>` : cs.demand > 1 ? `<span class="tag good">подъём +${pct(cs.demand - 1)}</span>` : '';
+  let html = `<h2>${place.kind === 'city' ? '🏙️' : bizIcon(place.kinds[0], 'inline')} ${esc(place.name)}</h2>
+    <div class="sub">${country.name} · налог на прибыль ${pct(cs.tax)} · пошлина ${pct(cs.tariff)}${country.bloc ? ` (${BLOCS[country.bloc]} — без пошлин)` : ''} ${econ}</div><div class="card">`;
   if (place.kind === 'city') {
     html += row('Население', `${num(place.pop, 1)} млн`) + row('Доходы жителей', pct(place.income)) +
       row('Уровень аренды', pct(place.rent)) + row('Уровень зарплат', pct(place.wage));
   } else {
-    html += row('Можно выращивать', place.kinds.map((k) => `${bizIcon(k, 'inline')} ${BUSINESSES[k].name}`).join('<br>')) +
-      row('Урожайность', pct(place.productivity)) + row('Аренда земли', `${money(place.landRent)}/га в мес`) +
+    html += row(place.kinds.includes('oil_well') ? 'Можно добывать' : 'Можно выращивать', place.kinds.map((k) => `${bizIcon(k, 'inline')} ${BUSINESSES[k].name}`).join('<br>')) +
+      row(place.kinds.includes('oil_well') ? 'Дебит скважин' : 'Урожайность', pct(place.productivity)) + row('Аренда земли', `${money(place.landRent)}/га в мес`) +
       row('Уровень зарплат', pct(place.wage));
   }
   html += '</div><h3>Районы</h3><div class="list">';
@@ -131,7 +133,8 @@ function renderLot(app, lot) {
   const forecasts = types.map((t) => forecast(state, lot.id, t, app.companyId)).sort((a, b) => b.profit - a.profit);
   for (const f of forecasts) {
     const def = BUSINESSES[f.type];
-    const afford = app.company.cash >= f.capex + f.entryFee;
+    const cost = f.capex + f.extra;
+    const afford = app.company.cash >= cost;
     let activity;
     if (def.retail) activity = `${num(f.customers)} клиентов/день${f.competitors ? ` · конкурентов: ${f.competitors}` : ''}`;
     else if (def.production) activity = `${num(f.produced)} ${GOODS[f.output].unit}/день ${goodIcon(f.output, 'inline')}`;
@@ -149,12 +152,13 @@ function renderLot(app, lot) {
         <span>Окупаемость</span><b>${months(f.payback)}</b>
       </div>
       ${f.entryFee ? `<div class="note warn">🌍 Новая страна: выход на рынок ${money(f.entryFee)} (разово)${f.foreign ? `, без местной команды зарплаты и содержание +10% (пока меньше ${LOCAL_TEAM_UNITS} точек)` : ''}.</div>` : f.foreign ? `<div class="note warn">Пока у вас меньше ${LOCAL_TEAM_UNITS} точек в этой стране — зарплаты и содержание +10%.</div>` : ''}
+      ${f.license ? `<div class="note">📜 Нужна ${esc(f.license.name.toLowerCase())}: ${money(f.license.cost)} (разово, на всю страну).</div>` : ''}
       ${f.brandId ? `<div class="note">🏷️ В сети «${esc(state.brands[f.brandId].name)}»: узнаваемость бренда здесь ~${pct(f.brandAwareness)}, цены сети.</div>` : ''}
       <div class="btn-row">
-      <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="${f.brandId ?? ''}" data-profit="${def.storage ? 0 : f.profit}" data-capex="${f.capex + f.entryFee}"
+      <button class="btn" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="${f.brandId ?? ''}" data-profit="${def.storage ? 0 : f.profit}" data-capex="${cost}"
         data-costs="${f.revenue - f.profit}" ${afford ? '' : 'disabled'}>
-        ${afford ? `Открыть${f.brandId ? ' в сети' : ''} за ${moneyShort(f.capex + f.entryFee)}` : `Не хватает ${moneyShort(f.capex + f.entryFee - app.company.cash)}`}</button>
-      ${f.brandId && afford ? `<button class="btn ghost" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="none" data-profit="${f.profit}" data-capex="${f.capex + f.entryFee}" data-costs="${f.revenue - f.profit}">Отдельно</button>` : ''}
+        ${afford ? `Открыть${f.brandId ? ' в сети' : ''} за ${moneyShort(cost)}` : `Не хватает ${moneyShort(cost - app.company.cash)}`}</button>
+      ${f.brandId && afford ? `<button class="btn ghost" data-action="open" data-lot="${lot.id}" data-type="${f.type}" data-brand="none" data-profit="${f.profit}" data-capex="${cost}" data-costs="${f.revenue - f.profit}">Отдельно</button>` : ''}
       </div>
     </div>`;
   }
@@ -207,6 +211,7 @@ function plTable(m, title) {
     ['Коммунальные', -m.upkeep],
     ['Реклама', -m.marketing],
     ['Перевозка', -m.transport],
+    ['Таможенные пошлины', -(m.duty || 0)],
     ['Порча', -m.spoilage],
     ['Прочее (ремонт, штрафы)', -m.other],
   ].filter(([, v]) => Math.abs(v) >= 0.5);

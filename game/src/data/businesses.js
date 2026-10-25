@@ -5,7 +5,9 @@
 //              ref — базовая цена в стране с доходом 1 (меняется по уровню доходов города).
 // production — выпуск товаров: perStaff (единиц в день на сотрудника), cap (по уровню) либо capPerArea,
 //              recipe — входы на 1 единицу выхода.
+//              tradable — доля цены, не зависящая от доходов города (топливо стоит почти везде одинаково).
 // capex      — базовые вложения при индексе цен 1; renovPerM2 — ремонт за м².
+// license    — нужна лицензия (см. data/laws.js): платится один раз в каждой стране.
 // upkeep     — коммунальные/обслуживание в месяц: base + perArea × площадь (м² или га).
 export const BUSINESSES = {
   coffee_shop: {
@@ -133,7 +135,7 @@ export const BUSINESSES = {
     },
   },
   restaurant: {
-    name: 'Ресторан', icon: '🍽️', zoning: 'commercial', category: 'restaurant', tier: 2, minArea: 80,
+    name: 'Ресторан', icon: '🍽️', zoning: 'commercial', category: 'restaurant', tier: 2, minArea: 80, license: 'alcohol',
     description: 'Обеды и ужины с высоким чеком. Нужно много персонала и продуктов: мясо, сыр, мука, молоко.',
     capex: 180000, renovPerM2: 260,
     upkeep: { base: 1500, perArea: 14 },
@@ -176,7 +178,7 @@ export const BUSINESSES = {
     },
   },
   meat_plant: {
-    name: 'Мясокомбинат', icon: '🥩', zoning: 'industrial', category: 'industry', tier: 2,
+    name: 'Мясокомбинат', icon: '🥩', zoning: 'industrial', category: 'industry', tier: 2, license: 'food',
     description: 'Перерабатывает скот в мясо для фастфуда и ресторанов.',
     capex: 220000, renovPerM2: 50,
     upkeep: { base: 2500, perArea: 3 },
@@ -188,7 +190,7 @@ export const BUSINESSES = {
     },
   },
   dairy_plant: {
-    name: 'Молокозавод', icon: '🧀', zoning: 'industrial', category: 'industry', tier: 2,
+    name: 'Молокозавод', icon: '🧀', zoning: 'industrial', category: 'industry', tier: 2, license: 'food',
     description: 'Делает сыр из молока. Ставьте рядом с молочными фермами — молоко быстро портится в дороге.',
     capex: 180000, renovPerM2: 50,
     upkeep: { base: 2000, perArea: 3 },
@@ -247,6 +249,70 @@ export const BUSINESSES = {
     marketing: 0,
     // perArea — кг хранения на м², radiusKm — кого обслуживает, defaultCover — дней запаса
     storage: { perArea: 400, radiusKm: 1500, defaultCover: 14 },
+  },
+  // ---------- тир III ----------
+  food_factory: {
+    name: 'Пищевая фабрика', icon: '🥫', zoning: 'industrial', category: 'industry', tier: 3, license: 'food',
+    description: 'Выпускает товары для магазинов из муки, сахара, молока, мяса и пластика. Снабжает ваши мини-маркеты, супермаркеты и рестораны.',
+    capex: 420000, renovPerM2: 50,
+    upkeep: { base: 3500, perArea: 3 },
+    staff: { role: 'Работник линии', wage: 2600, min: 4, max: 60, def: 10 },
+    marketing: 0,
+    production: {
+      perStaff: 450, cap: [4000, 8000, 14000],
+      recipe: { output: 'groceries', inputs: { flour: 0.3, sugar: 0.1, milk: 0.35, meat: 0.06, plastic: 0.03 } },
+    },
+  },
+  gas_station: {
+    name: 'АЗС', icon: '⛽', zoning: 'commercial', category: 'fuel', tier: 3, minArea: 60, license: 'fuel',
+    description: 'Заправка с магазином. Топливо стоит почти одинаково в любой стране, поэтому АЗС выгодны и в небогатых городах. Свой НПЗ делает их ещё выгоднее.',
+    capex: 300000, renovPerM2: 60,
+    upkeep: { base: 1500, perArea: 6 },
+    staff: { role: 'Оператор АЗС', wage: 2300, min: 2, max: 20, def: 4 },
+    marketing: 800,
+    retail: {
+      perStaff: 60, cap: [400, 700, 1100],
+      products: [
+        { id: 'refuel', name: 'Заправка (35 л)', ref: 28, attach: 1, tradable: 0.75, recipe: { fuel: 35 } },
+        { id: 'snack', name: 'Кофе и снеки', ref: 3, attach: 0.35, recipe: { groceries: 0.6, cups: 1, coffee_roasted: 0.01 } },
+      ],
+    },
+  },
+  oil_well: {
+    name: 'Нефтяная скважина', icon: '🛢️', zoning: 'farmland', category: 'oil', tier: 3, license: 'subsoil',
+    description: 'Добывает нефть. Только в нефтеносных регионах. Нефть идёт на НПЗ (топливо) и нефтехимию (пластик).',
+    capex: 900000, renovPerM2: 0,
+    upkeep: { base: 4000, perArea: 10 },
+    staff: { role: 'Нефтяник', wage: 4000, min: 3, max: 60, def: 12 },
+    marketing: 0,
+    production: {
+      perStaff: 1000, capPerArea: 60,
+      recipe: { output: 'oil', inputs: {} },
+    },
+  },
+  refinery: {
+    name: 'НПЗ', icon: '🏭', zoning: 'industrial', category: 'industry', tier: 3, license: 'eco',
+    description: 'Перерабатывает нефть в топливо для АЗС и грузоперевозок.',
+    capex: 1200000, renovPerM2: 40,
+    upkeep: { base: 8000, perArea: 4 },
+    staff: { role: 'Технолог НПЗ', wage: 3800, min: 5, max: 80, def: 10 },
+    marketing: 0,
+    production: {
+      perStaff: 3000, cap: [30000, 60000, 100000],
+      recipe: { output: 'fuel', inputs: { oil: 1.15 } },
+    },
+  },
+  chemical_plant: {
+    name: 'Нефтехимический завод', icon: '🧪', zoning: 'industrial', category: 'industry', tier: 3, license: 'eco',
+    description: 'Делает пластик из нефти — для заводов упаковки и пищевых фабрик.',
+    capex: 700000, renovPerM2: 40,
+    upkeep: { base: 5000, perArea: 3 },
+    staff: { role: 'Химик-технолог', wage: 3600, min: 3, max: 50, def: 8 },
+    marketing: 0,
+    production: {
+      perStaff: 550, cap: [4000, 8000, 14000],
+      recipe: { output: 'plastic', inputs: { oil: 1.6 } },
+    },
   },
 };
 

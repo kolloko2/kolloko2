@@ -5,6 +5,7 @@ import { distanceKm } from './world.js';
 import { leadDays, transportCost, deliver, inTransit } from './logistics.js';
 import { freightFactor } from './bonuses.js';
 import { purchasingDiscount } from './expansion.js';
+import { tariffRate } from './countries.js';
 import {
   inputGoods, outputGood, invQty, takeInv, coverDays, lotOf, placeOf, spend, earn, pay,
 } from './units.js';
@@ -94,8 +95,10 @@ function supplyInternally(state, unit, good) {
     const fromWarehouse = isWarehouse(s);
     // производство «продаёт» своим по рыночной цене своего региона, склад передаёт по себестоимости
     const price = fromWarehouse ? s.inv[good].c : sellPrice(state, good, placeOf(state, s));
-    // везти своё имеет смысл, только если с доставкой выходит не дороже местного рынка
-    if (price + transportCost(good, 1, km, { bulk: toWarehouse }) > market) continue;
+    // через границу (вне торгового блока) — таможенная пошлина
+    const duty = tariffRate(state, placeOf(state, s).country, placeOf(state, unit).country);
+    // везти своё имеет смысл, только если с доставкой и пошлиной выходит не дороже местного рынка
+    if (price * (1 + duty) + transportCost(good, 1, km, { bulk: toWarehouse }) > market) continue;
     const qty = Math.min(avail, want);
     const cost = takeInv(s, good, qty);
     s.month.revInternal += qty * price;
@@ -103,7 +106,9 @@ function supplyInternally(state, unit, good) {
     s.month.shippedInternal = (s.month.shippedInternal || 0) + qty;
     const transport = transportCost(good, qty, km, { bulk: toWarehouse }) * freightFactor(state, unit.companyId, placeOf(state, unit));
     spend(state, unit, 'transport', transport);
-    deliver(state, unit, good, qty, price + transport / qty, lead, s.id);
+    if (duty) spend(state, unit, 'duty', qty * price * duty);
+    // доставка и пошлина уже записаны в отчёт отдельными строками — в себестоимость запаса их не включаем
+    deliver(state, unit, good, qty, price, lead, s.id);
     (unit.sources ||= {})[good] = s.id; // для линий цепочек на карте
     unit.supplied[good] = fromWarehouse ? 'warehouse' : 'internal';
   }

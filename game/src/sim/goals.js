@@ -1,5 +1,7 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { addNews, companyUnits, activeCompanies, netWorth, dateOf } from './state.js';
+import { franchiseCount } from './franchise.js';
+import { portfolioValue } from './stocks.js';
 
 // Цели и достижения. progress(ctx) → [сейчас, нужно]. ctx считается один раз на компанию.
 export const GOALS = [
@@ -19,6 +21,10 @@ export const GOALS = [
   { id: 'worth_250k', icon: '💰', name: 'Четверть миллиона', desc: 'Капитал $250 000', progress: (c) => [c.worth, 250000] },
   { id: 'five_countries', icon: '🌍', name: 'Международная компания', desc: 'Бизнесы в 5 странах', progress: (c) => [c.countries.size, 5] },
   { id: 'millionaire', icon: '💎', name: 'Миллионер', desc: 'Капитал $1 000 000', progress: (c) => [c.worth, 1e6] },
+  { id: 'oil_baron', icon: '🛢️', name: 'Нефтяной барон', desc: 'Скважина, НПЗ и АЗС — всё своё', progress: (c) => [['oil_well', 'refinery', 'gas_station'].filter((t) => c.types.has(t)).length, 3] },
+  { id: 'franchise', icon: '🏷️', name: 'Франшиза', desc: 'Пусть под вашей маркой работают 5 франчайзи', progress: (c) => [c.franchisees, 5] },
+  { id: 'ipo', icon: '🔔', name: 'Публичная компания', desc: 'Выйдите на биржу (IPO)', progress: (c) => [c.listed ? 1 : 0, 1] },
+  { id: 'investor', icon: '📈', name: 'Инвестор', desc: 'Портфель акций других компаний на $500 000', progress: (c) => [c.portfolio, 500000] },
   { id: 'fifty_units', icon: '🏙️', name: 'Империя', desc: 'Владейте 50 бизнесами', progress: (c) => [c.units.length, 50] },
   { id: 'ten_million', icon: '👑', name: 'Магнат', desc: 'Капитал $10 000 000', progress: (c) => [c.worth, 1e7] },
 ];
@@ -34,6 +40,9 @@ export function goalContext(state, co) {
     types: new Set(units.map((u) => u.type)),
     countries: new Set(units.map((u) => state.world.places[u.placeId].country)),
     worth: netWorth(state, co.id),
+    franchisees: Object.values(state.brands).filter((b) => b.companyId === co.id).reduce((s, b) => s + franchiseCount(b), 0),
+    listed: Boolean(state.stocks?.listings[co.id]),
+    portfolio: portfolioValue(state, co.id),
   };
 }
 

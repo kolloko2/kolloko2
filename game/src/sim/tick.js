@@ -1,5 +1,4 @@
 import { BUSINESSES } from '../data/businesses.js';
-import { COUNTRIES } from '../data/cities.js';
 import { updateMarket } from './market.js';
 import { districtShares } from './demand.js';
 import { procureAll, sellSurplus, spoilAll } from './supply.js';
@@ -13,6 +12,9 @@ import { updateStaff, monthlyStaffEvents, managerCost, morale } from './staff.js
 import { updateBrands } from './brands.js';
 import { runContracts } from './contracts.js';
 import { costIndex } from './world.js';
+import { countryTax, monthlyCountryEvents } from './countries.js';
+import { monthlyFranchise } from './franchise.js';
+import { updateStocks, monthlyStocks, delistCompany } from './stocks.js';
 import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } from './state.js';
 import {
   emptyMonth, monthProfit, retailCapacity, productionCapacity, dailyNeed, invQty, takeInv, addInv,
@@ -140,6 +142,7 @@ function liquidate(state, co) {
   state.contracts = state.contracts.filter((c) => c.companyId !== co.id);
   for (const b of Object.values(state.brands)) if (b.companyId === co.id) delete state.brands[b.id];
   state.shipments = state.shipments.filter((s) => s.companyId !== co.id);
+  delistCompany(state, co.id);
   state.mapVersion++;
   const others = state.mode === 'pvp' ? null : co.id;
   addNews(state, 'bad', state.mode === 'pvp' ? `Компания «${co.name}» обанкротилась! Её точки закрыты.` : 'Компания объявлена банкротом. Игра окончена.', null, others);
@@ -169,11 +172,15 @@ function closeCompanyMonth(state, co, units) {
     revenue += unit.last.revenue;
     profit += p;
   }
-  for (const [c, p] of Object.entries(byCountry)) {
-    if (p > 0) spendCompany(state, co.id, 'tax', p * COUNTRIES[c].tax);
-  }
   const m = co.month;
-  profit += (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0) - (m.brandAds || 0);
+  // роялти и взносы франчайзи облагаются налогом в домашней стране
+  const franchise = (m.royalty || 0) + (m.franchiseFees || 0);
+  if (franchise && co.homeCountry) byCountry[co.homeCountry] = (byCountry[co.homeCountry] || 0) + franchise;
+  for (const [c, p] of Object.entries(byCountry)) {
+    if (p > 0) spendCompany(state, co.id, 'tax', p * countryTax(state, c));
+  }
+  // дивиденды полученные — доход; выплаченные — распределение прибыли, а не расход
+  profit += franchise + (m.dividendsIn || 0) + (m.rentIncome || 0) - (m.interest || 0) - (m.tax || 0) - (m.brandAds || 0);
   co.history.push({
     label: monthLabel(state.day),
     revenue: Math.round(revenue),
@@ -182,6 +189,8 @@ function closeCompanyMonth(state, co, units) {
     tax: Math.round(m.tax || 0),
     rentIncome: Math.round(m.rentIncome || 0),
     brandAds: Math.round(m.brandAds || 0),
+    royalty: Math.round(franchise),
+    dividendsIn: Math.round(m.dividendsIn || 0),
     cash: Math.round(co.cash),
     netWorth: Math.round(netWorth(state, co.id)),
   });
@@ -197,8 +206,11 @@ function monthEnd(state) {
     unit.month = emptyMonth();
     unit.bookValue *= 0.99;
   }
+  monthlyFranchise(state);
   for (const co of activeCompanies(state)) closeCompanyMonth(state, co, companyUnits(state, co.id));
+  monthlyStocks(state);
   monthlyAI(state);
+  monthlyCountryEvents(state);
   monthlyEvents(state);
   monthlyStaffEvents(state);
   checkVictory(state);
@@ -212,6 +224,7 @@ export function isOver(state) {
 export function stepDay(state) {
   if (isOver(state)) return;
   updateMarket(state);
+  updateStocks(state);
   receiveDeliveries(state);
   for (const unit of Object.values(state.units)) unit.today = {};
   runProduction(state);

@@ -9,12 +9,12 @@ import { foreignFactor } from './expansion.js';
 export function emptyMonth() {
   return {
     revenue: 0, revInternal: 0, cogs: 0, wages: 0, rent: 0, upkeep: 0, marketing: 0,
-    transport: 0, spoilage: 0, other: 0, customers: 0, lost: 0, produced: 0, days: 0,
+    transport: 0, duty: 0, spoilage: 0, other: 0, customers: 0, lost: 0, produced: 0, days: 0,
   };
 }
 
 export function monthProfit(m) {
-  return m.revenue + m.revInternal - m.cogs - m.wages - m.rent - m.upkeep - m.marketing - m.transport - m.spoilage - m.other;
+  return m.revenue + m.revInternal - m.cogs - m.wages - m.rent - m.upkeep - m.marketing - m.transport - (m.duty || 0) - m.spoilage - m.other;
 }
 
 export function placeOf(state, unit) {

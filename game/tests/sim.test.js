@@ -328,3 +328,139 @@ test('расширение: сбор за выход в новую страну 
   assert.equal(foreignFactor(s, abroad), 1, 'с 3 точками в стране — своя команда');
   assert.ok(purchasingDiscount(s, 'c1', s.world.places.ber) > 0, 'оптовая скидка в регионе');
 });
+
+// ---------- страны, франшиза, биржа ----------
+
+test('пошлина: свой товар из другой страны облагается, внутри ЕС — нет', () => {
+  const s = createGame({ seed: 4 });
+  s.companies.c1.cash = 3e6;
+  open(s, 'ber', 'coffee_shop');
+  open(s, 'sao', 'coffee_roastery');
+  stepDays(s, 70);
+  const shop = Object.values(s.units).find((u) => u.type === 'coffee_shop');
+  assert.equal(shop.supplied.coffee_roasted, 'internal');
+  assert.ok(shop.last.duty > 0, 'из Бразилии в Германию — пошлина');
+
+  const t = createGame({ seed: 4 });
+  t.companies.c1.cash = 3e6;
+  open(t, 'ber', 'coffee_shop');
+  open(t, 'ams', 'coffee_roastery');
+  stepDays(t, 70);
+  const shop2 = Object.values(t.units).find((u) => u.type === 'coffee_shop');
+  assert.equal(shop2.supplied.coffee_roasted, 'internal');
+  assert.equal(shop2.last.duty, 0, 'Нидерланды → Германия: общий рынок ЕС');
+});
+
+test('лицензия покупается один раз на страну', () => {
+  const s = createGame({ seed: 2 });
+  s.companies.c1.cash = 2e6;
+  const lot = firstLot(s, 'chi', 'restaurant');
+  const f = forecast(s, lot.id, 'restaurant', 'c1');
+  assert.ok(f.license && f.license.cost > 0);
+  const before = s.companies.c1.cash;
+  open(s, 'chi', 'restaurant');
+  assert.equal(Math.round(before - s.companies.c1.cash), f.capex + f.license.cost);
+  const lot2 = firstLot(s, 'nyc', 'restaurant');
+  assert.equal(forecast(s, lot2.id, 'restaurant', 'c1').license, null, 'в той же стране лицензия уже есть');
+});
+
+test('кризис в стране снижает спрос, законы меняются в разумных пределах', async () => {
+  const { districtPotential } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 6 });
+  const d = Object.values(s.world.districts).find((x) => x.placeId === 'ber' && x.type === 'cbd');
+  const base = districtPotential(s, d, 'coffee');
+  s.countries.DE.demand = 0.85;
+  assert.ok(Math.abs(districtPotential(s, d, 'coffee') - base * 0.85) < 1e-6);
+  const t = createGame({ seed: 6 });
+  stepDays(t, 3650);
+  const changed = Object.entries(t.countries).filter(([, c]) => c.event || c.tax !== undefined);
+  assert.ok(changed.length);
+  for (const c of Object.values(t.countries)) {
+    assert.ok(c.tax >= 0 && c.tax <= 0.45 && c.tariff >= 0 && c.tariff <= 0.35);
+  }
+  assert.ok(t.news.some((n) => n.text.startsWith('🌍')), 'за 10 лет были события в странах');
+});
+
+test('франшиза: франчайзи открываются и платят роялти, деньги сходятся', () => {
+  const s = createGame({ seed: 8 });
+  const co = s.companies.c1;
+  co.cash = 1e6;
+  const start = co.cash;
+  const ids = [];
+  for (let i = 0; i < 3; i++) {
+    const lot = firstLot(s, 'ber', 'coffee_shop');
+    ids.push(applyCommand(s, { type: 'openBusiness', lotId: lot.id, businessType: 'coffee_shop' }, 'c1').unitId);
+  }
+  const b = applyCommand(s, { type: 'createBrand', name: 'Бин', businessType: 'coffee_shop', tier: 'std', unitIds: ids }, 'c1');
+  assert.ok(b.ok);
+  assert.ok(applyCommand(s, { type: 'openFranchise', brandId: b.brandId, country: 'FR' }, 'c1').ok);
+  assert.ok(applyCommand(s, { type: 'openFranchise', brandId: b.brandId, country: 'ES' }, 'c1').ok);
+  stepDays(s, 720);
+  const brand = s.brands[b.brandId];
+  const n = Object.values(brand.franchisees).reduce((a, x) => a + x, 0);
+  assert.ok(n >= 2, `франчайзи: ${n}`);
+  assert.ok(co.history.some((m) => m.royalty > 0));
+  assert.ok(Object.keys(brand.awareness).some((pid) => s.world.places[pid].country === 'FR'), 'бренд узнают во Франции');
+  assert.ok(Math.abs(co.cash - (start + co.totals.in - co.totals.out)) < 1e-6);
+});
+
+test('биржа: акции корпораций приносят дивиденды', () => {
+  const s = createGame({ seed: 10 });
+  const co = s.companies.c1;
+  co.cash = 1e6;
+  const l = s.stocks.listings.s1;
+  const r = applyCommand(s, { type: 'tradeShares', listingId: 's1', qty: 5000 }, 'c1');
+  assert.ok(r.ok, r.error);
+  assert.equal(l.holders.c1, 5000);
+  stepDays(s, 95);
+  assert.ok(co.history.some((m) => m.dividendsIn > 0));
+  assert.ok(applyCommand(s, { type: 'tradeShares', listingId: 's1', qty: -5000 }, 'c1').ok);
+  assert.equal(l.holders.c1, undefined);
+  assert.ok(!applyCommand(s, { type: 'tradeShares', listingId: 's1', qty: -1 }, 'c1').ok, 'нельзя продать чужое');
+});
+
+test('IPO и поглощение соперника в PvP', () => {
+  const s = createGame({ seed: 12, mode: 'pvp', companyNames: ['А', 'Б'] });
+  const [a, b] = [s.companies.c1, s.companies.c2];
+  a.cash = 800000;
+  b.cash = 2e7;
+  const start = { c1: a.cash, c2: b.cash };
+  open(s, 'ber', 'coffee_shop', 'c1');
+  assert.ok(!applyCommand(s, { type: 'ipo', share: 0.3 }, 'c1').ok, 'без истории IPO нельзя');
+  stepDays(s, 370);
+  const ipo = applyCommand(s, { type: 'ipo', share: 0.49 }, 'c1');
+  assert.ok(ipo.ok, ipo.error);
+  const l = s.stocks.listings.c1;
+  // компания А продаёт ещё часть своих акций — и теряет контроль
+  assert.ok(applyCommand(s, { type: 'tradeShares', listingId: 'c1', qty: -400000 }, 'c1').ok);
+  assert.ok(applyCommand(s, { type: 'tradeShares', listingId: 'c1', qty: l.float }, 'c2').ok);
+  assert.ok(l.holders.c2 / l.shares >= 0.75);
+  assert.ok(!applyCommand(s, { type: 'setPayout', listingId: 'c1', payout: 0 }, 'c1').ok, 'дивиденды решает контролирующий');
+  assert.ok(applyCommand(s, { type: 'setPayout', listingId: 'c1', payout: 1 }, 'c2').ok);
+  const unitsA = Object.values(s.units).filter((u) => u.companyId === 'c1').length;
+  const r = applyCommand(s, { type: 'absorbCompany', targetId: 'c1' }, 'c2');
+  assert.ok(r.ok, r.error);
+  assert.ok(a.bankrupt && a.absorbedBy === 'c2');
+  assert.equal(Object.values(s.units).filter((u) => u.companyId === 'c2').length, unitsA);
+  assert.ok(!s.stocks.listings.c1);
+  assert.ok(!applyCommand(s, { type: 'renameCompany', name: 'x' }, 'c1').ok);
+  stepDays(s, 40);
+  assert.equal(s.winner?.companyId, undefined, 'без условия победы игра продолжается');
+  for (const co of Object.values(s.companies)) {
+    assert.ok(Math.abs(co.cash - (start[co.id] + co.totals.in - co.totals.out)) < 1e-3, co.id);
+  }
+});
+
+test('нефтяная цепочка: скважина → НПЗ → АЗС', () => {
+  const s = createGame({ seed: 14 });
+  s.companies.c1.cash = 1e7;
+  const well = open(s, 'r_permian', 'oil_well');
+  const ref = open(s, 'chi', 'refinery');
+  const gas = open(s, 'chi', 'gas_station');
+  stepDays(s, 70);
+  assert.ok(well.last.produced > 0);
+  assert.equal(ref.supplied.oil, 'internal');
+  assert.ok(ref.last.produced > 0);
+  assert.equal(gas.supplied.fuel, 'internal');
+  assert.ok(gas.last.customers > 0 && gas.last.revenue > 0);
+});

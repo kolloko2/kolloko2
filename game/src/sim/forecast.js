@@ -6,6 +6,7 @@ import { buyPrice, sellPrice } from './market.js';
 import { costIndex } from './world.js';
 import { capexFor, dailyNeed } from './units.js';
 import { serviceRevenuePerStaff } from './services.js';
+import { licenseNeeded } from './countries.js';
 
 const FORECAST_AWARENESS = 0.35; // узнаваемость через пару месяцев при стандартной рекламе
 
@@ -39,6 +40,8 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
   const tier = brand ? BRAND_TIERS[brand.tier] : null;
   r.brandId = brand?.id ?? null;
   r.entryFee = companyId ? entryFee(state, companyId, place, type) : 0;
+  r.license = licenseNeeded(state, companyId, place, type);
+  r.extra = r.entryFee + (r.license?.cost ?? 0); // разовые платежи сверх вложений
   // без местной команды (меньше 3 точек в чужой стране) зарплаты и содержание дороже
   const co = companyId ? state.companies[companyId] : null;
   const foreign = co && co.homeCountry && co.homeCountry !== place.country && isConsumer(type)
@@ -114,6 +117,6 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
   };
   const totalCosts = Object.values(r.costs).reduce((a, b) => a + b, 0);
   r.profit = r.revenue - totalCosts;
-  r.payback = r.profit > 0 ? (r.capex + r.entryFee) / r.profit : Infinity;
+  r.payback = r.profit > 0 ? (r.capex + r.extra) / r.profit : Infinity;
   return r;
 }

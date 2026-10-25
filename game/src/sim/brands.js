@@ -35,6 +35,9 @@ export function newBrand(state, companyId, { name, businessType, tier }) {
     wageLevel: tier === 'premium' ? 1.2 : 1,
     national: {}, // страна → бюджет национальной рекламы в месяц
     awareness: {}, // город → { p: эффект присутствия, ads: эффект нац. рекламы }
+    franchise: {}, // страны, где продаётся франшиза
+    royalty: 0.05,
+    franchisees: {}, // город → число точек франчайзи
   };
   return state.brands[id];
 }
@@ -82,9 +85,12 @@ export function updateBrands(state, spendCompany) {
     const members = brandUnits(state, brand);
     const byCity = {};
     const byCountry = {};
-    for (const u of members) {
-      byCity[u.placeId] = (byCity[u.placeId] || 0) + 1;
-      const c = state.world.places[u.placeId].country;
+    // точки франчайзи тоже несут вывеску сети
+    const points = members.map((u) => u.placeId);
+    for (const [pid, n] of Object.entries(brand.franchisees || {})) for (let i = 0; i < n; i++) points.push(pid);
+    for (const pid of points) {
+      byCity[pid] = (byCity[pid] || 0) + 1;
+      const c = state.world.places[pid].country;
       byCountry[c] = (byCountry[c] || 0) + 1;
     }
     for (const [country, budget] of Object.entries(brand.national)) {

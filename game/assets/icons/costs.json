@@ -186,5 +186,41 @@
   "goods/fuel": {
     "model": "meta/muse-image",
     "cost": 0.01
+  },
+  "business/food_factory": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/gas_station": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/oil_well": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/refinery": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "business/chemical_plant": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "goods/oil": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/stocks": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/globe": {
+    "model": "meta/muse-image",
+    "cost": 0.01
+  },
+  "ui/franchise": {
+    "model": "meta/muse-image",
+    "cost": 0.01
   }
 }
