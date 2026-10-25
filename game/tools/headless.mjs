@@ -28,7 +28,8 @@ function bestOpportunity(reserve) {
       const cost = f.capex + f.extra;
       if (f.locked || f.profit <= 0 || cost > co.cash - reserve) continue;
       if (smart && f.payback > 48) continue;
-      const score = f.profit / cost;
+      // прогноз розницы не знает о будущих конкурентах — умный игрок делает поправку
+      const score = (f.profit * (BUSINESSES[type].retail ? 0.7 : 1)) / cost;
       if (!best || score > best.score) best = { lot, type, f, score };
     }
   }

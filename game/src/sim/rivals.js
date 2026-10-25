@@ -13,7 +13,7 @@ import { newBrand } from './brands.js';
 export const ARCHETYPES = {
   discount: {
     name: 'Дискаунтер', desc: 'Дёшево и много: эконом-сети в спальных районах и у студентов.',
-    types: ['fastfood', 'minimarket', 'supermarket'], districts: ['residential', 'student', 'mall'], tier: 'eco', rate: 2,
+    types: ['fastfood', 'minimarket', 'supermarket'], districts: ['residential', 'student', 'mall'], tier: 'eco', rate: 1,
   },
   premium: {
     name: 'Премиум', desc: 'Дорогие кофейни и рестораны в центре и престижных районах.',
@@ -25,7 +25,7 @@ export const ARCHETYPES = {
   },
   raider: {
     name: 'Агрессор', desc: 'Идёт туда, где зарабатываете вы: открывается рядом, выкупает помещения, скупает акции.',
-    types: ['coffee_shop', 'fastfood', 'gas_station', 'minimarket'], districts: ['cbd', 'mall', 'residential', 'student'], tier: 'std', rate: 2,
+    types: ['coffee_shop', 'fastfood', 'gas_station', 'minimarket'], districts: ['cbd', 'mall', 'residential', 'student'], tier: 'std', rate: 1,
   },
 };
 
