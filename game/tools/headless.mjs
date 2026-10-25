@@ -78,7 +78,7 @@ function manage() {
   // региональные директора там, где 6+ бизнесов
   const byCountry = {};
   for (const u of companyUnits(state, ME)) byCountry[state.world.places[u.placeId].country] = (byCountry[state.world.places[u.placeId].country] || 0) + 1;
-  for (const [c, n] of Object.entries(byCountry)) if (n >= 6 && !co.directors?.[c]) applyCommand(state, { type: 'hireDirector', country: c }, ME);
+  if (!process.env.NODIR) for (const [c, n] of Object.entries(byCountry)) if (n >= 6 && !co.directors?.[c]) applyCommand(state, { type: 'hireDirector', country: c }, ME);
   // кредит: держим подушку на 2 месяца расходов, берём не больше половины лимита
   const reserve = monthlyCosts() * 2;
   if (co.cash < reserve && co.loan < loanLimit(state, ME) * 0.5) applyCommand(state, { type: 'takeLoan', amount: Math.round(reserve - co.cash) }, ME);
@@ -106,6 +106,7 @@ for (let month = 0; month < years * 12; month++) {
     const byType = {};
     for (const u of units) byType[BUSINESSES[u.type].icon] = (byType[BUSINESSES[u.type].icon] || 0) + 1;
     const h = co.history.at(-1);
+    if (process.env.ACC) console.log('   месяц:', JSON.stringify(h));
     console.log(
       `год ${(month + 1) / 12}: капитал $${Math.round(netWorth(state, ME)).toLocaleString('ru-RU')}, касса $${Math.round(co.cash).toLocaleString('ru-RU')}, ` +
       `долг $${Math.round(co.loan).toLocaleString('ru-RU')}, прибыль/мес $${h.profit.toLocaleString('ru-RU')}, бизнесов ${units.length} ${JSON.stringify(byType)}`,
