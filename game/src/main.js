@@ -179,15 +179,59 @@ function renderHud() {
   document.querySelector('#nav button[data-tab="tasks"] .nav-badge').textContent = String(tasks || '');
 }
 
-function render() {
-  renderHud();
-  renderTutorial(app);
-  checkWinner();
+// На быстрой скорости дни идут часто. Если перерисовать панель между нажатием и отпусканием кнопки,
+// кнопка заменится новой и клик пропадёт. Поэтому: пока кнопка зажата — не трогаем панели,
+// а по таймеру дней рисуем их не чаще PANEL_MS (действия игрока рисуются сразу).
+const PANEL_MS = 250;
+let pressing = false;
+let panelsPending = false;
+let lastPanels = 0;
+let panelsTimer = /** @type {any} */ (0);
+
+function renderPanels(force) {
+  if (pressing) {
+    panelsPending = true;
+    return;
+  }
+  const wait = PANEL_MS - (performance.now() - lastPanels);
+  if (!force && wait > 0) {
+    if (!panelsTimer) panelsTimer = setTimeout(() => {
+      panelsTimer = 0;
+      renderPanels(true);
+    }, wait);
+    return;
+  }
+  lastPanels = performance.now();
+  panelsPending = false;
   const panel = document.getElementById('panel');
   const editing = panel.contains(document.activeElement) && ['INPUT', 'SELECT'].includes(document.activeElement.tagName);
   if (!editing) renderPanel(app);
   renderDrawer(app);
   renderCity(app);
+  renderTutorial(app);
+}
+
+function bindPress() {
+  const zones = ['panel', 'drawer', 'city', 'tutorial'].map((id) => document.getElementById(id));
+  window.addEventListener('pointerdown', (e) => {
+    if (zones.some((z) => z?.contains(/** @type {Node} */ (e.target)))) pressing = true;
+  }, true);
+  const release = () => {
+    if (!pressing) return;
+    // отпускаем после того, как браузер доставит click
+    setTimeout(() => {
+      pressing = false;
+      if (panelsPending) renderPanels(true);
+    }, 0);
+  };
+  window.addEventListener('pointerup', release, true);
+  window.addEventListener('pointercancel', release, true);
+}
+
+function render(force = true) {
+  renderHud();
+  checkWinner();
+  renderPanels(force);
 }
 
 // ---------- победа ----------
@@ -362,7 +406,7 @@ function loop(now) {
 function onTick() {
   if (!app.started) return;
   announceNews();
-  render();
+  render(false);
   refreshWarnings(app);
   const months = app.company.history.length;
   if (months !== lastMonths) {
@@ -1124,6 +1168,7 @@ async function boot() {
   // Пока открыто лобби, под ним показываем демо-мир (не сохраняется)
   app.session = new LocalSession(createGame({ seed: 1 }));
   bindUi();
+  bindPress();
   bindDialog();
   bindCity();
   bindLobby();
