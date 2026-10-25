@@ -1,5 +1,5 @@
-import { BUSINESSES, QUALITY_PER_LEVEL } from '../data/businesses.js';
-import { GOODS } from '../data/goods.js';
+import { BUSINESSES, EQUIPMENT, STAFF_CLASSES } from '../data/businesses.js';
+import { GOODS, GRADES } from '../data/goods.js';
 import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { itCapacityBoost } from './bonuses.js';
@@ -183,11 +183,55 @@ export function invQty(unit, good) {
   return unit.inv[good]?.q ?? 0;
 }
 
-export function addInv(unit, good, qty, unitCost) {
+// k — класс (качество 1–5) поступившего товара: в запасе держится средний класс
+export function addInv(unit, good, qty, unitCost, k = 3) {
   if (qty <= 0) return;
-  const s = unit.inv[good] || (unit.inv[good] = { q: 0, c: 0 });
+  const s = unit.inv[good] || (unit.inv[good] = { q: 0, c: 0, k });
   s.c = (s.q * s.c + qty * unitCost) / (s.q + qty);
+  s.k = ((s.k ?? 3) * s.q + k * qty) / (s.q + qty);
   s.q += qty;
+}
+
+// Класс товара в запасе (если запаса нет — класс, который точка закупает на рынке)
+export function invK(unit, good) {
+  const s = unit.inv[good];
+  return s && s.q > 0 ? s.k ?? 3 : gradeK(unit, good);
+}
+
+export function gradeK(unit, good) {
+  return GRADES[unit.grades?.[good] ?? 'std']?.k ?? 3;
+}
+
+// Качество оборудования (с учётом износа) и персонала (квалификация, обучение, звезда, настроение)
+export function equipmentK(unit, wear = true) {
+  return EQUIPMENT[unit.level - 1].k - (wear ? wearQuality(unit) : 0);
+}
+export function staffK(unit) {
+  const cls = STAFF_CLASSES[unit.wageLevel ?? 1] ?? STAFF_CLASSES[1];
+  return cls.k + 0.15 * (unit.training || 0) + (unit.star ? 0.4 : 0) - ((unit.morale ?? 65) < 40 ? 0.4 : 0);
+}
+
+// Класс товара, который выпускает производство: сырьё, оборудование, люди (+ исследования)
+/** @param {State} state @param {Unit} unit @param {number|null} [inputsK] */
+export function outputK(state, unit, inputsK = null) {
+  const tech = 0.1 * techLevel(state, unit.companyId, 'quality');
+  const k = inputsK === null ? 0.55 * equipmentK(unit) + 0.45 * staffK(unit) : 0.4 * inputsK + 0.35 * equipmentK(unit) + 0.25 * staffK(unit);
+  return Math.max(1, Math.min(5, k + tech));
+}
+
+// Средний класс товаров, из которых точка делает основной продукт (взвешено по цене)
+export function productK(unit) {
+  const def = BUSINESSES[unit.type];
+  const recipe = def.retail ? def.retail.products[0].recipe : recipeOf(unit)?.inputs;
+  if (!recipe || !Object.keys(recipe).length) return null;
+  let w = 0;
+  let sum = 0;
+  for (const [g, q] of Object.entries(recipe)) {
+    const v = q * GOODS[g].base * GOODS[g].qualityWeight;
+    w += v;
+    sum += v * invK(unit, g);
+  }
+  return w > 0 ? sum / w : null;
 }
 
 // Списывает товар со склада, возвращает его себестоимость
@@ -212,10 +256,13 @@ export function defaultPrices(state, lot, type) {
   return prices;
 }
 
+// Рейтинг точки для покупателей: товар (класс того, что на полках), оборудование и интерьер, персонал
 export function baseQuality(unit, state = null) {
   const tech = state && BUSINESSES[unit.type].retail ? 0.15 * techLevel(state, unit.companyId, 'quality') : 0;
-  const people = 0.1 * (unit.training || 0) + (unit.star ? 0.4 : 0);
-  return people + (BUSINESSES[unit.type].baseQuality ?? 3) + QUALITY_PER_LEVEL * (unit.level - 1) + (unit.tierQuality ?? 0) - wearQuality(unit) + tech;
+  const product = productK(unit);
+  const service = 0.5 * equipmentK(unit, false) + 0.5 * staffK(unit);
+  const q = product === null ? service : 0.5 * product + 0.5 * service;
+  return q + ((BUSINESSES[unit.type].baseQuality ?? 3) - 3) + (unit.tierQuality ?? 0) + tech - wearQuality(unit);
 }
 
 // Деньги: все движения кассы проходят через эти функции (для учёта и тестов).

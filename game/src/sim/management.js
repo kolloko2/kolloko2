@@ -8,7 +8,7 @@ import { attention, autoStaff, efficiency, managerCost } from './staff.js';
 import {
   condition, renovateCost, monthProfit, pay, receive, spendCompany, placeOf, takeInv,
 } from './units.js';
-import { sellPrice, recordTrade } from './market.js';
+import { sellPrice, recordTrade, qualityPrice } from './market.js';
 import { endContract } from './contracts.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
@@ -79,7 +79,7 @@ export function closeUnit(state, unit) {
   const place = placeOf(state, unit);
   for (const [g, s] of Object.entries(unit.inv)) {
     if (s.q <= 0) continue;
-    cash += s.q * sellPrice(state, g, place);
+    cash += s.q * sellPrice(state, g, place) * qualityPrice(s.k ?? 3, g);
     recordTrade(state, g, s.q, place);
     takeInv(unit, g, s.q);
   }

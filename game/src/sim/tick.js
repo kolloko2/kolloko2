@@ -27,8 +27,9 @@ import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } 
 import {
   emptyMonth, monthProfit, retailCapacity, productionCapacity, dailyNeed, invQty, takeInv, addInv,
   lotOf, placeOf, spend, earn, spendCompany, earnCompany, monthlyWage, monthlyRent, monthlyUpkeep, baseQuality,
-  WEAR_PER_DAY, condition, renovateCost, pay, recipeOf,
+  WEAR_PER_DAY, condition, renovateCost, pay, recipeOf, invK, outputK,
 } from './units.js';
+import { GOODS } from '../data/goods.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
 
 const BANKRUPT_DAYS = 45;
@@ -43,8 +44,22 @@ function runProduction(state) {
     for (const [g, q] of Object.entries(recipe.inputs)) limit = Math.min(limit, invQty(unit, g) / (q * lean));
     const produced = Math.floor(Math.max(0, limit));
     let cost = 0;
+    // класс продукции: из какого сырья, на каком оборудовании и какими людьми сделано
+    let inK = null;
+    if (produced > 0 && Object.keys(recipe.inputs).length) {
+      let w = 0;
+      inK = 0;
+      for (const [g, q] of Object.entries(recipe.inputs)) {
+        const v = q * GOODS[g].base * GOODS[g].qualityWeight;
+        w += v;
+        inK += v * invK(unit, g);
+      }
+      inK = w > 0 ? inK / w : null;
+    }
     for (const [g, q] of Object.entries(recipe.inputs)) cost += takeInv(unit, g, produced * q * lean);
-    addInv(unit, recipe.output, produced, produced > 0 ? cost / produced : 0);
+    const k = outputK(state, unit, inK);
+    addInv(unit, recipe.output, produced, produced > 0 ? cost / produced : 0, k);
+    unit.today.outK = k;
     unit.month.produced += produced;
     unit.today.produced = produced;
     unit.today.prodCap = cap;

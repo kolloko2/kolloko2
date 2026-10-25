@@ -1,4 +1,4 @@
-import { GOODS, MARKET_BUY_MARKUP, MARKET_SELL_DISCOUNT } from '../data/goods.js';
+import { GOODS, MARKET_BUY_MARKUP, MARKET_SELL_DISCOUNT, GRADES } from '../data/goods.js';
 import { MARKET_REGIONS, COUNTRY_REGION, REGION_BIAS } from '../data/regions.js';
 import { randNormal } from './rng.js';
 import { priceIndex } from './world.js';
@@ -28,6 +28,23 @@ export function regionOf(place) {
 
 function impact(flow, depth) {
   return Math.max(-MAX_IMPACT, Math.min(MAX_IMPACT, (-IMPACT_K * flow) / depth));
+}
+
+// Множитель цены за класс товара: между опорными точками классов — по прямой
+/** @type {[number, number][]} */
+const GRADE_POINTS = [[1, 0.5], ...Object.values(GRADES).map((g) => /** @type {[number, number]} */ ([g.k, g.price])), [5, 2.3]];
+/** @param {number} k качество 1–5 @param {string} good */
+export function qualityPrice(k, good) {
+  let f = 2.3;
+  for (let i = 1; i < GRADE_POINTS.length; i++) {
+    const [k1, p1] = GRADE_POINTS[i - 1];
+    const [k2, p2] = GRADE_POINTS[i];
+    if (k <= k2) {
+      f = p1 + ((Math.max(k, k1) - k1) / (k2 - k1)) * (p2 - p1);
+      break;
+    }
+  }
+  return 1 + (f - 1) * (GOODS[good].qualityWeight ?? 1);
 }
 
 // Средняя цена: мировая, либо в регионе (regionId)

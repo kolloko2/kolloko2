@@ -21,9 +21,10 @@
  */
 
 /**
- * @typedef {Object} Stock Запас товара: количество и средняя себестоимость
+ * @typedef {Object} Stock Запас товара: количество, средняя себестоимость и средний класс (качество 1–5)
  * @property {number} q
  * @property {number} c
+ * @property {number} [k]
  */
 
 /**
@@ -69,6 +70,7 @@
  * @property {boolean} [star] звёздный сотрудник
  * @property {'none'|'aggregator'|'own'} [delivery] доставка еды
  * @property {string} [recipe] выбранный товар завода с вариантами
+ * @property {Record<string, string>} [grades] класс закупки товаров на рынке (cheap/std/premium/elite)
  */
 
 /**
@@ -101,6 +103,7 @@
  * @property {{ id: string, cost: number, days: number, progress: number }|null} [research]
  * @property {Record<string, number>} [lobbied]
  * @property {Record<string, number>} [truces]
+ * @property {Record<string, number>} [offeredAt] когда корпорации последний раз просили продать точку
  * @property {Record<string, number>} [truceCount] сколько раз покупали перемирие у корпорации
  * @property {{ archetype: string, home: string }} [ai] есть у ИИ-корпораций
  * @property {string} [absorbedBy]

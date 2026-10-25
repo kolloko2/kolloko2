@@ -19,11 +19,13 @@ export function transportCost(good, qty, km, { bulk = false } = {}) {
 }
 
 // Отправить товар бизнесу. Груз на 1 день лежит в unit.incoming, дольше — в state.shipments
-export function deliver(state, unit, good, qty, unitCost, days, fromId = null) {
+// k — класс товара (качество 1–5)
+export function deliver(state, unit, good, qty, unitCost, days, fromId = null, k = 3) {
   if (qty <= 0) return;
   if (days <= 1) {
-    const s = (unit.incoming[good] ||= { q: 0, c: 0 });
+    const s = (unit.incoming[good] ||= { q: 0, c: 0, k });
     s.c = (s.q * s.c + qty * unitCost) / (s.q + qty);
+    s.k = ((s.k ?? 3) * s.q + k * qty) / (s.q + qty);
     s.q += qty;
     return;
   }
@@ -35,6 +37,7 @@ export function deliver(state, unit, good, qty, unitCost, days, fromId = null) {
     good,
     qty,
     unitCost,
+    k,
     sent: state.day,
     arrive: state.day + days,
   };
@@ -77,7 +80,7 @@ export function inTransit(state, unit, good, within = Infinity) {
 // Начало дня: разгружаем прибывшее. Скоропорт портится в дороге.
 export function receiveDeliveries(state) {
   for (const unit of Object.values(state.units)) {
-    for (const [good, s] of Object.entries(unit.incoming)) addInv(unit, good, s.q, s.c);
+    for (const [good, s] of Object.entries(unit.incoming)) addInv(unit, good, s.q, s.c, s.k ?? 3);
     unit.incoming = {};
   }
   const pending = [];
@@ -91,7 +94,7 @@ export function receiveDeliveries(state) {
     const spoil = GOODS[s.good].spoil * (1 - 0.15 * techLevel(state, s.companyId, 'logistics')) * (1 - 0.3 * techLevel(state, s.companyId, 'cold'));
     const left = s.qty * (1 - spoil) ** (s.arrive - s.sent);
     unit.month.spoilage += (s.qty - left) * s.unitCost;
-    addInv(unit, s.good, left, s.unitCost);
+    addInv(unit, s.good, left, s.unitCost, s.k ?? 3);
   }
   state.shipments = pending;
 }

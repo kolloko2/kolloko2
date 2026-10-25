@@ -129,6 +129,16 @@ if (process.env.ACC) {
   const closed = opened.filter((o) => !state.units[o.id]).length;
   console.log(`открыто ${opened.length}, закрыто ${closed}`);
 }
+// Откуда деньги: прибыль за последний год по типам бизнеса
+const byProfit = {};
+for (const u of companyUnits(state, ME)) {
+  const p = u.history.slice(-12).reduce((a, b) => a + b, 0);
+  const t = (byProfit[u.type] ||= { n: 0, p: 0 });
+  t.n++;
+  t.p += p;
+}
+console.log('Прибыль за год по типам:', Object.entries(byProfit).sort((a, b) => b[1].p - a[1].p)
+  .map(([t, v]) => `${t}×${v.n}: $${Math.round(v.p / 1000)}k`).join(', '));
 const prices = Object.entries(state.market.goods).map(([g, m]) => `${g}=${m.price.toFixed(2)}`).join(' ');
 console.log('Цены:', prices);
 console.log(`Время прогона: ${Date.now() - t0} мс`);

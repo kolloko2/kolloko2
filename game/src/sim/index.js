@@ -3,10 +3,10 @@ export {
   addNews, newsFor, SAVE_VERSION, MODES, COMPANY_COLORS,
 } from './state.js';
 export { stepDay, stepDays, isOver } from './tick.js';
-export { applyCommand, upgradeCost, COMMAND_TYPES } from './commands.js';
+export { applyCommand, upgradeCost, equipmentCost, hiringFee, COMMAND_TYPES } from './commands.js';
 export { GOALS, goalContext, VICTORY_OPTIONS, victoryText } from './goals.js';
 export { forecast, buildableTypes, canBuildHere, searchLots } from './forecast.js';
-export { buyPrice, sellPrice, midPrice, regionOf } from './market.js';
+export { buyPrice, sellPrice, midPrice, regionOf, qualityPrice } from './market.js';
 export { contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS } from './contracts.js';
 export { leadDays, inTransit } from './logistics.js';
 export { isWarehouse, storageCapacity, storedKg, servedBy } from './supply.js';

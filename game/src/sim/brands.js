@@ -60,6 +60,7 @@ export function applyBrand(state, brand) {
     const idx = costIndex(place);
     setAds(u, Object.fromEntries(Object.entries(brandAds(brand)).map(([ch, b]) => [ch, b * idx])));
     u.wageLevel = brand.wageLevel;
+    if (brand.grades) u.grades = { ...brand.grades };
     u.tierQuality = t.quality;
     u.tierUpkeep = t.upkeep;
   }

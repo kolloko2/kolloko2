@@ -841,3 +841,33 @@ test('сделки с корпорациями: цена перемирия жи
   const unit = Object.values(s.units).find((u) => s.companies[u.companyId].ai);
   if (unit) assert.ok(rivalUnitQuote(s, unit).price > 0);
 });
+
+test('класс товара: оборудование и люди производителя решают, что попадёт на полки', async () => {
+  const { equipmentCost } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 47, rivals: 0 });
+  s.companies.c1.cash = 3e7;
+  const cheap = open(s, 'msk', 'coffee_roastery');
+  const best = open(s, 'msk', 'coffee_roastery');
+  assert.ok(applyCommand(s, { type: 'buyEquipment', unitId: best.id, level: 3 }, 'c1').ok);
+  assert.ok(s.companies.c1.cash < 3e7 - equipmentCost(s, { ...best, level: 1 }, 3) + 1);
+  assert.ok(applyCommand(s, { type: 'setWage', unitId: best.id, level: 1.5 }, 'c1').ok, 'нанять мастеров');
+  assert.ok(applyCommand(s, { type: 'setGrade', unitId: best.id, good: 'coffee_green', grade: 'elite' }, 'c1').ok);
+  assert.ok(applyCommand(s, { type: 'setWage', unitId: cheap.id, level: 0.8 }, 'c1').ok);
+  assert.ok(applyCommand(s, { type: 'setGrade', unitId: cheap.id, good: 'coffee_green', grade: 'cheap' }, 'c1').ok);
+  stepDays(s, 30);
+  const kBest = best.today.outK;
+  const kCheap = cheap.today.outK;
+  assert.ok(kBest > 4.3, `элитный кофе: ${kBest}`);
+  assert.ok(kCheap < 2.8, `дешёвый кофе: ${kCheap}`);
+  assert.ok(best.month.revenue / Math.max(1, best.month.produced) > cheap.month.revenue / Math.max(1, cheap.month.produced), 'элитное дороже на рынке');
+  // кофейня на элитном кофе и молоке — рейтинг выше (в другой партии: здесь кофе шёл бы со своих обжарок)
+  const s2 = createGame({ seed: 48, rivals: 0 });
+  s2.companies.c1.cash = 3e6;
+  const a = open(s2, 'msk', 'coffee_shop');
+  const b = open(s2, 'msk', 'coffee_shop');
+  for (const [u, g] of [[a, 'elite'], [b, 'cheap']]) {
+    for (const good of ['coffee_roasted', 'milk', 'cups']) assert.ok(applyCommand(s2, { type: 'setGrade', unitId: u.id, good, grade: g }, 'c1').ok);
+  }
+  stepDays(s2, 90);
+  assert.ok(a.quality > b.quality + 0.8, `рейтинг ${a.quality} против ${b.quality}`);
+});

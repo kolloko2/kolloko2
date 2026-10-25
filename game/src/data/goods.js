@@ -122,3 +122,23 @@ export const MARKET_SELL_DISCOUNT = 0.08;
 // Перевозка между своими бизнесами: $ за кг·км + перевалка за кг.
 export const TRANSPORT_PER_KG_KM = 0.00003;
 export const TRANSPORT_HANDLING_PER_KG = 0.02;
+
+// Класс товара (качество, «звёзды» 1–5). На рынке можно закупать любой класс — дороже или дешевле;
+// своё производство выпускает тот класс, на который способны его оборудование, персонал и сырьё.
+export const GRADES = {
+  cheap: { name: 'Дешёвый', k: 1.8, price: 0.65 },
+  std: { name: 'Стандарт', k: 3, price: 1 },
+  premium: { name: 'Премиум', k: 4, price: 1.45 },
+  elite: { name: 'Элитный', k: 4.8, price: 2.1 },
+};
+// Насколько класс влияет на цену: у сырья почти не влияет (руда — она и есть руда), у товаров для людей — сильно
+const RAW_GOODS = new Set(['coffee_green', 'wheat', 'cattle', 'oil', 'iron_ore', 'coal', 'copper_ore', 'bauxite', 'nickel_ore', 'gold', 'silver',
+  'lithium', 'uranium', 'limestone', 'sand', 'clay', 'salt', 'phosphate', 'potash', 'natural_gas', 'corn', 'rice', 'soybeans', 'potatoes',
+  'barley', 'sugar_beet', 'cotton', 'rubber', 'timber', 'cocoa', 'tea_leaf', 'fuel', 'jet_fuel', 'steel', 'aluminum', 'copper', 'nickel', 'cement',
+  'chemicals', 'fertilizer', 'plastic', 'flour', 'sugar', 'feed']);
+for (const [id, g] of Object.entries(GOODS)) g.qualityWeight = RAW_GOODS.has(id) ? 0.25 : 1;
+
+// Название класса по качеству
+export function gradeName(k) {
+  return k < 2.4 ? 'дешёвый' : k < 3.5 ? 'стандарт' : k < 4.4 ? 'премиум' : 'элитный';
+}

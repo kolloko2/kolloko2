@@ -1,6 +1,6 @@
 import { BUSINESSES } from '../data/businesses.js';
 import { GOODS } from '../data/goods.js';
-import { buyPrice, sellPrice, recordTrade } from './market.js';
+import { buyPrice, sellPrice, recordTrade, qualityPrice } from './market.js';
 import { distanceKm } from './world.js';
 import { leadDays, transportCost, deliver, inTransit, SEA_KM, PORT_DAYS } from './logistics.js';
 import { freightFactor, hasPort } from './bonuses.js';
@@ -8,7 +8,7 @@ import { purchasingDiscount } from './expansion.js';
 import { tariffRate } from './countries.js';
 import { techLevel } from './research.js';
 import {
-  inputGoods, outputGood, invQty, takeInv, coverDays, lotOf, placeOf, spend, earn, pay,
+  inputGoods, outputGood, invQty, invK, gradeK, takeInv, coverDays, lotOf, placeOf, spend, earn, pay,
 } from './units.js';
 
 export function isWarehouse(unit) {
@@ -149,12 +149,13 @@ function supplyInternally(state, unit, good) {
     const avail = invQty(s, good) - selfReserve(s, good);
     if (avail <= 0) continue;
     const fromWarehouse = isWarehouse(s);
-    // производство «продаёт» своим по рыночной цене своего региона, склад передаёт по себестоимости
-    const price = fromWarehouse ? s.inv[good].c : sellPrice(state, good, placeOf(state, s));
+    const k = invK(s, good);
+    // производство «продаёт» своим по рыночной цене своего региона (за свой класс), склад передаёт по себестоимости
+    const price = fromWarehouse ? s.inv[good].c : sellPrice(state, good, placeOf(state, s)) * qualityPrice(k, good);
     // через границу (вне торгового блока) — таможенная пошлина
     const duty = tariffRate(state, placeOf(state, s).country, placeOf(state, unit).country);
     // везти своё имеет смысл, только если с доставкой и пошлиной выходит не дороже местного рынка
-    if (price * (1 + duty) + transportCost(good, 1, km, { bulk: toWarehouse }) * seaFactor > market) continue;
+    if (price * (1 + duty) + transportCost(good, 1, km, { bulk: toWarehouse }) * seaFactor > market * qualityPrice(k, good)) continue;
     const qty = Math.min(avail, want);
     const cost = takeInv(s, good, qty);
     s.month.revInternal += qty * price;
@@ -165,7 +166,7 @@ function supplyInternally(state, unit, good) {
     spend(state, unit, 'transport', transport);
     if (duty) spend(state, unit, 'duty', qty * price * duty);
     // доставка и пошлина уже записаны в отчёт отдельными строками — в себестоимость запаса их не включаем
-    deliver(state, unit, good, qty, price, lead, s.id);
+    deliver(state, unit, good, qty, price, lead, s.id, k);
     (unit.sources ||= {})[good] = s.id; // для линий цепочек на карте
     unit.supplied[good] = fromWarehouse ? 'warehouse' : 'internal';
   }
@@ -175,14 +176,16 @@ function buyOnMarket(state, unit, good) {
   const want = capRoom(state, unit, good, orderQty(state, unit, good, 1));
   if (want <= (unit.usage[good] || 0) * 0.2) return;
   const place = placeOf(state, unit);
-  const price = buyPrice(state, good, place, { bulk: isWarehouse(unit) }) * (1 - purchasingDiscount(state, unit.companyId, place));
+  // класс закупки выбирает владелец точки: дешёвый, стандарт, премиум или элитный
+  const k = gradeK(unit, good);
+  const price = buyPrice(state, good, place, { bulk: isWarehouse(unit) }) * qualityPrice(k, good) * (1 - purchasingDiscount(state, unit.companyId, place));
   const q = Math.min(want, Math.max(0, state.companies[unit.companyId].cash) / price);
   if (q <= 0) {
     unit.supplied[good] = 'nocash';
     return;
   }
   pay(state, unit.companyId, q * price);
-  deliver(state, unit, good, q, price, 1);
+  deliver(state, unit, good, q, price, 1, null, k);
   recordTrade(state, good, -q, place);
   if (!unit.supplied[good]) unit.supplied[good] = 'market';
 }
@@ -215,7 +218,7 @@ export function sellSurplus(state) {
     const qty = invQty(unit, good) - reserve;
     if (qty <= 0) continue;
     const place = placeOf(state, unit);
-    const price = sellPrice(state, good, place);
+    const price = sellPrice(state, good, place) * qualityPrice(invK(unit, good), good);
     const cost = takeInv(unit, good, qty);
     earn(state, unit, qty * price);
     unit.month.cogs += cost;

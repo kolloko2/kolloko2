@@ -285,6 +285,7 @@ export function truceCost(state, rival, companyId = null) {
 //   buyUnit — хотят купить вашу точку; buyBrand — всю вашу сеть; sellUnit — распродают свою убыточную точку;
 //   supply — сырьевик предлагает поставки дешевле рынка на год.
 export const OFFER_DAYS = 30;
+const OFFER_MIN_AGE = 365; // точку моложе года не пытаются купить
 const RAW_GOODS = ['wheat', 'flour', 'meat', 'milk', 'coffee_green', 'cattle', 'oil', 'fuel'];
 
 function avgProfit(unit, n = 3) {
@@ -319,10 +320,14 @@ function makeOffers(state, co) {
     if (player.ai || player.bankrupt || !chance(state.rng, 0.15)) continue;
     if ((state.offers || []).some((o) => o.from === co.id && o.to === player.id && o.until > state.day)) continue;
     const mine = companyUnits(state, player.id);
+    if (player.history.length < 12) continue; // молодую компанию корпорации пока не замечают
     const roll = co.ai.archetype === 'raw' ? 0.8 + 0.2 * rand(state.rng) : rand(state.rng) * 0.8;
     if (roll < 0.4) {
       // купить прибыльную точку подходящего типа
-      const target = mine.filter((u) => arch.types.includes(u.type) && avgProfit(u) > 0).sort((a, b) => avgProfit(b) - avgProfit(a))[0];
+      // только зрелые прибыльные точки (год работы, полгода прибыли), не чаще раза в год на точку
+      const target = mine.filter((u) => arch.types.includes(u.type) && state.day - u.opened >= OFFER_MIN_AGE && u.history.length >= 6
+        && avgProfit(u, 6) > 0 && !(player.offeredAt?.[u.id] > state.day - 365)).sort((a, b) => avgProfit(b) - avgProfit(a))[0];
+      if (target) (player.offeredAt ||= {})[target.id] = state.day;
       const price = target && bidForUnit(state, target) * 1.15;
       if (target && co.cash > price) addOffer(state, { from: co.id, to: player.id, kind: 'buyUnit', unitId: target.id, price: Math.round(price) });
     } else if (roll < 0.55) {
@@ -360,7 +365,7 @@ export function monthlyOffers(state) {
     if (!co.ai || co.bankrupt) continue;
     const before = state.offers.length;
     makeOffers(state, co);
-    for (const o of state.offers.slice(before)) addNews(state, 'info', `📨 ${offerText(state, o)} Ответьте во вкладке «Соперники».`, null, o.to);
+    for (const o of state.offers.slice(before)) addNews(state, 'info', `📨 ${offerText(state, o)} Ответить можно в карточке точки или во вкладке «Соперники».`, null, o.to);
   }
 }
 

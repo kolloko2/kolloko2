@@ -1,4 +1,4 @@
-import { BUSINESSES, MAX_LEVEL, UPGRADE_COST_FACTOR } from '../data/businesses.js';
+import { BUSINESSES, MAX_LEVEL, UPGRADE_COST_FACTOR, EQUIPMENT } from '../data/businesses.js';
 import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
 import { canBuildHere, forecast } from './forecast.js';
@@ -7,7 +7,7 @@ import {
   emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, pay, receive, placeOf, renovateCost, condition,
   monthlyWage, spend, allowedRecipes,
 } from './units.js';
-import { GOODS } from '../data/goods.js';
+import { GOODS, GRADES } from '../data/goods.js';
 
 const RETOOL_COST = 0.05; // доля вложений на перенастройку завода
 const RETOOL_DAYS = 7;
@@ -244,7 +244,38 @@ const handlers = {
     return OK;
   },
 
-  // Обновление: ремонт, новое оборудование и интерьер — износ снова 0%
+  // Купить оборудование классом выше: мощность и качество того, что точка делает и продаёт
+  buyEquipment(state, { unitId, level }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (!(level > unit.level && level <= MAX_LEVEL)) return fail('Можно купить только оборудование классом выше');
+    const cost = equipmentCost(state, unit, level);
+    if (state.companies[companyId].cash < cost) return fail(`Не хватает денег: нужно ${fmt(cost)}`);
+    pay(state, companyId, cost);
+    unit.level = level;
+    unit.condition = 100; // новое оборудование
+    unit.bookValue += cost;
+    addNews(state, 'good', `«${unit.name}»: установлено ${EQUIPMENT[level - 1].name.toLowerCase()} оборудование (${fmt(cost)}).`, { unitId }, companyId);
+    return OK;
+  },
+
+  // Класс закупаемого на рынке товара (дешёвый…элитный); у точек сети — для всей сети
+  setGrade(state, { unitId, brandId, good, grade }, companyId) {
+    if (!GRADES[grade] || !GOODS[good]) return fail('Неизвестный класс товара');
+    if (brandId) {
+      const brand = state.brands[brandId];
+      if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+      (brand.grades ||= {})[good] = grade;
+      applyBrand(state, brand);
+      return OK;
+    }
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (unit.brandId) return fail('Закупки точек сети задаёт сеть');
+    (unit.grades ||= {})[good] = grade;
+    return OK;
+  },
+
   // ---------- управление ----------
   hireDirector(state, { country }, companyId) {
     if (!COUNTRIES[country]) return fail('Нет такой страны');
@@ -465,6 +496,10 @@ const handlers = {
     if (!unit) return fail('Нет такого бизнеса');
     if (unit.brandId) return fail('Зарплаты в точках сети задаёт сеть');
     if (!WAGE_LEVELS.includes(level)) return fail('Уровень зарплаты: 80%, 100%, 120% или 150%');
+    // нанять людей квалификацией выше — разовые расходы на подбор (месячная разница в зарплате)
+    const fee = level > wageLevelOf(unit) ? Math.round(hiringFee(state, unit, level)) : 0;
+    if (state.companies[companyId].cash < fee) return fail(`Подбор персонала стоит ${fmt(fee)} — не хватает денег`);
+    if (fee) spend(state, unit, 'wages', fee);
     unit.wageLevel = level;
     return OK;
   },
@@ -774,6 +809,19 @@ const handlers = {
     return OK;
   },
 };
+
+// Цена перехода на оборудование класса level (сумма шагов улучшения)
+export function equipmentCost(state, unit, level) {
+  let cost = 0;
+  for (let l = unit.level; l < level; l++) cost += upgradeCost(state, { ...unit, level: l });
+  return cost;
+}
+
+// Подбор персонала квалификацией выше: месячная разница в зарплате всего штата
+export function hiringFee(state, unit, level) {
+  return Math.max(0, level - wageLevelOf(unit)) * unit.staff * BUSINESSES[unit.type].staff.wage * state.world.places[unit.placeId].wage;
+}
+const wageLevelOf = (unit) => unit.wageLevel ?? 1;
 
 export function upgradeCost(state, unit) {
   const def = BUSINESSES[unit.type];
