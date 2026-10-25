@@ -75,10 +75,10 @@ function manage() {
       if (monthProfit(u.last) > managerCost(state.world.places[u.placeId], u.type) * need) applyCommand(state, { type: 'hireManager', unitId: u.id }, ME);
     }
   }
-  // региональные директора там, где 6+ бизнесов
+  // региональные директора там, где 12+ бизнесов
   const byCountry = {};
   for (const u of companyUnits(state, ME)) byCountry[state.world.places[u.placeId].country] = (byCountry[state.world.places[u.placeId].country] || 0) + 1;
-  if (!process.env.NODIR) for (const [c, n] of Object.entries(byCountry)) if (n >= 6 && !co.directors?.[c]) applyCommand(state, { type: 'hireDirector', country: c }, ME);
+  if (!process.env.NODIR) for (const [c, n] of Object.entries(byCountry)) if (n >= 12 && !co.directors?.[c]) applyCommand(state, { type: 'hireDirector', country: c }, ME);
   // кредит: держим подушку на 2 месяца расходов, берём не больше половины лимита
   const reserve = monthlyCosts() * 2;
   if (co.cash < reserve && co.loan < loanLimit(state, ME) * 0.5) applyCommand(state, { type: 'takeLoan', amount: Math.round(reserve - co.cash) }, ME);
