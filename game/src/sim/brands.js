@@ -61,6 +61,7 @@ export function applyBrand(state, brand) {
     setAds(u, Object.fromEntries(Object.entries(brandAds(brand)).map(([ch, b]) => [ch, b * idx])));
     u.wageLevel = brand.wageLevel;
     if (brand.grades) u.grades = { ...brand.grades };
+    if (brand.assortment) u.assortment = [...brand.assortment];
     u.tierQuality = t.quality;
     u.tierUpkeep = t.upkeep;
   }

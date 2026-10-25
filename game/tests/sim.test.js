@@ -891,3 +891,24 @@ test('город: участки в кварталах, конкуренты —
   assert.equal(client.world.lots[u.lotId].unitId, u.id, 'клиент видит занятый участок');
   stepDays(s, 10);
 });
+
+test('ассортимент и закупки: полки, поставщик по товару, «держать на полке N»', async () => {
+  const { activeProducts, shelfCount, supplierOptions } = await import('../src/sim/index.js');
+  const s = createGame({ seed: 51, rivals: 0 });
+  s.companies.c1.cash = 1e7;
+  const ff = open(s, 'ber', 'fastfood');
+  assert.deepEqual(activeProducts(ff).map((p) => p.id), ['hotdog', 'drink'], 'по умолчанию — стандартный набор');
+  assert.equal(shelfCount(ff), 3);
+  assert.ok(applyCommand(s, { type: 'setAssortment', unitId: ff.id, productId: 'fries', on: true }, 'c1').ok);
+  assert.ok(!applyCommand(s, { type: 'setAssortment', unitId: ff.id, productId: 'soda', on: true }, 'c1').ok, 'полки кончились');
+  assert.ok(!applyCommand(s, { type: 'setAssortment', unitId: ff.id, productId: 'hotdog', on: false }, 'c1').ok, 'основной товар не убрать');
+  // поставщик: своя мельница вместо рынка
+  const mill = open(s, 'ber', 'mill');
+  assert.ok(supplierOptions(s, ff, 'flour').some((o) => o.key === mill.id), 'своя мельница в списке поставщиков');
+  assert.ok(applyCommand(s, { type: 'setSupplier', unitId: ff.id, good: 'flour', from: mill.id }, 'c1').ok);
+  assert.ok(applyCommand(s, { type: 'setTarget', unitId: ff.id, good: 'meat', qty: 50 }, 'c1').ok);
+  stepDays(s, 20);
+  assert.ok(ff.month.byProduct.fries[0] > 0, 'картошка фри продаётся');
+  assert.ok(ff.supplied.flour === 'internal' || ff.supplied.flour === 'empty', 'мука — только со своей мельницы');
+  assert.ok(ff.inv.meat.q <= 60, `мяса держат около 50: ${ff.inv.meat.q}`);
+});

@@ -70,6 +70,10 @@
  * @property {boolean} [star] звёздный сотрудник
  * @property {'none'|'aggregator'|'own'} [delivery] доставка еды
  * @property {string} [recipe] выбранный товар завода с вариантами
+ * @property {string[]} [assortment] товары на полках (кроме основного)
+ * @property {number} [extraShelves] докупленные полки
+ * @property {Record<string, string>} [suppliers] поставщик товара: auto | market | id своего бизнеса
+ * @property {Record<string, number>} [target] держать в запасе N единиц товара
  * @property {Record<string, string>} [grades] класс закупки товаров на рынке (cheap/std/premium/elite)
  */
 

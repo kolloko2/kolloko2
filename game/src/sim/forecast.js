@@ -90,7 +90,7 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     if (brand) {
       let num = 0;
       let den = 0;
-      for (const p of def.retail.products) {
+      for (const p of def.retail.products.filter((x) => !x.opt)) {
         num += p.attach * (brand.priceRatio[p.id] ?? 1);
         den += p.attach;
       }
@@ -116,7 +116,7 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     served = Math.min(potential, staff * def.retail.perStaff * eff, def.retail.cap[0]);
     r.customers = Math.round(served);
     r.competitors = sh.ai + Object.keys(sh.byUnit).length - 1;
-    for (const p of def.retail.products) revenueDay += served * p.attach * refPrice(place, p) * (brand?.priceRatio[p.id] ?? 1);
+    for (const p of def.retail.products.filter((x) => !x.opt)) revenueDay += served * p.attach * refPrice(place, p) * (brand?.priceRatio[p.id] ?? 1);
   }
   if (def.production) {
     const p = def.production;
@@ -130,7 +130,7 @@ export function forecast(state, lotId, type, companyId = null, brandId = undefin
     r.produced = Math.round(produced);
     const out = rec.output;
     let ownUse = 0;
-    if (def.retail) for (const pr of def.retail.products) ownUse += (pr.recipe[out] || 0) * pr.attach * served;
+    if (def.retail) for (const pr of def.retail.products.filter((x) => !x.opt)) ownUse += (pr.recipe[out] || 0) * pr.attach * served;
     r.output = out;
     r.outputPrice = sellPrice(state, out, place);
     revenueDay += Math.max(0, produced - ownUse) * r.outputPrice;

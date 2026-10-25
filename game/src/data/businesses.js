@@ -1,6 +1,7 @@
 // Типы бизнесов прототипа (тир I + первые производства).
 //
 // retail     — продажи людям: perStaff (клиентов в день на сотрудника), cap (лимит по уровню оборудования),
+//              opt — товар не продаётся по умолчанию: его ставят на свободную полку (ассортимент, см. SHELVES),
 //              products: первый продукт — основной (attach = 1), остальные докупаются с вероятностью attach.
 //              ref — базовая цена в стране с доходом 1 (меняется по уровню доходов города).
 // production — выпуск товаров: perStaff (единиц в день на сотрудника), cap (по уровню) либо capPerArea,
@@ -27,6 +28,10 @@ export const BUSINESSES = {
       products: [
         { id: 'coffee', name: 'Кофе', ref: 4.2, attach: 1, recipe: { coffee_roasted: 0.018, milk: 0.12, cups: 1 } },
         { id: 'pastry', name: 'Выпечка', ref: 2.6, attach: 0.3, recipe: { pastry: 1 } },
+        { id: 'tea', name: 'Чай', ref: 3.2, attach: 0.25, opt: true, recipe: { tea: 0.006, cups: 1 } },
+        { id: 'dessert', name: 'Десерт', ref: 3.8, attach: 0.2, opt: true, recipe: { chocolate: 0.04, milk: 0.05 } },
+        { id: 'juice', name: 'Сок', ref: 3.5, attach: 0.15, opt: true, recipe: { juice: 0.3, cups: 1 } },
+        { id: 'sandwich', name: 'Сэндвич', ref: 4.5, attach: 0.2, opt: true, recipe: { flour: 0.08, sausages: 0.04, vegetables: 0.03 } },
       ],
     },
   },
@@ -42,6 +47,8 @@ export const BUSINESSES = {
       products: [
         { id: 'bread', name: 'Хлеб', ref: 2.2, attach: 1, recipe: { flour: 0.35, sugar: 0.01 } },
         { id: 'pastry', name: 'Выпечка', ref: 1.8, attach: 0.6, recipe: { pastry: 1 } },
+        { id: 'cake', name: 'Торт', ref: 9, attach: 0.1, opt: true, recipe: { flour: 0.2, sugar: 0.1, butter: 0.05, eggs: 2 } },
+        { id: 'coffee', name: 'Кофе с собой', ref: 3, attach: 0.2, opt: true, recipe: { coffee_roasted: 0.015, milk: 0.1, cups: 1 } },
       ],
     },
     production: {
@@ -61,6 +68,10 @@ export const BUSINESSES = {
       products: [
         { id: 'hotdog', name: 'Хот-дог', ref: 3.8, attach: 1, recipe: { meat: 0.08, flour: 0.06 } },
         { id: 'drink', name: 'Напиток', ref: 1.6, attach: 0.5, recipe: { cups: 1, sugar: 0.03 } },
+        { id: 'fries', name: 'Картошка фри', ref: 2.5, attach: 0.4, opt: true, recipe: { potatoes: 0.15, vegetable_oil: 0.02 } },
+        { id: 'nuggets', name: 'Наггетсы', ref: 4, attach: 0.2, opt: true, recipe: { chicken: 0.1, flour: 0.02, vegetable_oil: 0.01 } },
+        { id: 'soda', name: 'Газировка', ref: 2, attach: 0.3, opt: true, recipe: { soda: 0.4, cups: 1 } },
+        { id: 'icecream', name: 'Мороженое', ref: 2.5, attach: 0.15, opt: true, recipe: { ice_cream: 0.1 } },
       ],
     },
   },
@@ -76,6 +87,12 @@ export const BUSINESSES = {
       products: [
         { id: 'basket', name: 'Покупка', ref: 11.0, attach: 1, recipe: { groceries: 4 } },
         { id: 'milk', name: 'Молоко', ref: 1.3, attach: 0.3, recipe: { milk: 1 } },
+        { id: 'veg', name: 'Овощи', ref: 2, attach: 0.2, opt: true, recipe: { vegetables: 0.8 } },
+        { id: 'beer', name: 'Пиво', ref: 2.5, attach: 0.15, opt: true, recipe: { beer: 0.5 } },
+        { id: 'household', name: 'Бытовая химия', ref: 4, attach: 0.1, opt: true, recipe: { detergents: 1 } },
+        { id: 'frozen', name: 'Заморозка', ref: 5, attach: 0.1, opt: true, recipe: { frozen_food: 0.6 } },
+        { id: 'canned', name: 'Консервы', ref: 2.2, attach: 0.1, opt: true, recipe: { canned_food: 1 } },
+        { id: 'eggs', name: 'Яйца (10 шт)', ref: 3, attach: 0.15, opt: true, recipe: { eggs: 10 } },
       ],
     },
   },
@@ -154,6 +171,9 @@ export const BUSINESSES = {
       products: [
         { id: 'meal', name: 'Блюдо', ref: 20, attach: 1, recipe: { meat: 0.18, flour: 0.08, milk: 0.08, cheese: 0.04, sugar: 0.02 } },
         { id: 'drinks', name: 'Напитки', ref: 7, attach: 0.6, recipe: { groceries: 1 } },
+        { id: 'wine', name: 'Вино', ref: 9, attach: 0.3, opt: true, recipe: { wine: 0.2 } },
+        { id: 'fishdish', name: 'Рыбное блюдо', ref: 24, attach: 0.2, opt: true, recipe: { fish: 0.25, vegetables: 0.1, vegetable_oil: 0.02 } },
+        { id: 'dessert', name: 'Десерт', ref: 7, attach: 0.25, opt: true, recipe: { ice_cream: 0.1, chocolate: 0.03 } },
       ],
     },
   },
@@ -170,6 +190,15 @@ export const BUSINESSES = {
         { id: 'basket', name: 'Покупка', ref: 24, attach: 1, recipe: { groceries: 10 } },
         { id: 'dairy', name: 'Молоко и сыр', ref: 4.5, attach: 0.5, recipe: { milk: 1, cheese: 0.15 } },
         { id: 'bakery', name: 'Выпечка', ref: 1.4, attach: 0.4, recipe: { pastry: 1 } },
+        { id: 'veg', name: 'Овощи', ref: 2, attach: 0.25, opt: true, recipe: { vegetables: 0.8 } },
+        { id: 'fruit', name: 'Фрукты', ref: 3, attach: 0.25, opt: true, recipe: { fruits: 1 } },
+        { id: 'meat', name: 'Мясо', ref: 12, attach: 0.12, opt: true, recipe: { meat: 0.6 } },
+        { id: 'fish', name: 'Рыба', ref: 10, attach: 0.08, opt: true, recipe: { fish: 0.5 } },
+        { id: 'beer', name: 'Пиво', ref: 2.5, attach: 0.15, opt: true, recipe: { beer: 0.5 } },
+        { id: 'wine', name: 'Вино', ref: 9, attach: 0.08, opt: true, recipe: { wine: 0.75 } },
+        { id: 'sweets', name: 'Сладости', ref: 4, attach: 0.15, opt: true, recipe: { chocolate: 0.1 } },
+        { id: 'household', name: 'Бытовая химия', ref: 4, attach: 0.12, opt: true, recipe: { detergents: 1 } },
+        { id: 'frozen', name: 'Заморозка', ref: 5, attach: 0.12, opt: true, recipe: { frozen_food: 0.6 } },
       ],
     },
   },
@@ -318,6 +347,7 @@ export const BUSINESSES = {
       products: [
         { id: 'meds', name: 'Лекарства', ref: 15, attach: 1, recipe: { medicine: 1.4 } },
         { id: 'pcosm', name: 'Косметика', ref: 9, attach: 0.3, recipe: { cosmetics: 1 } },
+        { id: 'household', name: 'Бытовая химия', ref: 4, attach: 0.1, opt: true, recipe: { detergents: 1 } },
       ],
     },
   },
@@ -345,6 +375,7 @@ export const BUSINESSES = {
       products: [
         { id: 'car', name: 'Автомобиль', ref: 23700, attach: 1, tradable: 0.75, recipe: { cars: 1 } },
         { id: 'carservice', name: 'Допы и сервис', ref: 900, attach: 0.6, recipe: { parts: 5 } },
+        { id: 'tires', name: 'Комплект шин', ref: 260, attach: 0.3, opt: true, tradable: 0.6, recipe: { tires: 4 } },
       ],
     },
   },
@@ -360,6 +391,7 @@ export const BUSINESSES = {
       products: [
         { id: 'repair', name: 'Ремонт', ref: 110, attach: 1, recipe: { parts: 1.5 } },
         { id: 'tires', name: 'Шиномонтаж', ref: 50, attach: 0.3, recipe: { parts: 0.3 } },
+        { id: 'oil', name: 'Замена масла', ref: 60, attach: 0.3, opt: true, recipe: { fuel: 5, chemicals: 1 } },
       ],
     },
   },
@@ -489,6 +521,8 @@ export const BUSINESSES = {
       products: [
         { id: 'refuel', name: 'Заправка (35 л)', ref: 30, attach: 1, tradable: 0.5, recipe: { fuel: 35 } },
         { id: 'snack', name: 'Кофе и снеки', ref: 3, attach: 0.35, recipe: { groceries: 0.6, cups: 1, coffee_roasted: 0.01 } },
+        { id: 'hotdog', name: 'Хот-дог', ref: 3, attach: 0.1, opt: true, recipe: { sausages: 0.08, flour: 0.06 } },
+        { id: 'drinks', name: 'Напитки', ref: 2, attach: 0.2, opt: true, recipe: { soda: 0.5 } },
       ],
     },
   },
@@ -583,6 +617,8 @@ export const BUSINESSES = {
       products: [
         { id: 'device', name: 'Гаджет', ref: 215, attach: 1, tradable: 0.6, recipe: { electronics: 1 } },
         { id: 'accessory', name: 'Аксессуары', ref: 25, attach: 0.6, recipe: { electronics: 0.1, plastic: 0.2 } },
+        { id: 'laptop', name: 'Ноутбук', ref: 900, attach: 0.08, opt: true, tradable: 0.6, recipe: { computers: 1 } },
+        { id: 'appliance', name: 'Бытовая техника', ref: 450, attach: 0.05, opt: true, tradable: 0.6, recipe: { appliances: 1 } },
       ],
     },
   },
@@ -965,6 +1001,7 @@ export const BUSINESSES = {
       products: [
         { id: 'clothes', name: 'Одежда', ref: 22, attach: 1, tradable: 0.4, recipe: { clothing: 1 } },
         { id: 'shoes', name: 'Обувь', ref: 42, attach: 0.35, tradable: 0.4, recipe: { shoes: 1 } },
+        { id: 'sport', name: 'Спортивное', ref: 34, attach: 0.1, opt: true, tradable: 0.4, recipe: { sports_goods: 1 } },
       ],
     },
   },
@@ -980,6 +1017,7 @@ export const BUSINESSES = {
       products: [
         { id: 'furniture', name: 'Мебель', ref: 450, attach: 1, tradable: 0.5, recipe: { furniture: 1 } },
         { id: 'appliance', name: 'Техника', ref: 480, attach: 0.5, tradable: 0.6, recipe: { appliances: 1 } },
+        { id: 'textile', name: 'Текстиль для дома', ref: 30, attach: 0.2, opt: true, tradable: 0.4, recipe: { fabric: 4 } },
       ],
     },
   },
@@ -995,6 +1033,7 @@ export const BUSINESSES = {
       products: [
         { id: 'materials', name: 'Стройматериалы', ref: 75, attach: 1, tradable: 0.4, recipe: { paint: 2, cement: 25, cables: 5, lumber: 0.03 } },
         { id: 'tools', name: 'Инструменты', ref: 16, attach: 0.4, recipe: { steel: 2, plastic: 1 } },
+        { id: 'garden', name: 'Удобрения для сада', ref: 12, attach: 0.15, opt: true, recipe: { fertilizer: 10 } },
       ],
     },
   },
@@ -1010,6 +1049,8 @@ export const BUSINESSES = {
       products: [
         { id: 'toy', name: 'Игрушка', ref: 18, attach: 1, tradable: 0.4, recipe: { toys: 1 } },
         { id: 'book', name: 'Книга', ref: 12, attach: 0.4, tradable: 0.4, recipe: { books: 1 } },
+        { id: 'sweets', name: 'Сладости', ref: 4, attach: 0.2, opt: true, recipe: { chocolate: 0.1 } },
+        { id: 'sport', name: 'Спорттовары', ref: 30, attach: 0.1, opt: true, tradable: 0.4, recipe: { sports_goods: 1 } },
       ],
     },
   },
@@ -1025,6 +1066,8 @@ export const BUSINESSES = {
       products: [
         { id: 'sport', name: 'Спорттовары', ref: 34, attach: 1, tradable: 0.4, recipe: { sports_goods: 1 } },
         { id: 'bike', name: 'Велосипед', ref: 290, attach: 0.06, tradable: 0.5, recipe: { bicycles: 1 } },
+        { id: 'clothes', name: 'Спортивная одежда', ref: 25, attach: 0.2, opt: true, tradable: 0.4, recipe: { clothing: 1 } },
+        { id: 'shoes', name: 'Кроссовки', ref: 45, attach: 0.15, opt: true, tradable: 0.4, recipe: { shoes: 1 } },
       ],
     },
   },
@@ -1056,6 +1099,7 @@ export const BUSINESSES = {
         { id: 'beer', name: 'Пиво', ref: 5.5, attach: 1, recipe: { beer: 0.5 } },
         { id: 'wine', name: 'Бокал вина', ref: 8, attach: 0.35, recipe: { wine: 0.15 } },
         { id: 'snack', name: 'Закуски', ref: 6, attach: 0.4, recipe: { sausages: 0.1, potatoes: 0.15, vegetable_oil: 0.02 } },
+        { id: 'cocktail', name: 'Коктейль', ref: 9, attach: 0.2, opt: true, recipe: { juice: 0.1, soda: 0.1, sugar: 0.02 } },
       ],
     },
   },
@@ -1122,6 +1166,9 @@ export const EQUIPMENT = [
 ];
 // Квалификация персонала — по уровню зарплаты (staff.js WAGE_LEVELS): дороже люди — выше качество
 export const STAFF_CLASSES = { 0.8: { name: 'Стажёры', k: 2.2 }, 1: { name: 'Опытные', k: 3.0 }, 1.2: { name: 'Профессионалы', k: 3.7 }, 1.5: { name: 'Мастера', k: 4.4 } };
+
+// Полки: сколько видов товаров точка продаёт одновременно (по классу оборудования); больше — шире ассортимент
+export const SHELVES = [3, 4, 6];
 
 // Улучшения оборудования: уровень 1..3.
 export const MAX_LEVEL = 3;

@@ -124,6 +124,9 @@ function internalDemand(state, unit, good) {
 // и что успеет приехать за это время (дальний груз не спасёт от пустых полок завтра)
 function orderQty(state, unit, good, lead) {
   const need = unit.usage[good] || 0;
+  // «держать на полке N»: пополняем до заданного запаса
+  const target = unit.target?.[good];
+  if (target !== undefined) return target - invQty(unit, good) - inTransit(state, unit, good);
   return need * (cover(unit, good) + lead) - invQty(unit, good) - inTransit(state, unit, good, lead);
 }
 
@@ -137,39 +140,56 @@ function capRoom(state, unit, good, qty) {
 function supplyInternally(state, unit, good) {
   const toWarehouse = isWarehouse(unit);
   const sources = sortedSources(state, unit, good, toWarehouse).filter(({ s }) => state.units[s.id] && invQty(s, good) > 0);
-  if (!sources.length) return;
-  const market = buyPrice(state, good, placeOf(state, unit), { bulk: toWarehouse });
-  for (const { s, km } of sources) {
-    // свой порт в регионе отправления: без простоя в портах и дешевле по морю
-    const viaPort = km > SEA_KM && hasPort(state, unit.companyId, placeOf(state, s));
-    const lead = leadDays(km) - (viaPort ? PORT_DAYS : 0);
-    const seaFactor = viaPort ? 0.7 : 1;
-    const want = capRoom(state, unit, good, orderQty(state, unit, good, lead));
-    if (want <= (unit.usage[good] || 0) * 0.2) continue;
-    const avail = invQty(s, good) - selfReserve(s, good);
-    if (avail <= 0) continue;
-    const fromWarehouse = isWarehouse(s);
-    const k = invK(s, good);
-    // производство «продаёт» своим по рыночной цене своего региона (за свой класс), склад передаёт по себестоимости
-    const price = fromWarehouse ? s.inv[good].c : sellPrice(state, good, placeOf(state, s)) * qualityPrice(k, good);
-    // через границу (вне торгового блока) — таможенная пошлина
-    const duty = tariffRate(state, placeOf(state, s).country, placeOf(state, unit).country);
-    // везти своё имеет смысл, только если с доставкой и пошлиной выходит не дороже местного рынка
-    if (price * (1 + duty) + transportCost(good, 1, km, { bulk: toWarehouse }) * seaFactor > market * qualityPrice(k, good)) continue;
-    const qty = Math.min(avail, want);
-    const cost = takeInv(s, good, qty);
-    s.month.revInternal += qty * price;
-    s.month.cogs += cost;
-    s.month.shippedInternal = (s.month.shippedInternal || 0) + qty;
-    const transport = transportCost(good, qty, km, { bulk: toWarehouse }) * freightFactor(state, unit.companyId, placeOf(state, unit))
-      * (1 - 0.12 * techLevel(state, unit.companyId, 'logistics')) * seaFactor;
-    spend(state, unit, 'transport', transport);
-    if (duty) spend(state, unit, 'duty', qty * price * duty);
-    // доставка и пошлина уже записаны в отчёт отдельными строками — в себестоимость запаса их не включаем
-    deliver(state, unit, good, qty, price, lead, s.id, k);
-    (unit.sources ||= {})[good] = s.id; // для линий цепочек на карте
-    unit.supplied[good] = fromWarehouse ? 'warehouse' : 'internal';
+  for (const { s, km } of sources) shipFrom(state, unit, good, s, km, true);
+}
+
+// Цена своего товара для получателя: у производства — рыночная цена его региона за его класс, у склада — себестоимость
+export function internalQuote(state, unit, good, s, km) {
+  const toWarehouse = isWarehouse(unit);
+  const viaPort = km > SEA_KM && hasPort(state, unit.companyId, placeOf(state, s));
+  const lead = leadDays(km) - (viaPort ? PORT_DAYS : 0);
+  const seaFactor = viaPort ? 0.7 : 1;
+  const k = invK(s, good);
+  const price = isWarehouse(s) ? s.inv[good]?.c ?? 0 : sellPrice(state, good, placeOf(state, s)) * qualityPrice(k, good);
+  const duty = tariffRate(state, placeOf(state, s).country, placeOf(state, unit).country);
+  const transport = transportCost(good, 1, km, { bulk: toWarehouse }) * seaFactor * freightFactor(state, unit.companyId, placeOf(state, unit))
+    * (1 - 0.12 * techLevel(state, unit.companyId, 'logistics'));
+  return { price, duty, transport, lead, seaFactor, k, total: price * (1 + duty) + transport };
+}
+
+// Отгрузка от своего бизнеса s. checkPrice — везти, только если с доставкой не дороже рынка того же класса
+function shipFrom(state, unit, good, s, km, checkPrice) {
+  const toWarehouse = isWarehouse(unit);
+  const q = internalQuote(state, unit, good, s, km);
+  const want = capRoom(state, unit, good, orderQty(state, unit, good, q.lead));
+  if (want <= (unit.usage[good] || 0) * 0.2) return;
+  const avail = invQty(s, good) - selfReserve(s, good);
+  if (avail <= 0) return;
+  if (checkPrice && q.total > buyPrice(state, good, placeOf(state, unit), { bulk: toWarehouse }) * qualityPrice(q.k, good)) return;
+  const qty = Math.min(avail, want);
+  const cost = takeInv(s, good, qty);
+  s.month.revInternal += qty * q.price;
+  s.month.cogs += cost;
+  s.month.shippedInternal = (s.month.shippedInternal || 0) + qty;
+  spend(state, unit, 'transport', q.transport * qty);
+  if (q.duty) spend(state, unit, 'duty', qty * q.price * q.duty);
+  // доставка и пошлина уже записаны в отчёт отдельными строками — в себестоимость запаса их не включаем
+  deliver(state, unit, good, qty, q.price, q.lead, s.id, q.k);
+  (unit.sources ||= {})[good] = s.id; // для линий цепочек на карте
+  unit.supplied[good] = isWarehouse(s) ? 'warehouse' : 'internal';
+}
+
+// Поставщики товара для окна закупок: рынок (по выбранному классу) и свои производства и склады
+export function supplierOptions(state, unit, good) {
+  const place = placeOf(state, unit);
+  const k = gradeK(unit, good);
+  const list = [{ key: 'market', name: 'Рынок (оптовики)', price: buyPrice(state, good, place, { bulk: isWarehouse(unit) }) * qualityPrice(k, good), k, lead: 1, km: 0, stock: Infinity }];
+  for (const { s, km } of sortedSources(state, unit, good, isWarehouse(unit))) {
+    if (!state.units[s.id]) continue;
+    const q = internalQuote(state, unit, good, s, km);
+    list.push({ key: s.id, name: s.name, price: q.total, k: q.k, lead: q.lead, km, stock: invQty(s, good) });
   }
+  return list;
 }
 
 function buyOnMarket(state, unit, good) {
@@ -201,9 +221,19 @@ export function procureAll(state) {
     const goods = isWarehouse(unit) ? Object.keys(unit.usage) : inputGoods(unit);
     for (const good of goods) {
       if (good === outputGood(unit)) continue; // своё производство
-      if (!(unit.usage[good] > 0)) continue;
-      supplyInternally(state, unit, good);
-      buyOnMarket(state, unit, good);
+      if (!(unit.usage[good] > 0) && unit.target?.[good] === undefined) continue;
+      // поставщик: auto — свои, если дешевле, иначе рынок; market — только рынок; id бизнеса — только он
+      const from = unit.suppliers?.[good] ?? 'auto';
+      if (from === 'auto') {
+        supplyInternally(state, unit, good);
+        buyOnMarket(state, unit, good);
+      } else if (from === 'market') {
+        buyOnMarket(state, unit, good);
+      } else {
+        const src = state.units[from];
+        if (src && src.companyId === unit.companyId) shipFrom(state, unit, good, src, distanceKm(lotOf(state, unit), lotOf(state, src)), false);
+        if (!unit.supplied[good]) unit.supplied[good] = 'empty';
+      }
     }
   }
 }

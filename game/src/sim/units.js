@@ -1,4 +1,4 @@
-import { BUSINESSES, EQUIPMENT, STAFF_CLASSES } from '../data/businesses.js';
+import { BUSINESSES, EQUIPMENT, STAFF_CLASSES, SHELVES } from '../data/businesses.js';
 import { GOODS, GRADES } from '../data/goods.js';
 import { costIndex } from './world.js';
 import { refPrice } from './demand.js';
@@ -8,6 +8,19 @@ import { foreignFactor } from './expansion.js';
 import { techLevel } from './research.js';
 import { energyFactor, mallDiscount } from './bonuses.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
+
+// Ассортимент: какие товары точка продаёт сейчас. Первый — основной, всегда в продаже;
+// без настройки — стандартный набор (без товаров «на выбор»)
+export function activeProducts(unit) {
+  const ps = BUSINESSES[unit.type].retail?.products || [];
+  if (!unit.assortment) return ps.filter((p) => !p.opt);
+  return ps.filter((p, i) => i === 0 || unit.assortment.includes(p.id));
+}
+
+// Сколько видов товаров помещается на полки
+export function shelfCount(unit) {
+  return SHELVES[unit.level - 1] + (unit.extraShelves || 0);
+}
 
 export function emptyMonth() {
   return {
@@ -143,7 +156,7 @@ export function productionCapacity(state, unit) {
 export function inputGoods(unit) {
   const def = BUSINESSES[unit.type];
   const goods = new Set();
-  if (def.retail) for (const p of def.retail.products) for (const g of Object.keys(p.recipe)) goods.add(g);
+  if (def.retail) for (const p of activeProducts(unit)) for (const g of Object.keys(p.recipe)) goods.add(g);
   if (def.production) for (const g of Object.keys(recipeOf(unit)?.inputs || {})) goods.add(g);
   if (def.service) for (const g of Object.keys(def.service.inputs)) goods.add(g);
   return [...goods];
@@ -159,7 +172,7 @@ export function dailyNeed(unit, customers, produced) {
   /** @type {Record<string, number>} */
   const need = {};
   if (def.retail) {
-    for (const p of def.retail.products) {
+    for (const p of activeProducts(unit)) {
       for (const [g, q] of Object.entries(p.recipe)) need[g] = (need[g] || 0) + customers * p.attach * q;
     }
   }

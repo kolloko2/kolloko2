@@ -6,6 +6,7 @@ import { countryDemand } from './countries.js';
 import { dateOf } from './state.js';
 import { trendOf, districtEventOf } from './luck.js';
 import { shopsIn } from './shops.js';
+import { activeProducts } from './units.js';
 
 // Логит-модель выбора покупателя:
 //   U = −βp·ln(цена/норма) + βq·(качество − 3) + βa·узнаваемость + βv·(видимость − 0.5)
@@ -16,6 +17,7 @@ export const BETA_AWARENESS = 1.5;
 export const BETA_VISIBILITY = 0.5;
 export const U_OUTSIDE = 1.0;
 export const AI_AWARENESS = 0.5;
+export const BETA_ASSORTMENT = 0.08; // за каждый товар сверх основного
 
 export function utility(priceRatio, quality, awareness, visibility, betaPrice = BETA_PRICE) {
   return (
@@ -89,11 +91,10 @@ export function refPrice(place, product) {
 
 // Взвешенное отношение цен юнита к местной норме
 export function unitPriceRatio(state, unit) {
-  const def = BUSINESSES[unit.type];
   const place = state.world.places[unit.placeId];
   let num = 0;
   let den = 0;
-  for (const p of def.retail.products) {
+  for (const p of activeProducts(unit)) {
     const ref = refPrice(place, p);
     num += p.attach * (unit.prices[p.id] ?? ref);
     den += p.attach * ref;
@@ -109,7 +110,9 @@ export function districtBeta(district) {
 export function unitUtility(state, unit) {
   const lot = state.world.lots[unit.lotId];
   const beta = districtBeta(state.world.districts[lot.districtId]);
-  return utility(unitPriceRatio(state, unit), unit.quality, effectiveAwareness(state, unit), lot.visibility, beta);
+  // шире ассортимент — чуть больше покупателей заходят именно сюда
+  const assortment = BETA_ASSORTMENT * (activeProducts(unit).length - 1);
+  return utility(unitPriceRatio(state, unit), unit.quality, effectiveAwareness(state, unit), lot.visibility, beta) + assortment;
 }
 
 // Распределение покупателей района между продавцами категории.

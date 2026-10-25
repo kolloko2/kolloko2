@@ -597,3 +597,13 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after { animation:
 .list-item.static { cursor: default; }
 @media (max-width: 760px) { .city-hud { width: calc(100% - 20px); } .ch-facts { display: none; } }
 .zoom-city .map-layers, .zoom-city .map-toggle { display: none; }
+.supply-card { padding: 8px 10px; }
+.supply-ctl { display: grid; grid-template-columns: 1fr; gap: 4px; margin-top: 6px; font-size: 12px; }
+.supply-ctl label { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.supply-ctl select { max-width: 240px; font-size: 12px; }
+.supply-ctl input { width: 80px; }
+.assort tr.off td { opacity: .55; }
+.assort .price-ctl input { width: 58px; }
+.assort { font-size: 12px; width: 100%; }
+.assort td, .assort th { padding: 4px 4px; }
+.assort .price-in { width: 62px; padding: 3px 4px; }

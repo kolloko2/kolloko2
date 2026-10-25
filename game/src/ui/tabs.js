@@ -329,6 +329,10 @@ function renderBrands(app) {
       ${Object.entries(AD_CHANNELS).map(([ch, c]) => `<div class="row"><span title="${esc(c.desc)}">${c.icon} ${c.name}</span><span class="price-ctl"><input type="number" min="0" step="50" value="${b.ads?.[ch] || 0}" data-change="brandAds" data-id="${b.id}" data-channel="${ch}"></span></div>`).join('')}
       <label class="row check"><span>🛠 Автообновление: сеть сама ремонтирует точки при износе 35% (если в кассе есть деньги)</span><input type="checkbox" data-change="setAutoRenew" data-id="${b.id}" ${b.autoRenew ? 'checked' : ''}></label>
       <div class="row"><span>Персонал</span><span class="chips tight">${WAGE_LEVELS.map((l) => `<button class="chip ${b.wageLevel === l ? 'active' : ''}" data-action="brandWage" data-id="${b.id}" data-level="${l}" title="зарплата ${Math.round(l * 100)}%">${STAFF_CLASSES[l].name}</button>`).join('')}</span></div>
+      ${BUSINESSES[b.type].retail ? `<div class="row"><span>Ассортимент</span><span class="chips tight">${BUSINESSES[b.type].retail.products.slice(1).map((p) => {
+        const on = (b.assortment || BUSINESSES[b.type].retail.products.filter((x) => !x.opt).map((x) => x.id)).includes(p.id);
+        return `<button class="chip ${on ? 'active' : ''}" data-action="brandAssortment" data-id="${b.id}" data-product="${p.id}" data-on="${on ? 0 : 1}">${p.name}</button>`;
+      }).join('')}</span></div>` : ''}
       <div class="row"><span>Закупки</span><span class="chips tight">${Object.entries(GRADES).map(([g, gr]) => `<button class="chip ${(b.grades?.[BUSINESSES[b.type].retail?.products[0] ? Object.keys(BUSINESSES[b.type].retail.products[0].recipe)[0] : ''] ?? 'std') === g ? 'active' : ''}" data-action="brandGrade" data-id="${b.id}" data-grade="${g}">${gr.name}</button>`).join('')}</span></div>`;
     if (cities.length) {
       html += '<table class="tbl compact"><tr><th>Город</th><th>Точек</th><th>Узнаваемость бренда</th></tr>';

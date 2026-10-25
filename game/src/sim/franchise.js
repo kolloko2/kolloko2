@@ -30,7 +30,7 @@ export function packageCost(country) {
 export function franchiseRevenue(state, brand, place) {
   const def = BUSINESSES[brand.type];
   let check = 0;
-  for (const p of def.retail.products) check += p.attach * refPrice(place, p) * (brand.priceRatio[p.id] ?? 1);
+  for (const p of def.retail.products.filter((x) => !x.opt)) check += p.attach * refPrice(place, p) * (brand.priceRatio[p.id] ?? 1);
   return check * def.retail.cap[0] * 0.5 * 30 * countryDemand(state, place.country);
 }
 

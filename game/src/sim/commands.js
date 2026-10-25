@@ -5,7 +5,7 @@ import { canBuildHere, forecast } from './forecast.js';
 import { addNews, loanLimit, companyUnits } from './state.js';
 import {
   emptyMonth, capexFor, defaultPrices, dailyNeed, productionCapacity, pay, receive, placeOf, renovateCost, condition,
-  monthlyWage, spend, allowedRecipes,
+  monthlyWage, spend, allowedRecipes, activeProducts, shelfCount, outputGood,
 } from './units.js';
 import { GOODS, GRADES } from '../data/goods.js';
 
@@ -256,6 +256,60 @@ const handlers = {
     unit.condition = 100; // новое оборудование
     unit.bookValue += cost;
     addNews(state, 'good', `«${unit.name}»: установлено ${EQUIPMENT[level - 1].name.toLowerCase()} оборудование (${fmt(cost)}).`, { unitId }, companyId);
+    return OK;
+  },
+
+  // Ассортимент: поставить товар на полку или снять (у точек сети — для всей сети)
+  setAssortment(state, { unitId, brandId, productId, on }, companyId) {
+    if (brandId) {
+      const brand = state.brands[brandId];
+      if (!brand || brand.companyId !== companyId) return fail('Нет такой сети');
+      const ps = BUSINESSES[brand.type].retail?.products || [];
+      if (!ps.some((p) => p.id === productId) || ps[0].id === productId) return fail('Этот товар нельзя убрать');
+      const cur = new Set(brand.assortment || ps.filter((p) => !p.opt).map((p) => p.id));
+      if (on) cur.add(productId);
+      else cur.delete(productId);
+      brand.assortment = [...cur];
+      applyBrand(state, brand);
+      return OK;
+    }
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit) return fail('Нет такого бизнеса');
+    if (unit.brandId) return fail('Ассортимент точек сети задаёт сеть');
+    const ps = BUSINESSES[unit.type].retail?.products || [];
+    if (!ps.some((p) => p.id === productId)) return fail('Нет такого товара');
+    if (ps[0].id === productId) return fail('Основной товар убрать нельзя');
+    const cur = new Set(activeProducts(unit).map((p) => p.id));
+    if (on) {
+      if (cur.size >= shelfCount(unit)) return fail(`Все полки заняты (${shelfCount(unit)}). Уберите товар или поставьте ещё полки`);
+      cur.add(productId);
+    } else cur.delete(productId);
+    unit.assortment = [...cur];
+    unit.usage = dailyNeed(unit, unit.today.customers || 0, 0);
+    return OK;
+  },
+
+  // Поставщик товара: auto, market или id своего бизнеса
+  setSupplier(state, { unitId, good, from }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit || !GOODS[good]) return fail('Нет такого бизнеса или товара');
+    if (from !== 'auto' && from !== 'market') {
+      const src = state.units[from];
+      if (!src || src.companyId !== companyId) return fail('Это не ваш бизнес');
+      if (outputGood(src) !== good && !BUSINESSES[src.type].storage) return fail('Этот бизнес такой товар не выпускает');
+    }
+    (unit.suppliers ||= {})[good] = from;
+    return OK;
+  },
+
+  // «Держать на полке N»: qty — штук (кг, л) в запасе; null — по умолчанию (запас на несколько дней)
+  setTarget(state, { unitId, good, qty }, companyId) {
+    const unit = ownUnit(state, unitId, companyId);
+    if (!unit || !GOODS[good]) return fail('Нет такого бизнеса или товара');
+    unit.target ||= {};
+    if (qty === null || qty === undefined) delete unit.target[good];
+    else if (!(qty >= 0 && qty <= 1e8)) return fail('Неверный запас');
+    else unit.target[good] = Math.round(qty);
     return OK;
   },
 

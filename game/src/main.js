@@ -680,6 +680,9 @@ async function handleAction(el) {
       render();
       break;
     }
+    case 'brandAssortment':
+      app.dispatch({ type: 'setAssortment', brandId: id, productId: el.dataset.product, on: el.dataset.on === '1' });
+      break;
     case 'unitTab':
       app.unitTab = el.dataset.tab;
       renderPanel(app);
@@ -908,6 +911,15 @@ function handleChange(el) {
     case 'setGrade':
       app.dispatch({ type: 'setGrade', unitId: id, good: el.dataset.good, grade: el.value });
       break;
+    case 'setSupplier':
+      app.dispatch({ type: 'setSupplier', unitId: id, good: el.dataset.good, from: el.value });
+      break;
+    case 'setTarget':
+      app.dispatch({ type: 'setTarget', unitId: id, good: el.dataset.good, qty: el.value === '' ? null : Number(el.value) });
+      break;
+    case 'setAssortment':
+      app.dispatch({ type: 'setAssortment', unitId: id, productId: el.dataset.product, on: el.checked });
+      break;
     case 'setSellMode':
       app.dispatch({ type: 'setSellMode', unitId: id, mode: el.value });
       break;
@@ -1098,6 +1110,7 @@ function bindUi() {
 
 // ---------- старт ----------
 async function boot() {
+  /** @type {any} */ (window).magnat = { app }; // для отладки из консоли браузера и автотестов
   await loadIcons();
   // Пока открыто лобби, под ним показываем демо-мир (не сохраняется)
   app.session = new LocalSession(createGame({ seed: 1 }));

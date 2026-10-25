@@ -27,7 +27,7 @@ import { dateOf, addNews, netWorth, monthLabel, activeCompanies, companyUnits } 
 import {
   emptyMonth, monthProfit, retailCapacity, productionCapacity, dailyNeed, invQty, takeInv, addInv,
   lotOf, placeOf, spend, earn, spendCompany, earnCompany, monthlyWage, monthlyRent, monthlyUpkeep, baseQuality,
-  WEAR_PER_DAY, condition, renovateCost, pay, recipeOf, invK, outputK,
+  WEAR_PER_DAY, condition, renovateCost, pay, recipeOf, invK, outputK, activeProducts,
 } from './units.js';
 import { GOODS } from '../data/goods.js';
 /** @typedef {import('./types.js').State} State @typedef {import('./types.js').Unit} Unit @typedef {import('./types.js').Company} Company */
@@ -83,23 +83,33 @@ function deliveryMode(state, unit) {
 }
 
 function sellRetail(state, unit, basePotential) {
-  const def = BUSINESSES[unit.type];
   const d = deliveryMode(state, unit);
   const potential = basePotential * (1 + (d?.extra ?? 0));
   const cap = retailCapacity(state, unit);
-  const [main, ...extras] = def.retail.products;
+  const [main, ...extras] = activeProducts(unit);
+  const stats = (unit.month.byProduct ||= {}); // по товарам: [продано, выручка, себестоимость]
   let stockMain = Infinity;
   for (const [g, q] of Object.entries(main.recipe)) stockMain = Math.min(stockMain, invQty(unit, g) / q);
   const served = Math.floor(Math.max(0, Math.min(potential, cap, stockMain)));
   let cost = 0;
   let revenue = served * unit.prices[main.id];
   for (const [g, q] of Object.entries(main.recipe)) cost += takeInv(unit, g, served * q);
+  const sm = (stats[main.id] ||= [0, 0, 0]);
+  sm[0] += served;
+  sm[1] += served * unit.prices[main.id];
+  sm[2] += cost;
   for (const p of extras) {
     let can = served * p.attach;
     for (const [g, q] of Object.entries(p.recipe)) can = Math.min(can, invQty(unit, g) / q);
     can = Math.floor(Math.max(0, can));
-    for (const [g, q] of Object.entries(p.recipe)) cost += takeInv(unit, g, can * q);
+    let c = 0;
+    for (const [g, q] of Object.entries(p.recipe)) c += takeInv(unit, g, can * q);
+    cost += c;
     revenue += can * unit.prices[p.id];
+    const st = (stats[p.id] ||= [0, 0, 0]);
+    st[0] += can;
+    st[1] += can * unit.prices[p.id];
+    st[2] += c;
   }
   earn(state, unit, revenue);
   if (d) {

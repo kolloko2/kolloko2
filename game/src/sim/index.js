@@ -9,7 +9,7 @@ export { forecast, buildableTypes, canBuildHere, searchLots } from './forecast.j
 export { buyPrice, sellPrice, midPrice, regionOf, qualityPrice } from './market.js';
 export { contractOffer, contractGoods, remainingValue, CONTRACT_MONTHS } from './contracts.js';
 export { leadDays, inTransit } from './logistics.js';
-export { isWarehouse, storageCapacity, storedKg, servedBy } from './supply.js';
+export { isWarehouse, storageCapacity, storedKg, servedBy, supplierOptions, internalQuote } from './supply.js';
 export {
   BRAND_TIERS, brandOf, brandUnits, brandAwareness, effectiveAwareness, presenceTarget,
 } from './brands.js';

@@ -14,12 +14,12 @@ import {
   monthlyUpkeep, retailCapacity, productionCapacity, invQty, buyPrice, sellPrice, coverDays, formatDate,
   condition, renovateCost, seasonFactor, trainingCost, MAX_TRAINING, serviceMood, DELIVERY_CATEGORIES, ownCourier, rivalUnitPrice, ARCHETYPES, bidForUnit, rivalWants, truceCost, TRUCE_MONTHS, offerText, adsOf, channelFit, ownBillboards, trendOf, districtEventOf,
   recipeOf, allowedRecipes, canBuildHere, capexFor, missingTech, shopsIn, distanceKm,
-  invK, gradeK, productK, outputK, equipmentCost, hiringFee, qualityPrice,
+  invK, gradeK, productK, outputK, equipmentCost, hiringFee, qualityPrice, supplierOptions, activeProducts, shelfCount,
 } from '../sim/index.js';
 import { money, moneyShort, num, pct, stars, months, esc, signClass, bars } from './format.js';
 
 const CATEGORY_LABEL = { coffee: '☕ Кофе', fastfood: '🌭 Фастфуд', grocery: '🏪 Продукты', bakery: '🥐 Выпечка', restaurant: '🍽️ Рестораны', fuel: '⛽ АЗС', electronics: '📱 Техника', hotel: '🏨 Отели', fitness: '🏋️ Фитнес', beauty: '💇 Красота', pharmacy: '💊 Аптеки', cars: '🚗 Автомобили', autoservice: '🔧 Автосервис' };
-const SUPPLY_LABEL = { internal: '🔗 своё', warehouse: '🏗️ склад', contract: '📝 контракт', market: '💹 рынок', nocash: '⛔ нет денег' };
+const SUPPLY_LABEL = { internal: '🔗 своё', warehouse: '🏗️ склад', contract: '📝 контракт', market: '💹 рынок', nocash: '⛔ нет денег', empty: '⛔ у поставщика пусто' };
 
 function row(label, value, cls = '') {
   return `<div class="row"><span>${label}</span><b class="${cls}">${value}</b></div>`;
@@ -468,26 +468,74 @@ function renderStaff(app, u) {
 function renderSupplies(app, u) {
   const { state } = app;
   const def = BUSINESSES[u.type];
-  const place = state.world.places[u.placeId];
-  const goods = [...new Set([...Object.keys(u.usage), ...Object.keys(u.inv)])];
+  const goods = [...new Set([...Object.keys(u.usage), ...Object.keys(u.inv), ...Object.keys(u.target || {})])];
   if (!goods.length) return '';
   const out = recipeOf(u)?.output;
-  let html = `<table class="tbl compact"><tr><th>Товар</th><th>Запас</th><th>Дней</th><th>Класс</th><th>Откуда</th><th>Цена</th></tr>`;
+  let html = '<h3>Закупки</h3>';
   for (const g of goods) {
     const q = invQty(u, g);
     const use = u.usage[g] || 0;
     const days = use > 0 ? q / use : null;
     const k = invK(u, g);
-    const src = g === out ? '🏭 выпуск' : SUPPLY_LABEL[u.supplied?.[g]] || '—';
+    if (g === out) {
+      html += `<div class="card supply-card"><div class="row"><b>${goodIcon(g, 'inline')} ${GOODS[g].name}</b><span>${num(q)} ${GOODS[g].unit} · 🏭 свой выпуск · ${num(k, 1)}★</span></div></div>`;
+      continue;
+    }
+    const opts = supplierOptions(state, u, g);
+    const from = u.suppliers?.[g] ?? 'auto';
     const grade = u.grades?.[g] ?? 'std';
-    const pick = g === out ? `<b>${stars(k)}</b>` : `<select data-change="setGrade" data-id="${u.id}" data-good="${g}" ${u.brandId ? 'disabled' : ''} title="Класс закупки на рынке">
-      ${Object.entries(GRADES).map(([id, gr]) => `<option value="${id}" ${grade === id ? 'selected' : ''}>${gr.name}</option>`).join('')}</select>`;
-    const price = g === out ? sellPrice(state, g, place) * qualityPrice(k, g) : buyPrice(state, g, place, { bulk: !!def.storage }) * qualityPrice(gradeK(u, g), g);
-    html += `<tr><td>${goodIcon(g, 'inline')} ${GOODS[g].name}</td><td>${num(q, q < 10 ? 1 : 0)} ${GOODS[g].unit}<br><small class="muted">${transitText(state, u, g)}</small></td>
-      <td class="${days !== null && days < 1 ? 'neg' : ''}">${days === null ? '—' : num(days, 1)}</td>
-      <td>${pick}<br><small class="muted">${q > 0 ? `${gradeName(k)} ${num(k, 1)}★` : ''}</small></td><td>${src}</td><td>${money(price, { cents: true })}</td></tr>`;
+    const status = SUPPLY_LABEL[u.supplied?.[g]] || '—';
+    html += `<div class="card supply-card"><div class="row"><b>${goodIcon(g, 'inline')} ${GOODS[g].name}</b>
+      <span class="${days !== null && days < 1 ? 'neg' : ''}">${num(q, q < 10 ? 1 : 0)} ${GOODS[g].unit}${days !== null ? ` · ${num(days, 1)} дн.` : ''}${q > 0 ? ` · ${gradeName(k)} ${num(k, 1)}★` : ''}</span></div>
+      <div class="row small"><span>Сейчас: ${status} · в пути ${transitText(state, u, g)}</span><span>расход ~${num(use, use < 10 ? 1 : 0)}/день</span></div>
+      <div class="supply-ctl">
+        <label>Поставщик <select data-change="setSupplier" data-id="${u.id}" data-good="${g}">
+          <option value="auto" ${from === 'auto' ? 'selected' : ''}>Авто: свои, если дешевле, иначе рынок</option>
+          ${opts.map((o) => `<option value="${o.key}" ${from === o.key ? 'selected' : ''}>${esc(o.name)} · ${money(o.price, { cents: true })} · ${num(o.k, 1)}★ · ${o.lead} дн.${o.km ? ` · ${num(o.km)} км` : ''}${o.stock !== Infinity ? ` · есть ${num(o.stock)}` : ''}</option>`).join('')}
+        </select></label>
+        <label>Класс на рынке <select data-change="setGrade" data-id="${u.id}" data-good="${g}" ${u.brandId ? 'disabled' : ''}>
+          ${Object.entries(GRADES).map(([id, gr]) => `<option value="${id}" ${grade === id ? 'selected' : ''}>${gr.name} ${gr.k}★</option>`).join('')}</select></label>
+        <label>Держать в запасе <input type="number" min="0" step="1" placeholder="авто" value="${u.target?.[g] ?? ''}" data-change="setTarget" data-id="${u.id}" data-good="${g}"> ${GOODS[g].unit}</label>
+      </div></div>`;
   }
-  return `${html}</table><div class="muted small">Своё производство отдаёт товар своего класса; на рынке — класс, который вы выбрали.</div>`;
+  return html;
+}
+
+// Себестоимость единицы товара: сырьё по цене запаса (если пусто — по цене поставщика)
+function productCost(state, u, p) {
+  const place = state.world.places[u.placeId];
+  let c = 0;
+  for (const [g, q] of Object.entries(p.recipe)) {
+    const s = u.inv[g];
+    c += q * (s && s.q > 0 ? s.c : buyPrice(state, g, place) * qualityPrice(gradeK(u, g), g));
+  }
+  return c;
+}
+
+// Ассортимент и цены: что на полках, почём, сколько стоит сделать, сколько продано
+function renderAssortment(app, u, brand) {
+  const { state } = app;
+  const def = BUSINESSES[u.type];
+  const place = state.world.places[u.placeId];
+  const active = new Set(activeProducts(u).map((p) => p.id));
+  const stats = u.month.byProduct || {};
+  let html = `<h3>Ассортимент и цены <small class="muted">полки: ${active.size} из ${shelfCount(u)}</small></h3>
+    <table class="tbl compact assort"><tr><th></th><th>Товар</th><th>Цена</th><th>Себест.</th><th>Маржа</th><th>Продано</th></tr>`;
+  def.retail.products.forEach((p, i) => {
+    const on = active.has(p.id);
+    const cost = productCost(state, u, p);
+    const price = u.prices[p.id] ?? refPrice(place, p);
+    const st = stats[p.id];
+    const lock = i === 0 || u.brandId;
+    html += `<tr class="${on ? '' : 'off'}"><td><input type="checkbox" ${on ? 'checked' : ''} ${lock ? 'disabled' : ''} data-change="setAssortment" data-id="${u.id}" data-product="${p.id}" title="${i === 0 ? 'Основной товар' : 'Поставить на полку'}"></td>
+      <td>${p.name}<br><small class="muted" title="Обычная цена в городе">обычно ${money(refPrice(place, p), { cents: true })}</small></td>
+      <td>${brand ? money(price, { cents: true }) : `<input class="price-in" type="number" step="0.1" min="0.1" value="${price.toFixed(2)}" data-change="setPrice" data-id="${u.id}" data-product="${p.id}">`}</td>
+      <td>${money(cost, { cents: true })}</td><td class="${signClass(price - cost)}">${price > 0 ? pct((price - cost) / price) : '—'}</td>
+      <td>${st ? `${num(st[0])}<br><small class="muted">${moneyShort(st[1] - st[2])}</small>` : '—'}</td></tr>`;
+  });
+  html += '</table>';
+  if (brand) html += `<div class="muted small">Ассортимент, цены и рекламу задаёт сеть «${esc(brand.name)}» — <a href="#" data-action="openTab" data-tab="brands">настроить</a>.</div>`;
+  return html;
 }
 
 // Реклама по каналам: бюджет и насколько канал подходит точке
@@ -565,20 +613,7 @@ function renderUnit(app, u) {
 
   if (tab === 'sales') {
     if (def.retail) html += renderBrandRow(app, u, brand);
-    if (def.retail && brand) {
-      html += `<h3>Цены</h3><div class="card">${def.retail.products.map((p) => row(p.name, `${money(u.prices[p.id], { cents: true })} <small class="muted">· ${Math.round((brand.priceRatio[p.id] ?? 1) * 100)}% нормы</small>`)).join('')}
-        <div class="muted small">Цены, рекламу и персонал задаёт сеть «${esc(brand.name)}» — <a href="#" data-action="openTab" data-tab="brands">настроить</a>.</div></div>`;
-    } else if (def.retail) {
-      html += '<h3>Цены</h3><div class="card">';
-      for (const p of def.retail.products) {
-        const ref = refPrice(place, p);
-        html += `<div class="row"><span>${p.name}<small class="muted"> · обычно ${money(ref, { cents: true })}</small></span>
-          <span class="price-ctl"><button class="mini" data-action="priceStep" data-id="${u.id}" data-product="${p.id}" data-step="-0.1">−</button>
-          <input type="number" step="0.1" min="0.1" value="${u.prices[p.id].toFixed(2)}" data-change="setPrice" data-id="${u.id}" data-product="${p.id}">
-          <button class="mini" data-action="priceStep" data-id="${u.id}" data-product="${p.id}" data-step="0.1">+</button></span></div>`;
-      }
-      html += '</div>';
-    }
+    if (def.retail) html += renderAssortment(app, u, brand);
     if (def.retail && DELIVERY_CATEGORIES.includes(def.category)) {
       const courier = ownCourier(state, u.companyId, u.placeId);
       html += `<div class="card"><div class="row"><span>🛵 Доставка${t.delivered ? ` <small class="muted">${num(t.delivered)} заказов</small>` : ''}</span><select data-change="setDelivery" data-id="${u.id}">
